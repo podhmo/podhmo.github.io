@@ -3,8 +3,8 @@
   "short_name": "hello",
   "theme_color": "#ccc",
   "background_color": "#ccc",
-  "display": "browser",
-  "orientation": "",
+  "display": "standalone",
+  "orientation": "any",
   "scope": "/pwa/hello",
   "start_url": "/pwa/hello",
   "icons": [
