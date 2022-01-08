@@ -1,0 +1,9 @@
+{
+    "name": "hello-example",
+    "short_name": "hello",
+    "theme_color": "#ccc",
+    "background_color": "#ccc",
+    "display": "browser",
+    "scope": "/pwa/hello",
+    "start_url": "/pwa/hello"
+}
