@@ -1,9 +1,10 @@
-var cacheName = 'hello-pwa';
-var filesToCache = [
-  './',
-  './index.html',
-  './style.css',
-  './main.js'
+const cacheName = 'hello-pwa';
+const basePath = '/pwa/hello';
+const filesToCache = [
+  basePath + '/',
+  basePath + '/index.html',
+  basePath + '/style.css',
+  basePath + '/main.js'
 ];
 
 /* サービスワーカー起動して、コンテンツをキャッシュする */
