@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/web-manifest-combined.json",
   "name": "hello-example",
   "short_name": "hello",
   "theme_color": "#ccc",
