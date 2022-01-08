@@ -1,5 +1,5 @@
 const cacheName = 'hello-pwa';
-const basePath = '/pwa/hello/';
+const basePath = '/pwa/hello';
 const filesToCache = [
   basePath + '/',
   basePath + '/index.html',
