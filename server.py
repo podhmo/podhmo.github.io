@@ -23,7 +23,7 @@ port = args.port
 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 context.load_cert_chain(str(here / "./server.pem"))
 
-# allow_reuse_address is already true
+assert bool(http.server.ThreadingHTTPServer.allow_reuse_address) is True
 
 with http.server.ThreadingHTTPServer((host, port), http.server.SimpleHTTPRequestHandler) as httpd:
     httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
