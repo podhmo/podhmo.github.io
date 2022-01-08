@@ -6,4 +6,3 @@ window.onload = () => {
                .register('/pwa/hello/sw.js');
     }
   }
-
