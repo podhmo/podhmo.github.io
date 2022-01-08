@@ -25,7 +25,7 @@ context.load_cert_chain(str(here / "./server.pem"))
 
 # allow_reuse_address is already true
 
-with http.server.HTTPServer((host, port), http.server.SimpleHTTPRequestHandler) as httpd:
+with http.server.ThreadingHTTPServer((host, port), http.server.SimpleHTTPRequestHandler) as httpd:
     httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
     httpd.serve_forever()
 
