@@ -2,9 +2,10 @@
 - https://manifest-gen.netlify.app/
 - https://developer.mozilla.org/ja/docs/Web/Manifest
 
-## https
+## check locally
 
-- https://gist.github.com/stephenbradshaw/a2b72b5b58c93ca74b54f7747f18a481
-- https://docs.python.org/ja/3/library/ssl.html
-
-
+```console
+# toplevel
+$ python -m http.server 5555
+$ chrome.exe --user-data-dir=/tmp/foo --allow-insecure-localhost --unsafely-treat-insecure-origin-as-secure=http://localhost:5555 http://localhost:5555/pwa/hello
+```
