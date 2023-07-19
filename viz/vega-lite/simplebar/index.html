@@ -1,26 +1,32 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <script src="https://cdn.jsdelivr.net/npm/vega@5.25.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.12.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.22.1"></script>
-  <style type="text/css">
-    * {
-        box-sizing: border-box;
-    }
-    .container {
-        display: flex;
-    }
-    .code {
-        background-color: #eee;
-        padding: 10px;
-        border-radius: 10px;
-    }
-  </style>
-</head>
-<body>
-<div class="container">
-<pre id="spec" class="code">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/vega@5.25.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.12.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.22.1"></script>
+    <style type="text/css">
+      * {
+          box-sizing: border-box;
+      }
+      .grid {
+          display: grid;
+          gap: 10px;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      }
+      .item {
+          border-radius: 10px;
+          padding: 15px;
+      }
+      .code {
+          background-color: #eee;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid">
+      <pre id="spec" class="code item">
 {
   "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
   "description": "A simple bar chart with embedded data.",
@@ -44,13 +50,13 @@
   },
   "config": {}
 }
-</pre>
-<div id="vis"/>
-</div>
-  <script>
-    const text = document.querySelector("#spec").innerText;
-    const spec = JSON.parse(text.replaceAll("\n", " "));
-    vegaEmbed("#vis", spec, {mode: "vega-lite"}).then(console.log).catch(console.warn);
-  </script>
-</body>
+      </pre>
+      <div id="vis"/ class="item">
+    </div>
+    <script>
+      const text = document.querySelector("#spec").innerText;
+      const spec = JSON.parse(text.replaceAll("\n", " "));
+      vegaEmbed("#vis", spec, {mode: "vega-lite"}).then(console.log).catch(console.warn);
+    </script>
+  </body>
 </html>
