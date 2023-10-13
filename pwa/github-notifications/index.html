@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+    <title>GitHub Notifications</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body class="fullscreen">
+    <div class="container">
+        <h1 class="title">GitHub Notifications</h1>
+        <form method="POST" id="auth-form">
+            <label for="password">apikey</label>
+            <input type="password" id="apikey" autocomplete="current-password" tabindex="-1" />
+            <label for="debugStatus">debug</label>
+            <input type="checkbox" id="debugStatus" />
+            <button type="submit" tabindex="-1">fetch</button>
+        </form>
+        <a href="https://github.com/settings/tokens" target="_blank">please set PAT(personal access token)</a>
+        <pre id="output">
+
+        </pre>
+    </div>
+    <script type="module">
+        async function fetchNotifications(apikey) {
+            const headers = {
+                "Accept": "application/vnd.github+json",
+                "Authorization": `Bearer ${apikey}`,
+                "X-GitHub-Api-Version": "2022-11-28"
+            };
+            const res = await fetch("https://api.github.com/notifications", { headers });
+            return res
+        }
+
+        function setOutput(text) {
+            document.querySelector("#output").innerHTML = text;
+        }
+
+        document.querySelector("#auth-form").addEventListener("submit", async (ev) => {
+            ev.preventDefault();
+            // console.log("submit ev:%o", ev);
+
+            try {
+                const state = {
+                    apikey: ev.target.querySelector("#apikey").value,
+                    debug: ev.target.querySelector("#debugStatus").checked,
+                };
+
+                const res = await fetchNotifications(state.apikey)
+                if (res.status !== 200) {
+                    setOutput(`ng: ${res.status} ${res.statusText}: ${await res.text()}`);
+                    return;
+                }
+
+                let rows = await res.json();
+                if (!state.debug) {
+                    rows = rows.map((d) => {
+                        const title = d.subject.title;
+                        const repository = d.repository.full_name;
+                        const subjectType = d.subject.type;
+                        const url = d.subject.url;
+                        return { title, repository, url, subjectType };
+                    })
+                }
+                setOutput(JSON.stringify(rows, null, 2));
+            } catch (err) {
+                setOutput(`err: ${err}\n\n${err.stack}`);
+                throw err;
+            }
+        })
+    </script>
+</body>
+
+</html>
