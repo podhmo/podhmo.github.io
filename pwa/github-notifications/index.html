@@ -11,8 +11,14 @@
     <div class="container">
         <h1 class="title">GitHub Notifications</h1>
         <form method="POST" id="auth-form">
+            <label for="username">username</label>
+            <input type="text" id="username" autocomplete="username" tabindex="-1" value="github-notifications">
             <label for="password">apikey</label>
             <input type="password" id="apikey" autocomplete="current-password" tabindex="-1" />
+            <label for="query">query</label>
+            <input type="text" id="query" tabindex="-1" value="is:unread" />
+            <label for="participating">participating</label>
+            <input type="checkbox" id="participating" checked />
             <label for="debugStatus">debug</label>
             <input type="checkbox" id="debugStatus" />
             <button type="submit" tabindex="-1">fetch</button>
@@ -23,13 +29,26 @@
         </pre>
     </div>
     <script type="module">
-        async function fetchNotifications(apikey) {
+        async function fetchNotifications({ apikey, query, participating }) {
+            // https://docs.github.com/en/rest/activity/notifications?apiVersion=2022-11-28
             const headers = {
                 "Accept": "application/vnd.github+json",
-                "Authorization": `Bearer ${apikey}`,
+                "Authorization": `token ${apikey}`,
                 "X-GitHub-Api-Version": "2022-11-28"
             };
-            const res = await fetch("https://api.github.com/notifications", { headers });
+
+            let url = "https://api.github.com/notifications";
+            const qs = ["per_page=100", "all=false"];
+            if (query !== "") {
+                qs.push(`query=${encodeURIComponent(query)}`)
+            }
+            if (participating) {
+                qs.push(`participating=${participating}`)
+            }
+            if (qs.length > 0) {
+                url += "?" + qs.join("&")
+            }
+            const res = await fetch(url, { headers });
             return res
         }
 
@@ -44,16 +63,51 @@
             try {
                 const state = {
                     apikey: ev.target.querySelector("#apikey").value,
+                    query: ev.target.querySelector("#query").value,
                     debug: ev.target.querySelector("#debugStatus").checked,
+                    participating: ev.target.querySelector("#participating").checked
                 };
 
-                const res = await fetchNotifications(state.apikey)
+                const res = await fetchNotifications({ query: state.query, apikey: state.apikey, participating: state.participating })
                 if (res.status !== 200) {
                     setOutput(`ng: ${res.status} ${res.statusText}: ${await res.text()}`);
                     return;
                 }
 
                 let rows = await res.json();
+
+                if (state.query !== "") { // 手抜きの query
+                    // e.g. `is:unread org:encode`
+                    state.query.split(/\s+/).forEach((q) => {
+                        const [k, v] = q.split(":")
+                        if (k === "is") { // TODO: done,check-suite,commit,gist,release
+                            if (v === "unread") {
+                                rows = rows.filter((d) => d.unread)
+                            } else if (v === "read") {
+                                rows = rows.filter((d) => !d.unread)
+                            } else if (v === "issue-or-pull-request") {
+                                rows = rows.filter((d) => d.subject.type === "Issue" || d.subject.type === "PullRequest")
+                            } else if (v === "issue") {
+                                row = rows.filter((d) => d.subject.type === "Issue")
+                            } else if (v === "pull-request") {
+                                rows = rows.filter((d) => d.subject.type === "PullRequest")
+                            } else {
+                                throw new Error(`unknown query: ${q}`)
+                            }
+                        } else if (k === "org") {
+                            rows = rows.filter((d) => d.repository.owner.login === v)
+                        } else if (k === "repo") {
+                            rows = rows.filter((d) => d.repository.name === v)
+                        } else if (k === "author") {
+                            // not supported
+                            //  rows = rows.filter((d) => d.subject.latest_comment_url.includes(v))
+                        } else {
+                            // TODO: reason
+                            throw new Error(`unknown query: ${q}`)
+                        }
+                    })
+                }
+
                 if (!state.debug) {
                     rows = rows.map((d) => {
                         const title = d.subject.title;
