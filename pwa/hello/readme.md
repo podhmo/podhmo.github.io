@@ -10,7 +10,7 @@ https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Servic
 
 ```console
 # toplevel
-$ python -m http.server 5555
+$ python -m http.server 5555 --directory ../../
 
 $ chrome.exe --user-data-dir=/tmp/foo http://localhost:5555/pwa/hello
 
