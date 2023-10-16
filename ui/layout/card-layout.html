@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>layout: card layout</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        .card-layout {
+            display: flex;
+
+            /* Put a card in the next row when previous cards take all width */
+            flex-wrap: wrap;
+
+            margin-left: -0.25rem;
+            margin-right: -0.25rem;
+        }
+
+        .card-layout__item {
+            /* There will be 3 cards per row */
+            flex-basis: 33.33333%;
+
+            padding-left: 0.25rem;
+            padding-right: 0.25rem;
+        }
+    </style>
+</head>
+
+<body style="padding:2rem;">
+    <div class="card-layout" style="background-color:#eee">
+        <!-- A card with given width -->
+        <div class="card-layout__item">...</div>
+
+        <!-- Repeat other cards -->
+        <div class="card-layout__item">...</div>
+        <div class="card-layout__item">...</div>
+        <div class="card-layout__item">...</div>
+        ...
+    </div>
+    <div class="card-layout">
+        <!-- A card with given width -->
+        <div class="card-layout__item" style="background-color:#eee">...</div>
+
+        <!-- Repeat other cards -->
+        <div class="card-layout__item">...</div>
+        <div class="card-layout__item">...</div>
+        <div class="card-layout__item">...</div>
+        ...
+    </div>
+</body>
