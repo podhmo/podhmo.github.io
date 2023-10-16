@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>layout: simple grid (with display:grid)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- display: grid;を使って書き直した -->
+    <style>
+        .simple-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); /* 4列のグリッドを作成 */
+            gap: 0.5rem; /* グリッドアイテム間の隙間を設定 */
+        }
+
+        .simple-grid__cell {
+            /* グリッドアイテムの共通のスタイル */
+        }
+
+        .simple-grid__cell--1\/4 {
+            grid-column: span 1; /* 列の幅を1frに設定 */
+        }
+    </style>
+</head>
+
+<body style="padding:2rem;">
+    <!-- Row -->
+    <div class="simple-grid" style="background: #eee;">
+        <!--Cell with given width. Replace 25% with whatever you want -->
+        <div class="simple-grid__cell simple-grid__cell--1/4">25%</div>
+        <!-- Cell that takes remaining width -->
+        <div class="simple-grid__cell">...</div>
+    </div>
+    <!-- Row -->
+    <div class="simple-grid">
+        <!--Cell with given width. Replace 25% with whatever you want -->
+        <div class="simple-grid__cell simple-grid__cell--1/4" style="background: #eee;">25%</div>
+        <!-- Cell that takes remaining width -->
+        <div class="simple-grid__cell">...</div>
+    </div>
+    <!-- Row -->
+    <div class="simple-grid">
+        <!--Cell with given width. Replace 25% with whatever you want -->
+        <div class="simple-grid__cell simple-grid__cell--1/4">25%</div>
+        <!-- Cell that takes remaining width -->
+        <div class="simple-grid__cell">...</div>
+        <div class="simple-grid__cell simple-grid__cell--1/4">25%</div>
+    </div>
+</body>
