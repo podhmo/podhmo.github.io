@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<!-- https://web.dev/patterns/layout/clamping-card?hl=en -->
+
+<head>
+    <meta charset="utf-8">
+    <title>layout: clamping-card</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        .parent {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+        }
+
+        .span-12 {
+            grid-column: 1 / span 12;
+        }
+
+        .span-6 {
+            grid-column: 1 / span 6;
+        }
+
+        .span-4 {
+            grid-column: 4 / span 4;
+        }
+
+        .span-2 {
+            grid-column: 3 / span 2;
+        }
+
+        /* centering text */
+        .section {
+            display: grid;
+            place-items: center;
+            text-align: center;
+
+            padding: 0.5rem; /* for demo */
+        }
+
+
+        /* color */
+        :root {
+            --coral: hsl(300, 100%, 93%);
+            --coral--b: hsl(280, 100%, 70%);
+            --blue: hsl(200, 100%, 90%);
+            --blue--b: hsl(200, 100%, 80%);
+            --green: hsl(113, 85%, 95%);
+            --green--b: hsl(84, 71%, 53%);
+            --yellow: hsl(30, 100%, 93%);
+            --yellow--b: hsl(40, 100%, 80%);
+            --page-padding: 1rem;
+        }
+
+        .coral {
+            background-color: var(--coral);
+            border: 1px solid var(--coral--b);
+        }
+
+        .yellow {
+            background-color: var(--yellow);
+            border: 1px solid var(--yellow--b);
+        }
+
+        .blue,
+        .card {
+            background-color: var(--blue);
+            border: 1px solid var(--blue--b);
+        }
+
+        .green,
+        .visual {
+            background-color: var(--green);
+            border: 1px solid var(--green--b);
+        }
+    </style>
+</head>
+
+<body style="padding:2rem;">
+    <div class="parent" style="background-color:#eee;">
+        <div class="span-12 section coral">Span 12</div>
+        <div class="span-6 section green">Span 6</div>
+        <div class="span-4 section yellow">Span 4</div>
+        <div class="span-2 section blue">Span 2</div>
+    </div>
+    <div style="margin-top:1rem;margin-bottom:1rem"></div>
+    <div class="parent">
+        <div class="span-12 section coral" style="background-color:#eee;">Span 12</div>
+        <div class="span-6 section green">Span 6</div>
+        <div class="span-4 section yellow">Span 4</div>
+        <div class="span-2 section blue">Span 2</div>
+    </div>
+</body>
+
+</html>
