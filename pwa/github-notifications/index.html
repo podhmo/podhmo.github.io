@@ -38,7 +38,7 @@
             };
 
             let url = "https://api.github.com/notifications";
-            const qs = ["per_page=100", "all=false"];
+            const qs = ["per_page=50", "all=false"];
             if (query !== "") {
                 qs.push(`query=${encodeURIComponent(query)}`)
             }
@@ -79,7 +79,17 @@
                 if (state.query !== "") { // 手抜きの query
                     // e.g. `is:unread org:encode`
                     state.query.split(/\s+/).forEach((q) => {
-                        const [k, v] = q.split(":")
+                        if (q === ""){
+                          return
+                        }
+
+                        let [k, v] = q.split(":")
+                        let isExclude = false;
+                        if (v.startsWith("-")) {
+                            isExclude = true;
+                            v = v.slice(1)
+                        }
+
                         if (k === "is") { // TODO: done,check-suite,commit,gist,release
                             if (v === "unread") {
                                 rows = rows.filter((d) => d.unread)
@@ -95,9 +105,9 @@
                                 throw new Error(`unknown query: ${q}`)
                             }
                         } else if (k === "org") {
-                            rows = rows.filter((d) => d.repository.owner.login === v)
+                            rows = isExclude ? rows.filter((d) => d.repository.owner.login !== v) : rows.filter((d) => d.repository.owner.login === v)
                         } else if (k === "repo") {
-                            rows = rows.filter((d) => d.repository.name === v)
+                            rows = isExclude ? rows.filter((d) => d.repository.full_name !== v) : rows.filter((d) => d.repository.full_name === v)
                         } else if (k === "author") {
                             // not supported
                             //  rows = rows.filter((d) => d.subject.latest_comment_url.includes(v))
