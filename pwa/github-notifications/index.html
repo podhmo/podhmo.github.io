@@ -5,6 +5,9 @@
     <meta charset="utf-8">
     <title>GitHub Notifications</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- css -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
 </head>
 
 <body class="fullscreen">
@@ -16,14 +19,36 @@
             <label for="password">apikey</label>
             <input type="password" id="apikey" autocomplete="current-password" tabindex="-1" />
             <label for="query">query</label>
-            <input type="text" id="query" tabindex="-1" value="is:unread" />
-            <label for="participating">participating</label>
-            <input type="checkbox" id="participating" checked />
-            <label for="debugStatus">debug</label>
-            <input type="checkbox" id="debugStatus" />
+            <input type="search" id="query" tabindex="-1" value="is:unread" />
+            <div class="grid">
+                <fieldset>
+                    <legend>participating</legend>
+                    <label for="participating">
+                        <input type="checkbox" id="participating" checked role="switch" />
+                    </label>
+                </fieldset>
+                <fieldset>
+                    <legend>debug</legend>
+                    <label for="debugStatus">
+                        <input type="checkbox" id="debugStatus" role="switch" />
+                    </label>
+                </fieldset>
+            </div>
             <button type="submit" tabindex="-1">fetch</button>
         </form>
         <a href="https://github.com/settings/tokens" target="_blank">please set PAT(personal access token)</a>
+
+        <!-- <article>
+            <header>xxxx</header>
+            <article>
+                yyyyyy
+            </article>
+        </article>
+        <article>
+            <header>xxxx</header>
+            yyyyyy
+        </article> -->
+
         <pre id="output">
 
         </pre>
@@ -79,8 +104,8 @@
                 if (state.query !== "") { // 手抜きの query
                     // e.g. `is:unread org:encode`
                     state.query.split(/\s+/).forEach((q) => {
-                        if (q === ""){
-                          return
+                        if (q === "") {
+                            return
                         }
 
                         let [k, v] = q.split(":")
@@ -123,7 +148,7 @@
                         const title = d.subject.title;
                         const repository = d.repository.full_name;
                         const subjectType = d.subject.type;
-                        const url = d.subject.url;
+                        const url = d.subject.url; // null if d.subject.type === "Discussion"
                         return { title, repository, url, subjectType };
                     })
                 }

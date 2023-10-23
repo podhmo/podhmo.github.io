@@ -1,0 +1,200 @@
+[
+    {
+      "title": "clarify meaning of \"non-path module type\"",
+      "repository": "ocaml/ocaml",
+      "url": "https://api.github.com/repos/ocaml/ocaml/pulls/12679",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Playground: implicitly opened modules",
+      "repository": "rescript-lang/rescript-compiler",
+      "url": "https://api.github.com/repos/rescript-lang/rescript-compiler/pulls/6446",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Tree shaking is not working when invoking lib in vue component",
+      "repository": "vitejs/vite",
+      "url": "https://api.github.com/repos/vitejs/vite/issues/14738",
+      "subjectType": "Issue"
+    },
+    {
+      "title": "Optimize --find-links=",
+      "repository": "pypa/pip",
+      "url": "https://api.github.com/repos/pypa/pip/pulls/12327",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "`model_json_schema` fails with empty enum",
+      "repository": "pydantic/pydantic",
+      "url": "https://api.github.com/repos/pydantic/pydantic/issues/7896",
+      "subjectType": "Issue"
+    },
+    {
+      "title": "Build slow at the end",
+      "repository": "vitejs/vite",
+      "url": null,
+      "subjectType": "Discussion"
+    },
+    {
+      "title": "Cleanup links",
+      "repository": "tiangolo/fastapi",
+      "url": "https://api.github.com/repos/tiangolo/fastapi/pulls/10500",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Independent dependencies for manual chunks",
+      "repository": "vitejs/vite",
+      "url": null,
+      "subjectType": "Discussion"
+    },
+    {
+      "title": "fix: normalize default html path",
+      "repository": "vitejs/vite",
+      "url": "https://api.github.com/repos/vitejs/vite/pulls/14737",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Usage of ContextVar in Fastapi",
+      "repository": "tiangolo/fastapi",
+      "url": null,
+      "subjectType": "Discussion"
+    },
+    {
+      "title": "feat: report progress when downloading packages",
+      "repository": "pdm-project/pdm",
+      "url": "https://api.github.com/repos/pdm-project/pdm/pulls/2328",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Support @parcel/watcher",
+      "repository": "vitejs/vite",
+      "url": "https://api.github.com/repos/vitejs/vite/issues/13593",
+      "subjectType": "Issue"
+    },
+    {
+      "title": "feat(resolve)!: remove `resolve.browserField`",
+      "repository": "vitejs/vite",
+      "url": "https://api.github.com/repos/vitejs/vite/pulls/14733",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "feat: deno run --unstable-hmr",
+      "repository": "denoland/deno",
+      "url": "https://api.github.com/repos/denoland/deno/pulls/20876",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "feat(import-glob): support read module from alias pattern ",
+      "repository": "vitejs/vite",
+      "url": "https://api.github.com/repos/vitejs/vite/pulls/12221",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "docs: 🇩🇪 added german locale link to config.ts;",
+      "repository": "vitejs/vite",
+      "url": "https://api.github.com/repos/vitejs/vite/pulls/14724",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Support ZoneInfo in BaseModel",
+      "repository": "pydantic/pydantic",
+      "url": "https://api.github.com/repos/pydantic/pydantic/issues/7847",
+      "subjectType": "Issue"
+    },
+    {
+      "title": "docs: remove ViteConf 23 CTA and add a link in Resources",
+      "repository": "vitejs/vite",
+      "url": "https://api.github.com/repos/vitejs/vite/pulls/14736",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "PEP 730: Revisions and clarifications following community discussion",
+      "repository": "python/peps",
+      "url": "https://api.github.com/repos/python/peps/pulls/3506",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Uncaught TypeError: myComponent.$set is not a function",
+      "repository": "sveltejs/svelte",
+      "url": "https://api.github.com/repos/sveltejs/svelte/issues/9351",
+      "subjectType": "Issue"
+    },
+    {
+      "title": "PEP 705: Simplify and clarify proposal",
+      "repository": "python/peps",
+      "url": "https://api.github.com/repos/python/peps/pulls/3504",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Updated async.md",
+      "repository": "tiangolo/fastapi",
+      "url": "https://api.github.com/repos/tiangolo/fastapi/pulls/10498",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Fix type directed disambiguation of optional arg defaults",
+      "repository": "ocaml/ocaml",
+      "url": "https://api.github.com/repos/ocaml/ocaml/pulls/12673",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "What's the changelog for version 4.5.0?",
+      "repository": "vitejs/vite",
+      "url": null,
+      "subjectType": "Discussion"
+    },
+    {
+      "title": "chore: vite 5 test compatibility again",
+      "repository": "sveltejs/kit",
+      "url": "https://api.github.com/repos/sveltejs/kit/pulls/10909",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Overrides in pyproject.toml not excluding specified modules",
+      "repository": "python/mypy",
+      "url": "https://api.github.com/repos/python/mypy/issues/16316",
+      "subjectType": "Issue"
+    },
+    {
+      "title": "Fix compile status with help command",
+      "repository": "rescript-lang/rescript-compiler",
+      "url": "https://api.github.com/repos/rescript-lang/rescript-compiler/pulls/6439",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Enable Subscription Functionality for GraphiQL-Explorer",
+      "repository": "mirumee/ariadne",
+      "url": "https://api.github.com/repos/mirumee/ariadne/pulls/1125",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "chore(deps): update dependency eslint-plugin-regexp to v2",
+      "repository": "vitejs/vite",
+      "url": "https://api.github.com/repos/vitejs/vite/pulls/14730",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Running on root directory \"Failed to resolve entry for package\"",
+      "repository": "vitejs/vite",
+      "url": "https://api.github.com/repos/vitejs/vite/issues/6859",
+      "subjectType": "Issue"
+    },
+    {
+      "title": "URL Query Parameter with .scss causes vite to fail",
+      "repository": "vitejs/vite",
+      "url": "https://api.github.com/repos/vitejs/vite/issues/6894",
+      "subjectType": "Issue"
+    },
+    {
+      "title": "fix(resolve): make directory package.json check best effort",
+      "repository": "vitejs/vite",
+      "url": "https://api.github.com/repos/vitejs/vite/pulls/14626",
+      "subjectType": "PullRequest"
+    },
+    {
+      "title": "Generate entry points in (ex-)PEP-582 mode",
+      "repository": "pdm-project/pdm",
+      "url": "https://api.github.com/repos/pdm-project/pdm/issues/2325",
+      "subjectType": "Issue"
+    }
+  ]
