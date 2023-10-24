@@ -1,0 +1,70 @@
+[
+  {
+    "url": "https://api.github.com/repos/ocaml/ocaml/pulls/comments/1368322934",
+    "pull_request_review_id": 1692008982,
+    "id": 1368322934,
+    "node_id": "PRRC_kwDOAGeMds5RjvN2",
+    "diff_hunk": "@@ -100,6 +100,29 @@ module type S = sig\n end [@@expect error];;\n \\end{caml_example}\n \n+\n+Local module type substitutions also allow for the removal of functor",
+    "path": "manual/src/refman/extensions/signaturesubstitution.etex",
+    "commit_id": "d7b698cb725c8ca66889d897f23ae5cab9561c55",
+    "original_commit_id": "5e344cd3410b58c347ecc3bf073be3f18b548393",
+    "user": {
+      "login": "Octachron",
+      "id": 7689388,
+      "node_id": "MDQ6VXNlcjc2ODkzODg=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7689388?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/Octachron",
+      "html_url": "https://github.com/Octachron",
+      "followers_url": "https://api.github.com/users/Octachron/followers",
+      "following_url": "https://api.github.com/users/Octachron/following{/other_user}",
+      "gists_url": "https://api.github.com/users/Octachron/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/Octachron/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/Octachron/subscriptions",
+      "organizations_url": "https://api.github.com/users/Octachron/orgs",
+      "repos_url": "https://api.github.com/users/Octachron/repos",
+      "events_url": "https://api.github.com/users/Octachron/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/Octachron/received_events",
+      "type": "User",
+      "site_admin": false
+    },
+    "body": "The use of `removal` sounds potentially confusing since it is not clear what we are removing and when we are removing it. Similarly, extended paths are also allowed in types:\r\n```ocaml\r\nmodule type s = sig\r\n  type t := Set.Make(String).t\r\nend\r\n```\r\nMaybe we should provide both examples\r\n```\r\nLocal substitutions can also be used to give a local name to a type or a module type introduced by a functor application:\r\n```\r\n```ocaml\r\nmodule type F = sig\r\n  type set := Set.Make(Int).t\r\n\r\n  module type Type = sig type t end (* introduced to avoid using `module type of` *)\r\n  module Nest : Type -> sig module type T = Type end\r\n\r\n  module type T := Nest(Int).T\r\n\r\n  val set: set\r\n  val m : (module T)\r\nend;;\r\n```\r\n?",
+    "created_at": "2023-10-23T08:43:26Z",
+    "updated_at": "2023-10-23T08:43:26Z",
+    "html_url": "https://github.com/ocaml/ocaml/pull/12679#discussion_r1368322934",
+    "pull_request_url": "https://api.github.com/repos/ocaml/ocaml/pulls/12679",
+    "author_association": "MEMBER",
+    "_links": {
+      "self": {
+        "href": "https://api.github.com/repos/ocaml/ocaml/pulls/comments/1368322934"
+      },
+      "html": {
+        "href": "https://github.com/ocaml/ocaml/pull/12679#discussion_r1368322934"
+      },
+      "pull_request": {
+        "href": "https://api.github.com/repos/ocaml/ocaml/pulls/12679"
+      }
+    },
+    "reactions": {
+      "url": "https://api.github.com/repos/ocaml/ocaml/pulls/comments/1368322934/reactions",
+      "total_count": 0,
+      "+1": 0,
+      "-1": 0,
+      "laugh": 0,
+      "hooray": 0,
+      "confused": 0,
+      "heart": 0,
+      "rocket": 0,
+      "eyes": 0
+    },
+    "start_line": null,
+    "original_start_line": null,
+    "start_side": null,
+    "line": null,
+    "original_line": 104,
+    "side": "RIGHT",
+    "original_position": 14,
+    "position": null,
+    "subject_type": "line"
+  }
+]
