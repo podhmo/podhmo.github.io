@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+    <title>mockup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- css -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+</head>
+
+<body class="fullscreen">
+    <div class="container">
+        <details role="list" open >
+            <summary role="button">TODO</summary>
+            <ul>
+                <li>📝アバターのアイコンを取ってくる</li>
+                <li>📝コメントをいい感じに表示する</li>
+                <li>mark/unmarkを管理する</li>
+            </ul>
+        </details>
+        <article style="margin-right:0%; padding-right:0%;">
+            <h2>ocaml/ocaml</h2>
+            <article style="margin-right:0%; padding-right:0%;">
+                <div class="grid" style="grid: auto-flow / 1fr 8fr 2fr;">
+                    <img src="https://avatars.githubusercontent.com/u/12210540?s=60&v=4" style="border-radius: 50%;" />
+                    <hgroup>
+                        <h3>ocaml/ocaml <a href="https://github.com/ocaml/ocaml/pull/12679">#12679</a></h3>
+                        <h4>clarify meaning of "non-path module type"<code
+                                style="margin-left: 1rem;"><small>PullRequest</small></code></h4>
+                    </hgroup>
+                    <p>17 hours ago</p>
+                </div>
+                <article style="margin:0px;">
+                    <div class="grid" style="grid: auto-flow / 1fr 8fr 2fr;">
+                        <img src="https://avatars.githubusercontent.com/u/12210540?s=60&v=4"
+                            style="border-radius: 50%;" />
+                        <hgroup>
+                            <h4>smuenzel</h4>
+                            <p>commented 4 days ago</p>
+                        </hgroup>
+                    </div>
+                    <p>The error produced when we do the following:</p>
+                    <pre style="padding:0.5em;">
+module type fst = sig
+  module type t := sig end
+  val x: (module t)
+end</pre>
+                    <p>uses the term "non-path module type", which is not defined in the manual. This PR replaces it
+                        with "a module type which does not have a name", which I think is equivalent, and should be more
+                        understandable to those who are not as familiar with module types.</p>
+                    <p>I don't believe this needs a changes entry, since it's just a small wording change.</p>
+                </article>
+                <article style="margin:0px;">
+                    <div class="grid" style="grid: auto-flow / 1fr 8fr 2fr;">
+                        <img src="https://avatars.githubusercontent.com/u/426238?s=80&v=4"
+                            style="border-radius: 50%;" />
+                        <hgroup>
+                            <h4>gasche</h4>
+                            <p>commented 4 days ago</p>
+                        </hgroup>
+                    </div>
+                    <p>Technically users may not understand that F(X).T counts as a "name". Also, in your example, it is not clear why t does not have a name -- its name is t, right?</p>
+                    <p>I think you have a good sense of the issue but I am not sure that your proposed change is really an improvement. Should we maybe consider writing a more detailed explanation somewhere in the manual, and linking to this in the error message?</p>
+                </article>
+            </article>
+            <article>
+                <div class="grid" style="grid: auto-flow / 1fr 8fr 2fr;">
+                    <img src="https://avatars.githubusercontent.com/u/14844662?s=60&v=4" style="border-radius: 50%;" />
+                    <hgroup>
+                        <h3>ocaml/ocaml <a href="https://github.com/ocaml/ocaml/pull/12673">#12673</a></h3>
+                        <h4>Fix type directed disambiguation of optional arg defaults<code
+                                style="margin-left: 1rem;"><small>PullRequest</small></code></h4>
+                    </hgroup>
+                </div>
+            </article>
+        </article>
+        </article>
+        <article>
+            <h2>vitejs/vite</h2>
+            <article>
+                <hgroup>
+                    <h3>vitejs/vite <ins>#14738</ins></h3>
+                    <h4>Tree shaking is not working when invoking lib in vue component<code
+                            style="margin-left: 1rem;"><small>Issue</small></code></h4>
+                </hgroup>
+            </article>
+        </article>
+    </div>
+</body>
+
+</html>
