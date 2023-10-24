@@ -14,41 +14,35 @@
     <div class="container">
         <h1 class="title">GitHub Notifications</h1>
         <form method="POST" id="auth-form">
-            <label for="username">username</label>
-            <input type="text" id="username" autocomplete="username" tabindex="-1" value="github-notifications">
-            <label for="password">apikey</label>
-            <input type="password" id="apikey" autocomplete="current-password" tabindex="-1" />
-            <label for="query">query</label>
-            <input type="search" id="query" tabindex="-1" value="is:unread" />
-            <div class="grid">
-                <fieldset>
-                    <legend>participating</legend>
-                    <label for="participating">
-                        <input type="checkbox" id="participating" checked role="switch" />
-                    </label>
-                </fieldset>
-                <fieldset>
-                    <legend>debug</legend>
-                    <label for="debugStatus">
-                        <input type="checkbox" id="debugStatus" role="switch" />
-                    </label>
-                </fieldset>
-            </div>
+            <details open>
+                <summary role="button" class="secondary">form</summary>
+                <div style="padding-left:2rem;">
+                    <label for="username">username</label>
+                    <input type="text" id="username" autocomplete="username" tabindex="-1" value="github-notifications">
+                    <label for="password">apikey</label>
+                    <input type="password" id="apikey" autocomplete="current-password" tabindex="-1" />
+                    <label for="query">query</label>
+                    <input type="search" id="query" tabindex="-1" value="is:unread" />
+                    <div class="grid">
+                        <fieldset>
+                            <legend>participating</legend>
+                            <label for="participating">
+                                <input type="checkbox" id="participating" checked role="switch" />
+                            </label>
+                        </fieldset>
+                        <fieldset>
+                            <legend>debug</legend>
+                            <label for="debugStatus">
+                                <input type="checkbox" id="debugStatus" role="switch" />
+                            </label>
+                        </fieldset>
+                    </div>
+                </div>
+            </details>
             <button type="submit" tabindex="-1">fetch</button>
         </form>
         <a href="https://github.com/settings/tokens" target="_blank">please set PAT(personal access token)</a>
-
-        <!-- <article>
-            <header>xxxx</header>
-            <article>
-                yyyyyy
-            </article>
-        </article>
-        <article>
-            <header>xxxx</header>
-            yyyyyy
-        </article> -->
-
+        
         <pre id="output">
 
         </pre>
