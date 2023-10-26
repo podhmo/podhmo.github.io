@@ -37,15 +37,17 @@
         const res = await fetch("/testdata/fetch.json");
         const data = await res.json();
         const state = data.map((row) => {
-            // https://api.github.com/repos/<owner>/<repository>/pulls/<number>=> https://github.com/<owner>/<repository>/pull/<number>
+            // TODO: support discussion
+            // https://api.github.com/repos/<owner>/<repository>/pulls/<number> => https://github.com/<owner>/<repository>/pull/<number>
+            // https://api.github.com/repos/<owner>/<repository>/issuess/<number> => https://github.com/<owner>/<repository>/issues/<number>
             const html_url = row.url ? row.url.replace(/https:\/\/api\.github\.com\/repos\/([^\/]+)\/([^\/]+)\/(issues|pulls)\/(\d+)/, "https://github.com/$1/$2/$3/$4").replace("pulls/", "pull/") : "";
             const avatar_url = row.owner.avatar_url.includes("?") ? `${row.owner.avatar_url}&s=80` : `${row.owner.avatar_url}?s=80&v=4`;
-            
+
             const parts = html_url.split("/");
             return {
                 "title": row.repository,
                 "typ": row.subjectType,
-                "link": { "href": html_url, "text": `#${parts[parts.length - 1]}`, "tab": true},
+                "link": { "href": html_url, "text": `#${parts[parts.length - 1]}`, "tab": true },
                 "message": { "text": row.title, author: { name: row.owner.name, url: avatar_url }, "cdate": row.updated_at }
             };
         });
