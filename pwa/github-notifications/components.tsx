@@ -46,7 +46,7 @@ export function NotificationCard({ title, link, message, typ, children }: Notifi
                         </code>
                     </h4>
                 </hgroup>
-                <p>{message.cdate}</p>
+                <p><small>{message.cdate}</small></p>
             </div>
             {children}
         </article>
@@ -84,7 +84,6 @@ export function SectionHeader({ title, id }: { title: string, id: string }) {
 
 // -- mock ----------------------------------------
 export function MockApp() {
-    const link = (<a href="https://github.com/ocaml/ocaml/pull/12679">#12679</a>);
     return (<>
         <SectionHeader id="form" title="開閉するform"></SectionHeader>
         <details>

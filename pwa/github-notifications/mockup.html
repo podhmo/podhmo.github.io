@@ -34,6 +34,8 @@
         import { h, Component, render, Fragment } from "preact";
         import { NotificationCard } from "./components.js";
 
+        const rtf = new Intl.RelativeTimeFormat('en', { style: 'short' });
+
         const res = await fetch("/testdata/fetch.json");
         const data = await res.json();
         const state = data.map((row) => {
