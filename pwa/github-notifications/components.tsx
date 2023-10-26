@@ -3,7 +3,7 @@ import type { ComponentChildren } from "preact";
 
 // -- types ----------------------------------------
 type Author = { name: string; url: string; }
-type Link = { href: string; text: string; tab?: boolean}
+type Link = { href: string; text: string; tab?: boolean }
 type Message = { author: Author; text: string; cdate: string }
 type NotificationType = "PullRequest" | "Issue" | "Discussion";
 
@@ -13,9 +13,22 @@ export const Avatar = ({ src }: { src: string }) => {
     return <img src={src} style={{ "border-radius": "50%" }} />;
 }
 
-type CardProps = { title: string, link: Link, message: Message, typ: NotificationType, children?: ComponentChildren }
+type GroupedRepositoryCardProps = { author: Author, children?: ComponentChildren }
+export function GroupedRepositoryCard({ author, children }: GroupedRepositoryCardProps) {
+    return (
+        <article style={{ marginRight: "0%", paddingRight: "0%" }}>
+            <div className="grid" style={{ grid: "auto-flow / 1fr 8fr 2fr" }}>
+                <Avatar src={author.url} />
+                <h2>{author.name}</h2>
+            </div>
+            {children}
+        </article>
+    )
+}
 
-export function NotificationCard({ title, link, message, typ, children }: CardProps) {
+type NotificationCardProps = { title: string, link: Link, message: Message, typ: NotificationType, children?: ComponentChildren }
+
+export function NotificationCard({ title, link, message, typ, children }: NotificationCardProps) {
     const a = link.tab ? <a href={link.href} target="_blank" rel="noopener noreferrer">{link.text}</a> : <a href={link.href}>{link.text}</a>
     return (
         <article style={{ marginRight: "0%", paddingRight: "0%" }}>
@@ -59,19 +72,28 @@ export function CommentCard({ message }: CommentCardProps) {
     );
 }
 
+export function SectionHeader({ title, id }: { title: string, id: string }) {
+    return (
+        <h2 id={id}><a href={"#" + id}>{title}
+            <svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="1.5rem" height="1.5rem" aria-hidden="true">
+                <path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path>
+            </svg>
+        </a></h2>
+    )
+}
 
 // -- mock ----------------------------------------
 export function MockApp() {
     const link = (<a href="https://github.com/ocaml/ocaml/pull/12679">#12679</a>);
     return (<>
-        <h2>開閉するform</h2>
+        <SectionHeader id="form" title="開閉するform"></SectionHeader>
         <details>
             <summary role="button">title</summary>
             <label>search<input type="search"></input></label>
             <button>Submit!</button>
         </details>
 
-        <h2>コメントがない状態のnotification</h2>
+        <SectionHeader id="notification-1" title="コメントがないnotification"></SectionHeader>
         <NotificationCard
             title="ocaml/ocaml"
             typ="PullRequest"
@@ -81,10 +103,10 @@ export function MockApp() {
                 cdate: "4 days ago", text: 'clarify meaning of "non-path module type"',
             }}
         >
-            <p>oooooooooooooooooooooooooooooooooooooooo</p>
+            <p style={{ "white-space": "pre-wrap", "padding-right": "1rem" }}>oooooooooooooooooooooooooooooooooooooooo</p>
         </NotificationCard>
 
-        <h2>コメントがある状態のnotification</h2>
+        <SectionHeader id="notification-2" title="コメントがあるnotification"></SectionHeader>
         <NotificationCard
             title="ocaml/ocaml"
             typ="PullRequest"
@@ -116,5 +138,46 @@ export function MockApp() {
             >
             </CommentCard>
         </NotificationCard>
+
+        <SectionHeader id="grouped" title="repositoryでグルーピングされたnotification"></SectionHeader>
+        <GroupedRepositoryCard
+            author={{ name: "ocaml/ocaml", url: "https://avatars.githubusercontent.com/u/1841483?v=4&s=80" }}
+        >
+            <NotificationCard
+                title="ocaml/ocaml"
+                typ="PullRequest"
+                link={{ "href": "https://github.com/ocaml/ocaml/pull/12679", "text": "#12679" }}
+                message={{
+                    author: { name: "", url: "https://avatars.githubusercontent.com/u/12210540?s=60&v=4" },
+                    cdate: "4 days ago", text: 'clarify meaning of "non-path module type"',
+                }}
+            >
+                <p style={{ "white-space": "pre-wrap", "padding-right": "1rem" }}>oooooooooooooooooooooooooooooooooooooooo</p>
+            </NotificationCard>
+            <NotificationCard
+                title="ocaml/ocaml"
+                typ="PullRequest"
+                link={{ "href": "https://github.com/ocaml/ocaml/pull/12679", "text": "#12679" }}
+                message={{
+                    author: { name: "", url: "https://avatars.githubusercontent.com/u/12210540?s=60&v=4" },
+                    cdate: "4 days ago", text: 'clarify meaning of "non-path module type"',
+                }}
+            >
+                <CommentCard
+                    message={{
+                        author: { name: "smuenzel", url: "https://avatars.githubusercontent.com/u/12210540?s=60&v=4" },
+                        cdate: "4 days ago", text: "hello world"
+                    }}
+                >
+                </CommentCard>
+                <CommentCard
+                    message={{
+                        author: { name: "gasche", url: "https://avatars.githubusercontent.com/u/426238?s=60&v=4" },
+                        cdate: "4 days ago", text: 'byebye world'
+                    }}
+                >
+                </CommentCard>
+            </NotificationCard>
+        </GroupedRepositoryCard>
     </>);
 }
