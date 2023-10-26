@@ -42,7 +42,7 @@
             <button type="submit" tabindex="-1">fetch</button>
         </form>
         <a href="https://github.com/settings/tokens" target="_blank">please set PAT(personal access token)</a>
-        
+
         <pre id="output">
 
         </pre>
@@ -139,11 +139,15 @@
 
                 if (!state.debug) {
                     rows = rows.map((d) => {
+                        const id = d.id
+                        const last_read_at = d.last_read_at;
+                        const latest_comment_url = d.subject.latest_comment_url;
                         const title = d.subject.title;
                         const repository = d.repository.full_name;
                         const subjectType = d.subject.type;
                         const url = d.subject.url; // null if d.subject.type === "Discussion"
-                        return { title, repository, url, subjectType };
+                        const owner = { name: d.repository.owner.login, avatar_url: d.repository.owner.avatar_url };
+                        return { id, title, repository, url, subjectType, owner: owner, reason: d.reason, updated_at: d.updated_at, last_read_at, latest_comment_url };
                     })
                 }
                 setOutput(JSON.stringify(rows, null, 2));

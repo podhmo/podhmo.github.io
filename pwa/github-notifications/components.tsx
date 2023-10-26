@@ -3,9 +3,9 @@ import type { ComponentChildren } from "preact";
 
 // -- types ----------------------------------------
 type Author = { name: string; url: string; }
-type Link = { href: string; text: string; }
+type Link = { href: string; text: string; tab?: boolean}
 type Message = { author: Author; text: string; cdate: string }
-type NotificationType = "PullRequest" | "Issue";
+type NotificationType = "PullRequest" | "Issue" | "Discussion";
 
 
 // -- components ----------------------------------------
@@ -16,6 +16,7 @@ export const Avatar = ({ src }: { src: string }) => {
 type CardProps = { title: string, link: Link, message: Message, typ: NotificationType, children?: ComponentChildren }
 
 export function NotificationCard({ title, link, message, typ, children }: CardProps) {
+    const a = link.tab ? <a href={link.href} target="_blank" rel="noopener noreferrer">{link.text}</a> : <a href={link.href}>{link.text}</a>
     return (
         <article style={{ marginRight: "0%", paddingRight: "0%" }}>
             <div className="grid" style={{ grid: "auto-flow / 1fr 8fr 2fr" }}>
@@ -23,7 +24,7 @@ export function NotificationCard({ title, link, message, typ, children }: CardPr
                 <hgroup>
                     <h3>
                         {title}
-                        <a href={link.href}>{link.text}</a>
+                        {a}
                     </h3>
                     <h4>
                         {message.text}
