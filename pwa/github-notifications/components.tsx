@@ -86,11 +86,19 @@ export function SectionHeader({ title, id }: { title: string, id: string }) {
 export function MockApp() {
     return (<>
         <SectionHeader id="form" title="開閉するform"></SectionHeader>
-        <details>
-            <summary role="button">title</summary>
-            <label>search<input type="search"></input></label>
-            <button>Submit!</button>
-        </details>
+        <article>
+            <details>
+                <summary role="button">title</summary>
+                <label>search<input type="search"></input></label>
+                <button>Submit!</button>
+            </details>
+        </article>
+
+        <SectionHeader id="loading" title="button with loading"></SectionHeader>
+        <article>
+            <button class="secondary" aria-busy="true">button with loading</button>
+            <button class="secondary" aria-busy="false">button without loading</button>
+        </article>
 
         <SectionHeader id="notification-1" title="コメントがないnotification"></SectionHeader>
         <NotificationCard
