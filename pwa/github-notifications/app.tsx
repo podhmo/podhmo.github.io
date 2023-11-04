@@ -2,7 +2,7 @@ import { h, Fragment } from 'preact';
 import { useCallback, useState } from 'preact/hooks'
 import type { ComponentChildren } from "preact";
 
-const state = {
+const STATE = {
     input: {
         username: "github-notifications",
         query: "",
@@ -16,16 +16,16 @@ const DEBUG = false;
 type todofixSubmitHandler = any
 
 export function InputForm({ onSubmit }: { onSubmit: todofixSubmitHandler }) {
-    const [username, setusername] = useState(state.input.username);
-    const [apikey, setapikey] = useState(state.apikey);
-    const [query, setquery] = useState(state.input.query);
-    const [participating, setparticipating] = useState(state.input.participating);
-    const [debug, setdebug] = useState(state.input.debug); // todo: rename to verbose
+    const [username, setusername] = useState(STATE.input.username);
+    const [apikey, setapikey] = useState(STATE.apikey);
+    const [query, setquery] = useState(STATE.input.query);
+    const [participating, setparticipating] = useState(STATE.input.participating);
+    const [debug, setdebug] = useState(STATE.input.debug); // todo: rename to verbose
 
     const params = { username, apikey, query, participating, debug };
     return (<>
         {DEBUG && <pre>input: {JSON.stringify(params, null, null)}</pre>}
-        {DEBUG && <pre>state: {JSON.stringify(state.input, null, null)}</pre>}
+        {DEBUG && <pre>state: {JSON.stringify(STATE.input, null, null)}</pre>}
         <form method="POST" id="auth-form" onSubmit={onSubmit}>
             <details open>
                 <summary role="button" class="secondary">form</summary>
@@ -36,7 +36,7 @@ export function InputForm({ onSubmit }: { onSubmit: todofixSubmitHandler }) {
                         id="username"
                         autoComplete="username"
                         tabIndex={-1}
-                        onInput={(ev) => setusername((prev) => { const v = ev.currentTarget.value; state.input.username = v; return v })}
+                        onInput={(ev) => setusername((prev) => { const v = ev.currentTarget.value; STATE.input.username = v; return v })}
                         value={username}
                     />
                     <label htmlFor="password">apikey</label>
@@ -44,7 +44,7 @@ export function InputForm({ onSubmit }: { onSubmit: todofixSubmitHandler }) {
                         type="password"
                         id="apikey"
                         autoComplete="current-password"
-                        onInput={(ev) => setapikey((prev) => { const v = ev.currentTarget.value; state.apikey = v; return v })}
+                        onInput={(ev) => setapikey((prev) => { const v = ev.currentTarget.value; STATE.apikey = v; return v })}
                         value={apikey}
                         tabIndex={-1}
                     />
@@ -53,7 +53,7 @@ export function InputForm({ onSubmit }: { onSubmit: todofixSubmitHandler }) {
                         type="search"
                         id="query"
                         tabIndex={-1}
-                        onInput={(ev) => setquery((prev) => { const v = ev.currentTarget.value; state.input.query = v; return v })}
+                        onInput={(ev) => setquery((prev) => { const v = ev.currentTarget.value; STATE.input.query = v; return v })}
                         value={query}
                     />
                     <div class="grid">
@@ -64,7 +64,7 @@ export function InputForm({ onSubmit }: { onSubmit: todofixSubmitHandler }) {
                                     type="checkbox"
                                     id="participating"
                                     checked={participating}
-                                    onClick={(ev) => setparticipating((prev) => { const v = ev.currentTarget.checked; state.input.participating = v; return v })}
+                                    onClick={(ev) => setparticipating((prev) => { const v = ev.currentTarget.checked; STATE.input.participating = v; return v })}
                                     role="switch"
                                 />
                             </label>
@@ -76,7 +76,7 @@ export function InputForm({ onSubmit }: { onSubmit: todofixSubmitHandler }) {
                                     type="checkbox"
                                     id="debugStatus"
                                     checked={debug}
-                                    onClick={(ev) => setdebug((prev) => { const v = ev.currentTarget.checked; state.input.debug = v; return v })}
+                                    onClick={(ev) => setdebug((prev) => { const v = ev.currentTarget.checked; STATE.input.debug = v; return v })}
                                     role="switch" />
                             </label>
                         </fieldset>
@@ -91,25 +91,40 @@ export function InputForm({ onSubmit }: { onSubmit: todofixSubmitHandler }) {
     )
 }
 
-export function OutputPanel({ input, version, errorMessage }) {
+export function OutputPanel({ input, output, version, errorMessage }: { input?: any; output?: string; version: number; errorMessage?: string }) {
     const style = { padding: "1rem" };
     if (errorMessage !== "") {
         return (<pre id="output" style={{ ...style, "background-color": "#fee" }}>{errorMessage}</pre>)
     }
-    return (<pre id="output" style={style}>version{version}: {JSON.stringify(state.input, null, null)}</pre>)
+    // return (<pre id="output" style={style}>version{version}: {JSON.stringify(input, null, null)}</pre>)
+    return (<pre id="output" style={style}>version{version}: {JSON.stringify(output, null, null)}</pre>)
 }
 
 
 
 export function App() {
     const [version, setversion] = useState(1);
+    const [output, setoutput] = useState("");
     const [errorMessage, seterrorMessage] = useState("");
 
     const handleSubmit = useCallback(async (ev) => {
         ev.preventDefault()
         setversion((prev) => prev + 1) // TODO: cache
-        console.log("ababa: ", JSON.stringify(state, null, null));
+        console.log("ababa: ", JSON.stringify(STATE, null, null));
         try {
+            const state = STATE.input;
+            const query = state.query
+            const res = await fetchNotifications({ query, apikey: STATE.apikey, participating: state.participating })
+
+            if (res.status !== 200) {
+                seterrorMessage(`ng: ${res.status} ${res.statusText}: ${await res.text()}`);
+                return;
+            }
+
+            let rows = await res.json();
+            rows = filterResponseData({ rows, query, debug: state.debug });
+            setoutput(JSON.stringify(rows, null, 2));
+            seterrorMessage("");
         } catch (err) {
             seterrorMessage(`err: ${err}\n\n${err.stack}`);
             throw err;
@@ -120,7 +135,7 @@ export function App() {
             <h1 class="title">GitHub Notifications</h1>
             <InputForm onSubmit={handleSubmit}></InputForm>
             <p><a href="https://github.com/settings/tokens" target="_blank">please set PAT(personal access token)</a></p>
-            <OutputPanel input={state.input} version={version} errorMessage={errorMessage}></OutputPanel>
+            <OutputPanel input={STATE.input} output={output} version={version} errorMessage={errorMessage}></OutputPanel>
         </>
     );
 }
