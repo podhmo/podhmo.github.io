@@ -15,7 +15,7 @@ const STATE = {
 const DEBUG = false;
 type todofixSubmitHandler = any
 
-export function InputForm({ onSubmit }: { onSubmit: todofixSubmitHandler }) {
+export function InputForm({ onSubmit, loading }: { onSubmit: todofixSubmitHandler; loading: boolean }) {
     const [username, setusername] = useState(STATE.input.username);
     const [apikey, setapikey] = useState(STATE.apikey);
     const [query, setquery] = useState(STATE.input.query);
@@ -83,7 +83,7 @@ export function InputForm({ onSubmit }: { onSubmit: todofixSubmitHandler }) {
                     </div>
                 </div>
             </details>
-            <button type="submit" tabIndex={-1}>
+            <button type="submit" tabIndex={-1} aria-busy={loading ? "true" : "false"}>
                 fetch
             </button>
         </form>
@@ -105,6 +105,7 @@ export function OutputPanel({ input, output, version, errorMessage }: { input?: 
 export function App() {
     const [version, setversion] = useState(1);
     const [output, setoutput] = useState("");
+    const [loading, setloading] = useState(false);
     const [errorMessage, seterrorMessage] = useState("");
 
     const handleSubmit = useCallback(async (ev) => {
@@ -114,8 +115,10 @@ export function App() {
         try {
             const state = STATE.input;
             const query = state.query
-            const res = await fetchNotifications({ query, apikey: STATE.apikey, participating: state.participating })
 
+            setloading(() => true);
+            const res = await fetchNotifications({ query, apikey: STATE.apikey, participating: state.participating })
+            setloading(() => false);
             if (res.status !== 200) {
                 seterrorMessage(`ng: ${res.status} ${res.statusText}: ${await res.text()}`);
                 return;
@@ -133,7 +136,7 @@ export function App() {
     return (
         <>
             <h1 class="title">GitHub Notifications</h1>
-            <InputForm onSubmit={handleSubmit}></InputForm>
+            <InputForm onSubmit={handleSubmit} loading={loading}></InputForm>
             <p><a href="https://github.com/settings/tokens" target="_blank">please set PAT(personal access token)</a></p>
             <OutputPanel input={STATE.input} output={output} version={version} errorMessage={errorMessage}></OutputPanel>
         </>
@@ -162,6 +165,7 @@ async function fetchNotifications({ apikey, query, participating }) {
     if (qs.length > 0) {
         url += "?" + qs.join("&")
     }
+    // TODO: abort controller
     const res = await fetch(url, { headers });
     return res
 }
