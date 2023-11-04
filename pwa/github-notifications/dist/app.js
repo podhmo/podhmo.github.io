@@ -91,7 +91,7 @@ export function OutputPanel({ input, output, version, errorMessage }) {
   if (errorMessage !== "") {
     return /* @__PURE__ */ h("pre", { id: "output", style: { ...style, "background-color": "#fee" } }, errorMessage);
   }
-  return /* @__PURE__ */ h("pre", { id: "output", style }, "version", version, ": ", JSON.stringify(output, null, null));
+  return /* @__PURE__ */ h("pre", { id: "output", style }, "version", version, ": ", output);
 }
 export function App() {
   const [version, setversion] = useState(1);
@@ -101,7 +101,6 @@ export function App() {
   const handleSubmit = useCallback(async (ev) => {
     ev.preventDefault();
     setversion((prev) => prev + 1);
-    console.log("ababa: ", JSON.stringify(STATE, null, null));
     try {
       const state = STATE.input;
       const query = state.query;
@@ -165,7 +164,7 @@ export function filterResponseData({ rows, query, debug }) {
         } else if (v === "issue-or-pull-request") {
           rows = rows.filter((d) => d.subject.type === "Issue" || d.subject.type === "PullRequest");
         } else if (v === "issue") {
-          row = rows.filter((d) => d.subject.type === "Issue");
+          rows = rows.filter((d) => d.subject.type === "Issue");
         } else if (v === "pull-request") {
           rows = rows.filter((d) => d.subject.type === "PullRequest");
         } else {
