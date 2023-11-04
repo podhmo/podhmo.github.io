@@ -110,8 +110,10 @@ export function App() {
 
     const handleSubmit = useCallback(async (ev) => {
         ev.preventDefault()
+        // console.log("submit ev:%o", ev);
+
         setversion((prev) => prev + 1) // TODO: cache
-        console.log("ababa: ", JSON.stringify(STATE, null, null));
+        // console.log("state: ", JSON.stringify(STATE, null, null));
         try {
             const state = STATE.input;
             const query = state.query
