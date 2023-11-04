@@ -12,7 +12,9 @@
     <script type="importmap">
         {
             "imports": {
-                "preact": "https://esm.sh/preact@10.18.1"
+                "preact": "https://esm.sh/preact@10.18.1",
+                "preact/": "https://esm.sh/preact@10.18.1/",
+                "./dist/": "./dist/"    
             }
         }
     </script>
@@ -32,9 +34,7 @@
     </div>
     <script type="module">
         import { h, Component, render, Fragment } from "preact";
-        import { NotificationCard } from "./components.js";
-
-        const rtf = new Intl.RelativeTimeFormat('en', { style: 'short' });
+        import { NotificationCard } from "./dist/components.js";
 
         const res = await fetch("/testdata/fetch.json");
         const data = await res.json();

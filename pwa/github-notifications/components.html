@@ -11,11 +11,13 @@
 
 
     <script type="importmap">
-    {
-        "imports": {
-            "preact": "https://esm.sh/preact@10.18.1"
+        {
+            "imports": {
+                "preact": "https://esm.sh/preact@10.18.1",
+                "preact/": "https://esm.sh/preact@10.18.1/",
+                "./dist/": "./dist/"    
+            }
         }
-    }
     </script>
 </head>
 
@@ -24,11 +26,12 @@
         <div id="app"></div>
     </div>
 
-<script type="module">
+    <script type="module">
         import { h, Component, render } from "preact";
-        import { MockApp } from "./components.js";
+        import { ExamplesApp } from "./dist/components.js";
 
-        render(MockApp(), document.querySelector("#app"));
+        render(ExamplesApp(), document.querySelector("#app"));
     </script>
 </body>
+
 </html>

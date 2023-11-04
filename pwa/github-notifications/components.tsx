@@ -83,7 +83,7 @@ export function SectionHeader({ title, id }: { title: string, id: string }) {
 }
 
 // -- mock ----------------------------------------
-export function MockApp() {
+export function ExamplesApp() {
     return (<>
         <SectionHeader id="form" title="開閉するform"></SectionHeader>
         <article>
