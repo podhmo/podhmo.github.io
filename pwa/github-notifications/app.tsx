@@ -97,7 +97,7 @@ export function OutputPanel({ input, output, version, errorMessage }: { input?: 
         return (<pre id="output" style={{ ...style, "background-color": "#fee" }}>{errorMessage}</pre>)
     }
     // return (<pre id="output" style={style}>version{version}: {JSON.stringify(input, null, null)}</pre>)
-    return (<pre id="output" style={style}>version{version}: {JSON.stringify(output, null, null)}</pre>)
+    return (<pre id="output" style={style}>version{version}: {output}</pre>)
 }
 
 
