@@ -196,7 +196,7 @@ export function filterResponseData({ rows, query, debug }) {
                 } else if (v === "issue-or-pull-request") {
                     rows = rows.filter((d) => d.subject.type === "Issue" || d.subject.type === "PullRequest")
                 } else if (v === "issue") {
-                    row = rows.filter((d) => d.subject.type === "Issue")
+                    rows = rows.filter((d) => d.subject.type === "Issue")
                 } else if (v === "pull-request") {
                     rows = rows.filter((d) => d.subject.type === "PullRequest")
                 } else {
@@ -215,7 +215,7 @@ export function filterResponseData({ rows, query, debug }) {
             }
         })
     }
-
+    
     if (!debug) {
         rows = rows.map((d) => {
             const id = d.id
