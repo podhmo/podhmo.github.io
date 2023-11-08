@@ -20,13 +20,13 @@ type todofixSubmitHandler = any
 
 
 export function App() {
-    const [version, setversion] = useState(1);
+    const [version, setversion] = useState<number>(1);
 
-    const [rawrows, setrawrows] = useState(undefined);
-    const [rows, setrows] = useState([]);
+    const [rawrows, setrawrows] = useState<Array<any> | undefined>(undefined);
+    const [rows, setrows] = useState<Array<NotificationType>>([]);
 
-    const [loading, setloading] = useState(false);
-    const [errorMessage, seterrorMessage] = useState("");
+    const [loading, setloading] = useState<boolean>(false);
+    const [errorMessage, seterrorMessage] = useState<string>("");
     const onError = useCallback((err: Error) => {
         seterrorMessage(`err: ${err}\n\n${err.stack}`);
     }, [])
@@ -54,7 +54,7 @@ export function App() {
             const rawrows = filterResponseData({ rows: data, query });
             setrawrows(state.debug ? rawrows : undefined)
 
-            const rows = rawrows.map((d) => {
+            const rows = rawrows.map((d: any): NotificationType => {
                 const id = d.id
                 const last_read_at = d.last_read_at;
                 const latest_comment_url = d.subject.latest_comment_url;
@@ -89,11 +89,11 @@ export function App() {
 }
 
 export function InputFormPanel({ onSubmit, loading }: { onSubmit: todofixSubmitHandler; loading: boolean }) {
-    const [username, setusername] = useState(STATE.input.username);
-    const [apikey, setapikey] = useState(STATE.apikey);
-    const [query, setquery] = useState(STATE.input.query);
-    const [participating, setparticipating] = useState(STATE.input.participating);
-    const [debug, setdebug] = useState(STATE.input.debug); // todo: rename to verbose
+    const [username, setusername] = useState<string>(STATE.input.username);
+    const [apikey, setapikey] = useState<string>(STATE.apikey);
+    const [query, setquery] = useState<string>(STATE.input.query);
+    const [participating, setparticipating] = useState<boolean>(STATE.input.participating);
+    const [debug, setdebug] = useState<boolean>(STATE.input.debug); // todo: rename to verbose
 
     const params = { username, apikey, query, participating, debug };
     return (<>
@@ -204,6 +204,23 @@ function CardListPanel({ rows, onError, children }: { rows: Array<any>, onError:
     }
 }
 
+
+// ----------------------------------------
+// model
+// ----------------------------------------
+
+type NotificationType = {
+    id: string;
+    title: string;
+    repository: string;
+    url: string;
+    subjectType: string;
+    owner: { name: string; avatar_url: string; };
+    reason: string;
+    updated_at: string;
+    last_read_at: string;
+    latest_comment_url: string;
+}
 
 // ----------------------------------------
 // APIClient
