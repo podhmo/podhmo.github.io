@@ -28,7 +28,7 @@ export function App() {
     const [loading, setloading] = useState<boolean>(false);
     const [errorMessage, seterrorMessage] = useState<string>("");
     const onError = useCallback((err: Error) => {
-        seterrorMessage(`err: ${err}\n\n${err.stack}`);
+        seterrorMessage(() => `err: ${err}\n\n${err.stack}`);
     }, [])
 
     const handleSubmit = useCallback(async (ev) => {
@@ -45,14 +45,15 @@ export function App() {
             const res = await CLIENT.fetchNotifications({ query, apikey: STATE.apikey, participating: state.participating })
             setloading(() => false);
             if (res.status !== 200) {
-                seterrorMessage(`ng: ${res.status} ${res.statusText}: ${await res.text()}`);
+                const errorMessage = await res.text();
+                seterrorMessage(() => `ng: ${res.status} ${res.statusText}: ${errorMessage}`);
                 return;
             }
 
             let data = await res.json() as Array<any>; // xxx:
 
             const rawrows = filterResponseData({ rows: data, query });
-            setrawrows(state.debug ? rawrows : undefined)
+            setrawrows(() => state.debug ? rawrows : undefined)
 
             const rows = rawrows.map((d: any): NotificationType => {
                 const id = d.id
@@ -65,9 +66,9 @@ export function App() {
                 const owner = { name: d.repository.owner.login, avatar_url: d.repository.owner.avatar_url };
                 return { id, title, repository, url, subjectType, owner: owner, reason: d.reason, updated_at: d.updated_at, last_read_at, latest_comment_url };
             })
-            setrows(rows);
+            setrows(() => rows);
 
-            seterrorMessage("");
+            seterrorMessage(() => "");
         } catch (err) {
             onError(err);
             throw err;
