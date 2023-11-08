@@ -35,39 +35,14 @@ export function App() {
         ev.preventDefault()
         // console.log("submit ev:%o", ev);
 
-        setversion((prev) => prev + 1) // TODO: cache
+        setversion((prev) => prev + 1)
         // console.log("state: ", JSON.stringify(STATE, null, null));
 
-        const state = STATE.input;
-        const query = state.query
         try {
-            setloading(() => true);
-            const res = await CLIENT.fetchNotifications({ query, apikey: STATE.apikey, participating: state.participating })
-            setloading(() => false);
-            if (res.status !== 200) {
-                const errorMessage = await res.text();
-                seterrorMessage(() => `ng: ${res.status} ${res.statusText}: ${errorMessage}`);
-                return;
-            }
-
-            let data = await res.json() as Array<any>; // xxx:
-
-            const rawrows = filterResponseData({ rows: data, query });
+            const state = STATE.input;
+            const { raw: rawrows, data: rows } = await REPOSITORY.fetchNotification({ query: state.query, participating: state.participating, setloading, onError });
             setrawrows(() => state.debug ? rawrows : undefined)
-
-            const rows = rawrows.map((d: any): NotificationType => {
-                const id = d.id
-                const last_read_at = d.last_read_at;
-                const latest_comment_url = d.subject.latest_comment_url;
-                const title = d.subject.title;
-                const repository = d.repository.full_name;
-                const subjectType = d.subject.type;
-                const url = d.subject.url; // null if d.subject.type === "Discussion"
-                const owner = { name: d.repository.owner.login, avatar_url: d.repository.owner.avatar_url };
-                return { id, title, repository, url, subjectType, owner: owner, reason: d.reason, updated_at: d.updated_at, last_read_at, latest_comment_url };
-            })
             setrows(() => rows);
-
             seterrorMessage(() => "");
         } catch (err) {
             onError(err);
@@ -223,22 +198,94 @@ type NotificationType = {
     latest_comment_url: string;
 }
 
+const REPOSITORY = {
+    fetchNotification: async ({ query, participating, setloading, onError }): Promise<{ raw: any[], data: NotificationType[] }> => {
+        setloading(() => true);
+        let res: Response;
+        try {
+            res = await CLIENT.fetchNotificationsAPI({ query, participating })
+            setloading(() => false);
+        } catch (err) {
+            setloading(() => false);
+            throw err;
+        }
+
+        if (res.status !== 200) {
+            const errorMessage = await res.text();
+            onError(new Error(`ng: ${res.status} ${res.statusText}: ${errorMessage}`));
+            return;
+        }
+
+        let rows = await res.json() as any[]; // xxx:
+        if (query !== "") { // 手抜きの query
+            // e.g. `is:unread org:encode`
+            query.split(/\s+/).forEach((q) => {
+                if (q === "") {
+                    return
+                }
+
+                let [k, v] = q.split(":")
+                let isExclude = false;
+                if (v.startsWith("-")) {
+                    isExclude = true;
+                    v = v.slice(1)
+                }
+
+                if (k === "is") { // TODO: done,check-suite,commit,gist,release
+                    if (v === "unread") {
+                        rows = rows.filter((d) => d.unread)
+                    } else if (v === "read") {
+                        rows = rows.filter((d) => !d.unread)
+                    } else if (v === "issue-or-pull-request") {
+                        rows = rows.filter((d) => d.subject.type === "Issue" || d.subject.type === "PullRequest")
+                    } else if (v === "issue") {
+                        rows = rows.filter((d) => d.subject.type === "Issue")
+                    } else if (v === "pull-request") {
+                        rows = rows.filter((d) => d.subject.type === "PullRequest")
+                    } else {
+                        throw new Error(`unknown query: ${q}`)
+                    }
+                } else if (k === "org") {
+                    rows = isExclude ? rows.filter((d) => d.repository.owner.login !== v) : rows.filter((d) => d.repository.owner.login === v)
+                } else if (k === "repo") {
+                    rows = isExclude ? rows.filter((d) => d.repository.full_name !== v) : rows.filter((d) => d.repository.full_name === v)
+                } else if (k === "author") {
+                    // not supported
+                    //  rows = rows.filter((d) => d.subject.latest_comment_url.includes(v))
+                } else {
+                    // TODO: reason
+                    throw new Error(`unknown query: ${q}`)
+                }
+            })
+        }
+
+        return {
+            raw: rows, data: rows.map((d: any): NotificationType => {
+                const id = d.id
+                const last_read_at = d.last_read_at;
+                const latest_comment_url = d.subject.latest_comment_url;
+                const title = d.subject.title;
+                const repository = d.repository.full_name;
+                const subjectType = d.subject.type;
+                const url = d.subject.url; // null if d.subject.type === "Discussion"
+                const owner = { name: d.repository.owner.login, avatar_url: d.repository.owner.avatar_url };
+                return { id, title, repository, url, subjectType, owner: owner, reason: d.reason, updated_at: d.updated_at, last_read_at, latest_comment_url };
+            })
+        }
+    }
+}
+
 // ----------------------------------------
 // APIClient
 // ----------------------------------------
 
-export interface IAPIClient {
-    fetchNotifications({ apikey, query, participating }: { apikey: string; query: string; participating: boolean }): Promise<Response>;
+interface IAPIClient {
+    fetchNotificationsAPI({ query, participating }: { query: string; participating: boolean }): Promise<Response>;
 }
-export const apiClient: IAPIClient = {
-    fetchNotifications: async ({ apikey, query, participating }: { apikey: string; query: string; participating: boolean }): Promise<Response> => {
-        // https://docs.github.com/en/rest/activity/notifications?apiVersion=2022-11-28
-        const headers = {
-            "Accept": "application/vnd.github+json",
-            "Authorization": `token ${apikey}`,
-            "X-GitHub-Api-Version": "2022-11-28"
-        };
 
+export const apiClient: IAPIClient = {
+    fetchNotificationsAPI: async ({ query, participating }: { query: string; participating: boolean }): Promise<Response> => {
+        const headers = apiHeaders(STATE.apikey);
         let url = "https://api.github.com/notifications";
         const qs = ["per_page=50", "all=false"];
         if (query !== "") {
@@ -266,55 +313,18 @@ export function setAPIClient(client: IAPIClient): IAPIClient {
 // ----------------------------------------
 // helpers
 // ----------------------------------------
+function apiHeaders(apikey: string): Record<string, string> {
+    // https://docs.github.com/en/rest/activity/notifications?apiVersion=2022-11-28
+    return {
+        "Accept": "application/vnd.github+json",
+        "Authorization": `token ${apikey}`,
+        "X-GitHub-Api-Version": "2022-11-28"
+    };
+}
 
 function apiURLtohtmlURL(url: string): string {
     // TODO: support discussion
     // https://api.github.com/repos/<owner>/<repository>/pulls/<number> => https://github.com/<owner>/<repository>/pull/<number>
     // https://api.github.com/repos/<owner>/<repository>/issuess/<number> => https://github.com/<owner>/<repository>/issues/<number>
     return url ? url.replace(/https:\/\/api\.github\.com\/repos\/([^\/]+)\/([^\/]+)\/(issues|pulls)\/(\d+)/, "https://github.com/$1/$2/$3/$4").replace("pulls/", "pull/") : "";
-}
-
-export function filterResponseData({ rows, query }) {
-    if (query !== "") { // 手抜きの query
-        // e.g. `is:unread org:encode`
-        query.split(/\s+/).forEach((q) => {
-            if (q === "") {
-                return
-            }
-
-            let [k, v] = q.split(":")
-            let isExclude = false;
-            if (v.startsWith("-")) {
-                isExclude = true;
-                v = v.slice(1)
-            }
-
-            if (k === "is") { // TODO: done,check-suite,commit,gist,release
-                if (v === "unread") {
-                    rows = rows.filter((d) => d.unread)
-                } else if (v === "read") {
-                    rows = rows.filter((d) => !d.unread)
-                } else if (v === "issue-or-pull-request") {
-                    rows = rows.filter((d) => d.subject.type === "Issue" || d.subject.type === "PullRequest")
-                } else if (v === "issue") {
-                    rows = rows.filter((d) => d.subject.type === "Issue")
-                } else if (v === "pull-request") {
-                    rows = rows.filter((d) => d.subject.type === "PullRequest")
-                } else {
-                    throw new Error(`unknown query: ${q}`)
-                }
-            } else if (k === "org") {
-                rows = isExclude ? rows.filter((d) => d.repository.owner.login !== v) : rows.filter((d) => d.repository.owner.login === v)
-            } else if (k === "repo") {
-                rows = isExclude ? rows.filter((d) => d.repository.full_name !== v) : rows.filter((d) => d.repository.full_name === v)
-            } else if (k === "author") {
-                // not supported
-                //  rows = rows.filter((d) => d.subject.latest_comment_url.includes(v))
-            } else {
-                // TODO: reason
-                throw new Error(`unknown query: ${q}`)
-            }
-        })
-    }
-    return rows
 }
