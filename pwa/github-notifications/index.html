@@ -27,7 +27,17 @@
 
     <script type="module">
         import { h, render } from "preact";
-        import { App } from "./dist/app.js";
+        import { App, setAPIClient } from "./dist/app.js";
+
+        // mockup if query includes "mockup"
+        if (location.search.includes("mockup")) {
+            const client = {
+                fetchNotifications: async () => {
+                    return await fetch("./testdata/fetch.json");
+                }
+            }
+            setAPIClient(client);
+        }
 
         const root = document.getElementById("app")
         render(h(App, null, null), root)

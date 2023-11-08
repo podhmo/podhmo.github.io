@@ -28,5 +28,5 @@ esbuild --serve=8080 --servedir=. --outdir=dist *.tsx
 ```
 
 - index http://localhost:8080
-- mockup http://localhost:8080/mockup.html
+- mockup http://localhost:8080?mockup=true
 - components http://localhost:8080/components.html
