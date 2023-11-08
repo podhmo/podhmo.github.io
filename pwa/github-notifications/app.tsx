@@ -2,6 +2,9 @@ import { h, Fragment } from 'preact';
 import { useCallback, useState } from 'preact/hooks'
 import type { ComponentChildren } from "preact";
 
+// my components
+import { NotificationCard } from './components.js';
+
 const STATE = {
     input: {
         username: "github-notifications",
@@ -161,61 +164,6 @@ export function App() {
                 return (<NotificationCard key={row.title} {...prop}></NotificationCard>);
             })}
         </>
-    );
-}
-
-
-
-// ----------------------------------------
-// components
-// ----------------------------------------
-// -- types ----------------------------------------
-type Author = { name: string; url: string; }
-type Link = { href: string; text: string; tab?: boolean }
-type Message = { author: Author; text: string; cdate: string }
-type NotificationType = "PullRequest" | "Issue" | "Discussion";
-
-export const Avatar = ({ src }: { src: string }) => {
-    return <img src={src} style={{ "border-radius": "50%" }} />;
-}
-
-type GroupedRepositoryCardProps = { author: Author, children?: ComponentChildren }
-export function GroupedRepositoryCard({ author, children }: GroupedRepositoryCardProps) {
-    return (
-        <article style={{ marginRight: "0%", paddingRight: "0%" }}>
-            <div className="grid" style={{ grid: "auto-flow / 1fr 8fr 2fr" }}>
-                <Avatar src={author.url} />
-                <h2>{author.name}</h2>
-            </div>
-            {children}
-        </article>
-    )
-}
-
-type NotificationCardProps = { title: string, link: Link, message: Message, typ: NotificationType, children?: ComponentChildren }
-
-export function NotificationCard({ title, link, message, typ, children }: NotificationCardProps) {
-    const a = link.tab ? <a href={link.href} target="_blank" rel="noopener noreferrer">{link.text}</a> : <a href={link.href}>{link.text}</a>
-    return (
-        <article style={{ marginRight: "0%", paddingRight: "0%" }}>
-            <div className="grid" style={{ grid: "auto-flow / 1fr 8fr 2fr" }}>
-                <Avatar src={message.author.url} />
-                <hgroup>
-                    <h3>
-                        {title}
-                        {a}
-                    </h3>
-                    <h4>
-                        {message.text}
-                        <code style={{ marginLeft: "1rem" }}>
-                            <small>{typ}</small>
-                        </code>
-                    </h4>
-                </hgroup>
-                <p><small>{message.cdate}</small></p>
-            </div>
-            {children}
-        </article>
     );
 }
 
