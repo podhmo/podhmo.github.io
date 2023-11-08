@@ -27,7 +27,6 @@ export function GroupedRepositoryCard({ author, children }: GroupedRepositoryCar
 }
 
 type NotificationCardProps = { title: string, link: Link, message: Message, typ: NotificationType, children?: ComponentChildren }
-
 export function NotificationCard({ title, link, message, typ, children }: NotificationCardProps) {
     const a = link.tab ? <a href={link.href} target="_blank" rel="noopener noreferrer">{link.text}</a> : <a href={link.href}>{link.text}</a>
     return (
@@ -53,7 +52,7 @@ export function NotificationCard({ title, link, message, typ, children }: Notifi
     );
 }
 
-type CommentCardProps = { message: Message }
+type CommentCardProps = { message: Message; children?: ComponentChildren }
 export function CommentCard({ message }: CommentCardProps) {
     // TODO: code bock
     // <>{message.text.split("\n").map((x => <p>{x}</p>))}</>
