@@ -91,20 +91,20 @@ export function InputForm({ onSubmit, loading }: { onSubmit: todofixSubmitHandle
     )
 }
 
-export function OutputPanel({ input, output, version, errorMessage }: { input?: any; output?: string; version: number; errorMessage?: string }) {
+export function OutputPanel({ input, rows, version, errorMessage }: { input?: any; rows?: Array<any>; version: number; errorMessage?: string }) {
     const style = { padding: "1rem" };
     if (errorMessage !== "") {
         return (<pre id="output" style={{ ...style, "background-color": "#fee" }}>{errorMessage}</pre>)
     }
     // return (<pre id="output" style={style}>version{version}: {JSON.stringify(input, null, null)}</pre>)
-    return (<pre id="output" style={style}>version{version}: {output}</pre>)
+    return (<pre id="output" style={style}>version{version}: {JSON.stringify(rows, null, 2)}</pre>)
 }
 
 
 
 export function App() {
     const [version, setversion] = useState(1);
-    const [output, setoutput] = useState("");
+    const [rows, setrows] = useState([]); // TODO: rename to notifications[
     const [loading, setloading] = useState(false);
     const [errorMessage, seterrorMessage] = useState("");
 
@@ -128,22 +128,97 @@ export function App() {
 
             let rows = await res.json();
             rows = filterResponseData({ rows, query, debug: state.debug });
-            setoutput(JSON.stringify(rows, null, 2));
+            setrows(rows);
             seterrorMessage("");
         } catch (err) {
             seterrorMessage(`err: ${err}\n\n${err.stack}`);
             throw err;
         }
     }, [version])
+
+
     return (
         <>
             <h1 class="title">GitHub Notifications</h1>
             <InputForm onSubmit={handleSubmit} loading={loading}></InputForm>
             <p><a href="https://github.com/settings/tokens" target="_blank">please set PAT(personal access token)</a></p>
-            <OutputPanel input={STATE.input} output={output} version={version} errorMessage={errorMessage}></OutputPanel>
+
+            <details>
+                <summary> raw response</summary>
+                <OutputPanel input={STATE.input} rows={rows} version={version} errorMessage={errorMessage}></OutputPanel>
+            </details>
+
+            {rows && rows.map((row) => {
+                const html_url = apiURLtohtmlURL(row.url);
+                const avatar_url = row.owner.avatar_url.includes("?") ? `${row.owner.avatar_url}&s=80` : `${row.owner.avatar_url}?s=80&v=4`;
+                const parts = html_url.split("/");
+                const prop = {
+                    "title": row.repository,
+                    "typ": row.subjectType,
+                    "link": { "href": html_url, "text": `#${parts[parts.length - 1]}`, "tab": true },
+                    "message": { "text": row.title, author: { name: row.owner.name, url: avatar_url }, "cdate": row.updated_at }
+                };
+                return (<NotificationCard key={row.title} {...prop}></NotificationCard>);
+            })}
         </>
     );
 }
+
+
+
+// ----------------------------------------
+// components
+// ----------------------------------------
+// -- types ----------------------------------------
+type Author = { name: string; url: string; }
+type Link = { href: string; text: string; tab?: boolean }
+type Message = { author: Author; text: string; cdate: string }
+type NotificationType = "PullRequest" | "Issue" | "Discussion";
+
+export const Avatar = ({ src }: { src: string }) => {
+    return <img src={src} style={{ "border-radius": "50%" }} />;
+}
+
+type GroupedRepositoryCardProps = { author: Author, children?: ComponentChildren }
+export function GroupedRepositoryCard({ author, children }: GroupedRepositoryCardProps) {
+    return (
+        <article style={{ marginRight: "0%", paddingRight: "0%" }}>
+            <div className="grid" style={{ grid: "auto-flow / 1fr 8fr 2fr" }}>
+                <Avatar src={author.url} />
+                <h2>{author.name}</h2>
+            </div>
+            {children}
+        </article>
+    )
+}
+
+type NotificationCardProps = { title: string, link: Link, message: Message, typ: NotificationType, children?: ComponentChildren }
+
+export function NotificationCard({ title, link, message, typ, children }: NotificationCardProps) {
+    const a = link.tab ? <a href={link.href} target="_blank" rel="noopener noreferrer">{link.text}</a> : <a href={link.href}>{link.text}</a>
+    return (
+        <article style={{ marginRight: "0%", paddingRight: "0%" }}>
+            <div className="grid" style={{ grid: "auto-flow / 1fr 8fr 2fr" }}>
+                <Avatar src={message.author.url} />
+                <hgroup>
+                    <h3>
+                        {title}
+                        {a}
+                    </h3>
+                    <h4>
+                        {message.text}
+                        <code style={{ marginLeft: "1rem" }}>
+                            <small>{typ}</small>
+                        </code>
+                    </h4>
+                </hgroup>
+                <p><small>{message.cdate}</small></p>
+            </div>
+            {children}
+        </article>
+    );
+}
+
 
 // ----------------------------------------
 // APIClient
@@ -152,7 +227,7 @@ export function App() {
 export interface IAPIClient {
     fetchNotifications({ apikey, query, participating }: { apikey: string; query: string; participating: boolean }): Promise<Response>;
 }
-export const APIClient: IAPIClient = {
+export const apiClient: IAPIClient = {
     fetchNotifications: async ({ apikey, query, participating }: { apikey: string; query: string; participating: boolean }): Promise<Response> => {
         return new Promise((resolve, reject) => { });
         // https://docs.github.com/en/rest/activity/notifications?apiVersion=2022-11-28
@@ -179,7 +254,7 @@ export const APIClient: IAPIClient = {
     }
 }
 
-let CLIENT = APIClient; 
+let CLIENT = apiClient;
 export function setAPIClient(client: IAPIClient): IAPIClient {
     const prev = CLIENT;
     CLIENT = client;
@@ -189,6 +264,13 @@ export function setAPIClient(client: IAPIClient): IAPIClient {
 // ----------------------------------------
 // helpers
 // ----------------------------------------
+
+function apiURLtohtmlURL(url: string): string {
+    // TODO: support discussion
+    // https://api.github.com/repos/<owner>/<repository>/pulls/<number> => https://github.com/<owner>/<repository>/pull/<number>
+    // https://api.github.com/repos/<owner>/<repository>/issuess/<number> => https://github.com/<owner>/<repository>/issues/<number>
+    return url ? url.replace(/https:\/\/api\.github\.com\/repos\/([^\/]+)\/([^\/]+)\/(issues|pulls)\/(\d+)/, "https://github.com/$1/$2/$3/$4").replace("pulls/", "pull/") : "";
+}
 
 export function filterResponseData({ rows, query, debug }) {
     if (query !== "") { // 手抜きの query
