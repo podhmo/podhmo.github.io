@@ -1,5 +1,6 @@
 import { h, Fragment } from "preact";
 import { useCallback, useState } from "preact/hooks";
+import { NotificationCard } from "./components.js";
 const STATE = {
   input: {
     username: "github-notifications",
@@ -86,16 +87,16 @@ export function InputForm({ onSubmit, loading }) {
     }
   )))))), /* @__PURE__ */ h("button", { type: "submit", tabIndex: -1, "aria-busy": loading ? "true" : "false" }, "fetch")));
 }
-export function OutputPanel({ input, output, version, errorMessage }) {
+export function OutputPanel({ input, rows, version, errorMessage }) {
   const style = { padding: "1rem" };
   if (errorMessage !== "") {
     return /* @__PURE__ */ h("pre", { id: "output", style: { ...style, "background-color": "#fee" } }, errorMessage);
   }
-  return /* @__PURE__ */ h("pre", { id: "output", style }, "version", version, ": ", output);
+  return /* @__PURE__ */ h("pre", { id: "output", style }, "version", version, ": ", JSON.stringify(rows, null, 2));
 }
 export function App() {
   const [version, setversion] = useState(1);
-  const [output, setoutput] = useState("");
+  const [rows, setrows] = useState([]);
   const [loading, setloading] = useState(false);
   const [errorMessage, seterrorMessage] = useState("");
   const handleSubmit = useCallback(async (ev) => {
@@ -105,15 +106,15 @@ export function App() {
       const state = STATE.input;
       const query = state.query;
       setloading(() => true);
-      const res = await fetchNotifications({ query, apikey: STATE.apikey, participating: state.participating });
+      const res = await CLIENT.fetchNotifications({ query, apikey: STATE.apikey, participating: state.participating });
       setloading(() => false);
       if (res.status !== 200) {
         seterrorMessage(`ng: ${res.status} ${res.statusText}: ${await res.text()}`);
         return;
       }
-      let rows = await res.json();
-      rows = filterResponseData({ rows, query, debug: state.debug });
-      setoutput(JSON.stringify(rows, null, 2));
+      let rows2 = await res.json();
+      rows2 = filterResponseData({ rows: rows2, query, debug: state.debug });
+      setrows(rows2);
       seterrorMessage("");
     } catch (err) {
       seterrorMessage(`err: ${err}
@@ -122,27 +123,51 @@ ${err.stack}`);
       throw err;
     }
   }, [version]);
-  return /* @__PURE__ */ h(Fragment, null, /* @__PURE__ */ h("h1", { class: "title" }, "GitHub Notifications"), /* @__PURE__ */ h(InputForm, { onSubmit: handleSubmit, loading }), /* @__PURE__ */ h("p", null, /* @__PURE__ */ h("a", { href: "https://github.com/settings/tokens", target: "_blank" }, "please set PAT(personal access token)")), /* @__PURE__ */ h(OutputPanel, { input: STATE.input, output, version, errorMessage }));
+  return /* @__PURE__ */ h(Fragment, null, /* @__PURE__ */ h("h1", { class: "title" }, "GitHub Notifications"), /* @__PURE__ */ h(InputForm, { onSubmit: handleSubmit, loading }), /* @__PURE__ */ h("p", null, /* @__PURE__ */ h("a", { href: "https://github.com/settings/tokens", target: "_blank" }, "please set PAT(personal access token)")), /* @__PURE__ */ h("details", null, /* @__PURE__ */ h("summary", null, " raw response"), /* @__PURE__ */ h(OutputPanel, { input: STATE.input, rows, version, errorMessage })), rows && rows.map((row) => {
+    const html_url = apiURLtohtmlURL(row.url);
+    const avatar_url = row.owner.avatar_url.includes("?") ? `${row.owner.avatar_url}&s=80` : `${row.owner.avatar_url}?s=80&v=4`;
+    const parts = html_url.split("/");
+    const prop = {
+      "title": row.repository,
+      "typ": row.subjectType,
+      "link": { "href": html_url, "text": `#${parts[parts.length - 1]}`, "tab": true },
+      "message": { "text": row.title, author: { name: row.owner.name, url: avatar_url }, "cdate": row.updated_at }
+    };
+    return /* @__PURE__ */ h(NotificationCard, { key: row.title, ...prop });
+  }));
 }
-async function fetchNotifications({ apikey, query, participating }) {
-  const headers = {
-    "Accept": "application/vnd.github+json",
-    "Authorization": `token ${apikey}`,
-    "X-GitHub-Api-Version": "2022-11-28"
-  };
-  let url = "https://api.github.com/notifications";
-  const qs = ["per_page=50", "all=false"];
-  if (query !== "") {
-    qs.push(`query=${encodeURIComponent(query)}`);
+export const apiClient = {
+  fetchNotifications: async ({ apikey, query, participating }) => {
+    return new Promise((resolve, reject) => {
+    });
+    const headers = {
+      "Accept": "application/vnd.github+json",
+      "Authorization": `token ${apikey}`,
+      "X-GitHub-Api-Version": "2022-11-28"
+    };
+    let url = "https://api.github.com/notifications";
+    const qs = ["per_page=50", "all=false"];
+    if (query !== "") {
+      qs.push(`query=${encodeURIComponent(query)}`);
+    }
+    if (participating) {
+      qs.push(`participating=${participating}`);
+    }
+    if (qs.length > 0) {
+      url += "?" + qs.join("&");
+    }
+    const res = await fetch(url, { headers });
+    return res;
   }
-  if (participating) {
-    qs.push(`participating=${participating}`);
-  }
-  if (qs.length > 0) {
-    url += "?" + qs.join("&");
-  }
-  const res = await fetch(url, { headers });
-  return res;
+};
+let CLIENT = apiClient;
+export function setAPIClient(client) {
+  const prev = CLIENT;
+  CLIENT = client;
+  return prev;
+}
+function apiURLtohtmlURL(url) {
+  return url ? url.replace(/https:\/\/api\.github\.com\/repos\/([^\/]+)\/([^\/]+)\/(issues|pulls)\/(\d+)/, "https://github.com/$1/$2/$3/$4").replace("pulls/", "pull/") : "";
 }
 export function filterResponseData({ rows, query, debug }) {
   if (query !== "") {
