@@ -21,7 +21,10 @@ type todofixSubmitHandler = any
 
 export function App() {
     const [version, setversion] = useState(1);
-    const [rows, setrows] = useState([]); // TODO: rename to notifications[
+
+    const [rawrows, setrawrows] = useState(undefined);
+    const [rows, setrows] = useState([]);
+
     const [loading, setloading] = useState(false);
     const [errorMessage, seterrorMessage] = useState("");
     const onError = useCallback((err: Error) => {
@@ -34,10 +37,10 @@ export function App() {
 
         setversion((prev) => prev + 1) // TODO: cache
         // console.log("state: ", JSON.stringify(STATE, null, null));
-        try {
-            const state = STATE.input;
-            const query = state.query
 
+        const state = STATE.input;
+        const query = state.query
+        try {
             setloading(() => true);
             const res = await CLIENT.fetchNotifications({ query, apikey: STATE.apikey, participating: state.participating })
             setloading(() => false);
@@ -46,9 +49,24 @@ export function App() {
                 return;
             }
 
-            let rows = await res.json() as Array<any>; // xxx:
-            rows = filterResponseData({ rows, query, debug: state.debug });
+            let data = await res.json() as Array<any>; // xxx:
+
+            const rawrows = filterResponseData({ rows: data, query });
+            setrawrows(state.debug ? rawrows : undefined)
+
+            const rows = rawrows.map((d) => {
+                const id = d.id
+                const last_read_at = d.last_read_at;
+                const latest_comment_url = d.subject.latest_comment_url;
+                const title = d.subject.title;
+                const repository = d.repository.full_name;
+                const subjectType = d.subject.type;
+                const url = d.subject.url; // null if d.subject.type === "Discussion"
+                const owner = { name: d.repository.owner.login, avatar_url: d.repository.owner.avatar_url };
+                return { id, title, repository, url, subjectType, owner: owner, reason: d.reason, updated_at: d.updated_at, last_read_at, latest_comment_url };
+            })
             setrows(rows);
+
             seterrorMessage("");
         } catch (err) {
             onError(err);
@@ -63,7 +81,7 @@ export function App() {
             <InputFormPanel onSubmit={handleSubmit} loading={loading}></InputFormPanel>
             <p><a href="https://github.com/settings/tokens" target="_blank">please set PAT(personal access token)</a></p>
 
-            <RawOutputPanel input={STATE.input} rows={rows} version={version} errorMessage={errorMessage}></RawOutputPanel>
+            <RawOutputPanel input={STATE.input} data={rawrows || rows} version={version} errorMessage={errorMessage}></RawOutputPanel>
 
             {rows && <CardListPanel rows={rows} onError={onError}></CardListPanel>}
         </>
@@ -146,7 +164,7 @@ export function InputFormPanel({ onSubmit, loading }: { onSubmit: todofixSubmitH
     )
 }
 
-export function RawOutputPanel({ input, rows, version, errorMessage }: { input?: any; rows?: Array<any>; version: number; errorMessage?: string }) {
+export function RawOutputPanel({ input, data, version, errorMessage }: { input?: any; data?: Array<any>; version: number; errorMessage?: string }) {
     const style = { padding: "1rem" };
     if (errorMessage !== "") {
         return (
@@ -161,7 +179,7 @@ export function RawOutputPanel({ input, rows, version, errorMessage }: { input?:
     return (
         <details>
             <summary> raw response</summary>
-            <pre id="output" style={style}>version{version}: {JSON.stringify(rows, null, 2)}</pre>
+            <pre id="output" style={style}>version{version}: {JSON.stringify(data, null, 2)}</pre>
         </details>
     );
 }
@@ -238,7 +256,7 @@ function apiURLtohtmlURL(url: string): string {
     return url ? url.replace(/https:\/\/api\.github\.com\/repos\/([^\/]+)\/([^\/]+)\/(issues|pulls)\/(\d+)/, "https://github.com/$1/$2/$3/$4").replace("pulls/", "pull/") : "";
 }
 
-export function filterResponseData({ rows, query, debug }) {
+export function filterResponseData({ rows, query }) {
     if (query !== "") { // 手抜きの query
         // e.g. `is:unread org:encode`
         query.split(/\s+/).forEach((q) => {
@@ -278,20 +296,6 @@ export function filterResponseData({ rows, query, debug }) {
                 // TODO: reason
                 throw new Error(`unknown query: ${q}`)
             }
-        })
-    }
-
-    if (!debug) {
-        rows = rows.map((d) => {
-            const id = d.id
-            const last_read_at = d.last_read_at;
-            const latest_comment_url = d.subject.latest_comment_url;
-            const title = d.subject.title;
-            const repository = d.repository.full_name;
-            const subjectType = d.subject.type;
-            const url = d.subject.url; // null if d.subject.type === "Discussion"
-            const owner = { name: d.repository.owner.login, avatar_url: d.repository.owner.avatar_url };
-            return { id, title, repository, url, subjectType, owner: owner, reason: d.reason, updated_at: d.updated_at, last_read_at, latest_comment_url };
         })
     }
     return rows
