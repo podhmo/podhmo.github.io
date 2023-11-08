@@ -11,7 +11,35 @@ const STATE = {
   apikey: ""
 };
 const DEBUG = false;
-export function InputForm({ onSubmit, loading }) {
+export function App() {
+  const [version, setVersion] = useState(1);
+  const [rawrows, setRawRows] = useState(void 0);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const onError = useCallback((err) => {
+    setErrorMessage(() => `err: ${err}
+
+${err.stack}`);
+  }, []);
+  const handleSubmit = useCallback(async (ev) => {
+    ev.preventDefault();
+    setVersion((prev) => prev + 1);
+    try {
+      const state = STATE.input;
+      const { raw, data } = await REPOSITORY.fetchNotification({ query: state.query, participating: state.participating, setLoading });
+      setRawRows(() => state.debug ? raw : void 0);
+      setRows(() => data);
+      setErrorMessage(() => "");
+    } catch (err) {
+      onError(err);
+      setRows(() => []);
+      throw err;
+    }
+  }, [version]);
+  return /* @__PURE__ */ h(Fragment, null, /* @__PURE__ */ h("h1", { class: "title" }, "GitHub Notifications"), /* @__PURE__ */ h(InputFormPanel, { onSubmit: handleSubmit, loading }), /* @__PURE__ */ h("p", null, /* @__PURE__ */ h("a", { href: "https://github.com/settings/tokens", target: "_blank" }, "please set PAT(personal access token)")), /* @__PURE__ */ h(RawOutputPanel, { input: STATE.input, data: rawrows || rows, version, errorMessage }), rows && /* @__PURE__ */ h(CardListPanel, { rows, onError }));
+}
+export function InputFormPanel({ onSubmit, loading }) {
   const [username, setusername] = useState(STATE.input.username);
   const [apikey, setapikey] = useState(STATE.apikey);
   const [query, setquery] = useState(STATE.input.query);
@@ -87,62 +115,102 @@ export function InputForm({ onSubmit, loading }) {
     }
   )))))), /* @__PURE__ */ h("button", { type: "submit", tabIndex: -1, "aria-busy": loading ? "true" : "false" }, "fetch")));
 }
-export function OutputPanel({ input, rows, version, errorMessage }) {
+export function RawOutputPanel({ input, data, version, errorMessage }) {
   const style = { padding: "1rem" };
   if (errorMessage !== "") {
-    return /* @__PURE__ */ h("pre", { id: "output", style: { ...style, "background-color": "#fee" } }, errorMessage);
+    return /* @__PURE__ */ h("details", { open: true }, /* @__PURE__ */ h("summary", null, " raw response"), /* @__PURE__ */ h("pre", { id: "output", style: { ...style, "background-color": "#fee" } }, errorMessage));
   }
-  return /* @__PURE__ */ h("pre", { id: "output", style }, "version", version, ": ", JSON.stringify(rows, null, 2));
+  return /* @__PURE__ */ h("details", null, /* @__PURE__ */ h("summary", null, " raw response"), /* @__PURE__ */ h("pre", { id: "output", style }, "version", version, ": ", JSON.stringify(data, null, 2)));
 }
-export function App() {
-  const [version, setversion] = useState(1);
-  const [rows, setrows] = useState([]);
-  const [loading, setloading] = useState(false);
-  const [errorMessage, seterrorMessage] = useState("");
-  const handleSubmit = useCallback(async (ev) => {
-    ev.preventDefault();
-    setversion((prev) => prev + 1);
+function CardListPanel({ rows, onError, children }) {
+  try {
+    const props = rows.map((row) => {
+      const html_url = apiURLtohtmlURL(row.url);
+      const avatar_url = row.owner.avatar_url.includes("?") ? `${row.owner.avatar_url}&s=80` : `${row.owner.avatar_url}?s=80&v=4`;
+      const parts = html_url.split("/");
+      return {
+        "title": row.repository,
+        "typ": row.subjectType,
+        "link": { "href": html_url, "text": `#${parts[parts.length - 1]}`, "tab": true },
+        "message": { "text": row.title, author: { name: row.owner.name, url: avatar_url }, "cdate": row.updated_at }
+      };
+    });
+    return /* @__PURE__ */ h(Fragment, null, props.map((p) => /* @__PURE__ */ h(NotificationCard, { key: p.title, ...p })));
+  } catch (err) {
+    onError(err);
+    return;
+  }
+}
+const REPOSITORY = {
+  fetchNotification: async ({ query, participating, setLoading }) => {
+    setLoading(() => true);
+    let res;
     try {
-      const state = STATE.input;
-      const query = state.query;
-      setloading(() => true);
-      const res = await CLIENT.fetchNotifications({ query, apikey: STATE.apikey, participating: state.participating });
-      setloading(() => false);
-      if (res.status !== 200) {
-        seterrorMessage(`ng: ${res.status} ${res.statusText}: ${await res.text()}`);
-        return;
-      }
-      let rows2 = await res.json();
-      rows2 = filterResponseData({ rows: rows2, query, debug: state.debug });
-      setrows(rows2);
-      seterrorMessage("");
+      res = await CLIENT.fetchNotificationsAPI({ query, participating });
+      setLoading(() => false);
     } catch (err) {
-      seterrorMessage(`err: ${err}
-
-${err.stack}`);
+      setLoading(() => false);
       throw err;
     }
-  }, [version]);
-  return /* @__PURE__ */ h(Fragment, null, /* @__PURE__ */ h("h1", { class: "title" }, "GitHub Notifications"), /* @__PURE__ */ h(InputForm, { onSubmit: handleSubmit, loading }), /* @__PURE__ */ h("p", null, /* @__PURE__ */ h("a", { href: "https://github.com/settings/tokens", target: "_blank" }, "please set PAT(personal access token)")), /* @__PURE__ */ h("details", null, /* @__PURE__ */ h("summary", null, " raw response"), /* @__PURE__ */ h(OutputPanel, { input: STATE.input, rows, version, errorMessage })), rows && rows.map((row) => {
-    const html_url = apiURLtohtmlURL(row.url);
-    const avatar_url = row.owner.avatar_url.includes("?") ? `${row.owner.avatar_url}&s=80` : `${row.owner.avatar_url}?s=80&v=4`;
-    const parts = html_url.split("/");
-    const prop = {
-      "title": row.repository,
-      "typ": row.subjectType,
-      "link": { "href": html_url, "text": `#${parts[parts.length - 1]}`, "tab": true },
-      "message": { "text": row.title, author: { name: row.owner.name, url: avatar_url }, "cdate": row.updated_at }
+    if (res.status !== 200) {
+      const errorMessage = await res.text();
+      throw new Error(`ng: ${res.status} ${res.statusText}: ${errorMessage}`);
+    }
+    let rows = await res.json();
+    if (query !== "") {
+      query.split(/\s+/).forEach((q) => {
+        if (q === "") {
+          return;
+        }
+        let [k, v] = q.split(":");
+        let isExclude = false;
+        if (v.startsWith("-")) {
+          isExclude = true;
+          v = v.slice(1);
+        }
+        if (k === "is") {
+          if (v === "unread") {
+            rows = rows.filter((d) => d.unread);
+          } else if (v === "read") {
+            rows = rows.filter((d) => !d.unread);
+          } else if (v === "issue-or-pull-request") {
+            rows = rows.filter((d) => d.subject.type === "Issue" || d.subject.type === "PullRequest");
+          } else if (v === "issue") {
+            rows = rows.filter((d) => d.subject.type === "Issue");
+          } else if (v === "pull-request") {
+            rows = rows.filter((d) => d.subject.type === "PullRequest");
+          } else {
+            throw new Error(`unknown query: ${q}`);
+          }
+        } else if (k === "org") {
+          rows = isExclude ? rows.filter((d) => d.repository.owner.login !== v) : rows.filter((d) => d.repository.owner.login === v);
+        } else if (k === "repo") {
+          rows = isExclude ? rows.filter((d) => d.repository.full_name !== v) : rows.filter((d) => d.repository.full_name === v);
+        } else if (k === "author") {
+        } else {
+          throw new Error(`unknown query: ${q}`);
+        }
+      });
+    }
+    return {
+      raw: rows,
+      data: rows.map((d) => {
+        const id = d.id;
+        const last_read_at = d.last_read_at;
+        const latest_comment_url = d.subject.latest_comment_url;
+        const title = d.subject.title;
+        const repository = d.repository.full_name;
+        const subjectType = d.subject.type;
+        const url = d.subject.url;
+        const owner = { name: d.repository.owner.login, avatar_url: d.repository.owner.avatar_url };
+        return { id, title, repository, url, subjectType, owner, reason: d.reason, updated_at: d.updated_at, last_read_at, latest_comment_url };
+      })
     };
-    return /* @__PURE__ */ h(NotificationCard, { key: row.title, ...prop });
-  }));
-}
+  }
+};
 export const apiClient = {
-  fetchNotifications: async ({ apikey, query, participating }) => {
-    const headers = {
-      "Accept": "application/vnd.github+json",
-      "Authorization": `token ${apikey}`,
-      "X-GitHub-Api-Version": "2022-11-28"
-    };
+  fetchNotificationsAPI: async ({ query, participating }) => {
+    const headers = apiHeaders(STATE.apikey);
     let url = "https://api.github.com/notifications";
     const qs = ["per_page=50", "all=false"];
     if (query !== "") {
@@ -164,57 +232,13 @@ export function setAPIClient(client) {
   CLIENT = client;
   return prev;
 }
+function apiHeaders(apikey) {
+  return {
+    "Accept": "application/vnd.github+json",
+    "Authorization": `token ${apikey}`,
+    "X-GitHub-Api-Version": "2022-11-28"
+  };
+}
 function apiURLtohtmlURL(url) {
   return url ? url.replace(/https:\/\/api\.github\.com\/repos\/([^\/]+)\/([^\/]+)\/(issues|pulls)\/(\d+)/, "https://github.com/$1/$2/$3/$4").replace("pulls/", "pull/") : "";
-}
-export function filterResponseData({ rows, query, debug }) {
-  if (query !== "") {
-    query.split(/\s+/).forEach((q) => {
-      if (q === "") {
-        return;
-      }
-      let [k, v] = q.split(":");
-      let isExclude = false;
-      if (v.startsWith("-")) {
-        isExclude = true;
-        v = v.slice(1);
-      }
-      if (k === "is") {
-        if (v === "unread") {
-          rows = rows.filter((d) => d.unread);
-        } else if (v === "read") {
-          rows = rows.filter((d) => !d.unread);
-        } else if (v === "issue-or-pull-request") {
-          rows = rows.filter((d) => d.subject.type === "Issue" || d.subject.type === "PullRequest");
-        } else if (v === "issue") {
-          rows = rows.filter((d) => d.subject.type === "Issue");
-        } else if (v === "pull-request") {
-          rows = rows.filter((d) => d.subject.type === "PullRequest");
-        } else {
-          throw new Error(`unknown query: ${q}`);
-        }
-      } else if (k === "org") {
-        rows = isExclude ? rows.filter((d) => d.repository.owner.login !== v) : rows.filter((d) => d.repository.owner.login === v);
-      } else if (k === "repo") {
-        rows = isExclude ? rows.filter((d) => d.repository.full_name !== v) : rows.filter((d) => d.repository.full_name === v);
-      } else if (k === "author") {
-      } else {
-        throw new Error(`unknown query: ${q}`);
-      }
-    });
-  }
-  if (!debug) {
-    rows = rows.map((d) => {
-      const id = d.id;
-      const last_read_at = d.last_read_at;
-      const latest_comment_url = d.subject.latest_comment_url;
-      const title = d.subject.title;
-      const repository = d.repository.full_name;
-      const subjectType = d.subject.type;
-      const url = d.subject.url;
-      const owner = { name: d.repository.owner.login, avatar_url: d.repository.owner.avatar_url };
-      return { id, title, repository, url, subjectType, owner, reason: d.reason, updated_at: d.updated_at, last_read_at, latest_comment_url };
-    });
-  }
-  return rows;
 }
