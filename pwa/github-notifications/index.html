@@ -32,7 +32,7 @@
         // mockup if query includes "mockup"
         if (location.search.includes("mockup")) {
             const client = {
-                fetchNotifications: async () => {
+                fetchNotificationsAPI: async () => {
                     return await fetch("./testdata/fetch.json");
                 }
             }

@@ -1,6 +1,8 @@
 import { h, Fragment } from 'preact';
 import { useCallback, useState } from 'preact/hooks'
+
 import type { ComponentChildren } from "preact";
+import type { StateUpdater } from 'preact/hooks';
 
 // my components
 import { NotificationCard } from './components.js';
@@ -20,32 +22,33 @@ type todofixSubmitHandler = any
 
 
 export function App() {
-    const [version, setversion] = useState<number>(1);
+    const [version, setVersion] = useState<number>(1);
 
-    const [rawrows, setrawrows] = useState<Array<any> | undefined>(undefined);
-    const [rows, setrows] = useState<Array<NotificationType>>([]);
+    const [rawrows, setRawRows] = useState<Array<any> | undefined>(undefined);
+    const [rows, setRows] = useState<Array<NotificationType>>([]);
 
-    const [loading, setloading] = useState<boolean>(false);
-    const [errorMessage, seterrorMessage] = useState<string>("");
+    const [loading, setLoading] = useState<boolean>(false);
+    const [errorMessage, setErrorMessage] = useState<string>("");
     const onError = useCallback((err: Error) => {
-        seterrorMessage(() => `err: ${err}\n\n${err.stack}`);
+        setErrorMessage(() => `err: ${err}\n\n${err.stack}`);
     }, [])
 
     const handleSubmit = useCallback(async (ev) => {
         ev.preventDefault()
         // console.log("submit ev:%o", ev);
 
-        setversion((prev) => prev + 1)
+        setVersion((prev) => prev + 1)
         // console.log("state: ", JSON.stringify(STATE, null, null));
 
         try {
             const state = STATE.input;
-            const { raw: rawrows, data: rows } = await REPOSITORY.fetchNotification({ query: state.query, participating: state.participating, setloading, onError });
-            setrawrows(() => state.debug ? rawrows : undefined)
-            setrows(() => rows);
-            seterrorMessage(() => "");
+            const { raw, data } = await REPOSITORY.fetchNotification({ query: state.query, participating: state.participating, setLoading });
+            setRawRows(() => state.debug ? raw : undefined)
+            setRows(() => data);
+            setErrorMessage(() => "");
         } catch (err) {
             onError(err);
+            setRows(() => []);
             throw err;
         }
     }, [version])
@@ -198,22 +201,22 @@ type NotificationType = {
     latest_comment_url: string;
 }
 
+
 const REPOSITORY = {
-    fetchNotification: async ({ query, participating, setloading, onError }): Promise<{ raw: any[], data: NotificationType[] }> => {
-        setloading(() => true);
+    fetchNotification: async ({ query, participating, setLoading }: { query: string, participating: boolean, setLoading: StateUpdater<boolean | undefined> }): Promise<{ raw: any[], data: NotificationType[] }> => {
+        setLoading(() => true);
         let res: Response;
         try {
             res = await CLIENT.fetchNotificationsAPI({ query, participating })
-            setloading(() => false);
+            setLoading(() => false);
         } catch (err) {
-            setloading(() => false);
+            setLoading(() => false);
             throw err;
         }
 
         if (res.status !== 200) {
             const errorMessage = await res.text();
-            onError(new Error(`ng: ${res.status} ${res.statusText}: ${errorMessage}`));
-            return;
+            throw new Error(`ng: ${res.status} ${res.statusText}: ${errorMessage}`);
         }
 
         let rows = await res.json() as any[]; // xxx:
