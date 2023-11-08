@@ -3,59 +3,41 @@
 
 <head>
     <meta charset="utf-8">
-    <title>mockup</title>
+    <title>GitHub Notifications</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <!-- css -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+
 
     <script type="importmap">
         {
             "imports": {
                 "preact": "https://esm.sh/preact@10.18.1",
                 "preact/": "https://esm.sh/preact@10.18.1/",
-                "./dist/": "./dist/"    
+                "./dist/": "./dist/"
             }
         }
     </script>
 </head>
 
 <body class="fullscreen">
-    <div class="container">
-        <details role="list" open>
-            <summary role="button">TODO</summary>
-            <ul>
-                <li>📝アバターのアイコンを取ってくる</li>
-                <li>📝コメントをいい感じに表示する</li>
-                <li>mark/unmarkを管理する</li>
-            </ul>
-        </details>
-        <div id="app"></div>
+    <div class="container" id="app">
     </div>
+
     <script type="module">
-        import { h, Component, render, Fragment } from "preact";
-        import { NotificationCard } from "./dist/components.js";
+        import { h, render } from "preact";
+        import { App, setAPIClient } from "./dist/app.js";
 
-        const res = await fetch("/testdata/fetch.json");
-        const data = await res.json();
-        const state = data.map((row) => {
-            // TODO: support discussion
-            // https://api.github.com/repos/<owner>/<repository>/pulls/<number> => https://github.com/<owner>/<repository>/pull/<number>
-            // https://api.github.com/repos/<owner>/<repository>/issuess/<number> => https://github.com/<owner>/<repository>/issues/<number>
-            const html_url = row.url ? row.url.replace(/https:\/\/api\.github\.com\/repos\/([^\/]+)\/([^\/]+)\/(issues|pulls)\/(\d+)/, "https://github.com/$1/$2/$3/$4").replace("pulls/", "pull/") : "";
-            const avatar_url = row.owner.avatar_url.includes("?") ? `${row.owner.avatar_url}&s=80` : `${row.owner.avatar_url}?s=80&v=4`;
+        const client = {
+            fetchNotifications: async () => {
+                return await fetch("/testdata/fetch.json");
+            }
+        }
+        setAPIClient(client);
 
-            const parts = html_url.split("/");
-            return {
-                "title": row.repository,
-                "typ": row.subjectType,
-                "link": { "href": html_url, "text": `#${parts[parts.length - 1]}`, "tab": true },
-                "message": { "text": row.title, author: { name: row.owner.name, url: avatar_url }, "cdate": row.updated_at }
-            };
-        });
-
-        const app = h(Fragment, null, state.map((row) => h(NotificationCard, { key: row.title, ...row })));
-        render(app, document.querySelector("#app"));
+        const root = document.getElementById("app")
+        render(h(App, null, null), root)
     </script>
 </body>
 

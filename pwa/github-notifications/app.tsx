@@ -119,7 +119,7 @@ export function App() {
             const query = state.query
 
             setloading(() => true);
-            const res = await fetchNotifications({ query, apikey: STATE.apikey, participating: state.participating })
+            const res = await CLIENT.fetchNotifications({ query, apikey: STATE.apikey, participating: state.participating })
             setloading(() => false);
             if (res.status !== 200) {
                 seterrorMessage(`ng: ${res.status} ${res.statusText}: ${await res.text()}`);
@@ -146,32 +146,49 @@ export function App() {
 }
 
 // ----------------------------------------
-// helpers
+// APIClient
 // ----------------------------------------
-async function fetchNotifications({ apikey, query, participating }) {
-    // https://docs.github.com/en/rest/activity/notifications?apiVersion=2022-11-28
-    const headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": `token ${apikey}`,
-        "X-GitHub-Api-Version": "2022-11-28"
-    };
 
-    let url = "https://api.github.com/notifications";
-    const qs = ["per_page=50", "all=false"];
-    if (query !== "") {
-        qs.push(`query=${encodeURIComponent(query)}`)
+export interface IAPIClient {
+    fetchNotifications({ apikey, query, participating }: { apikey: string; query: string; participating: boolean }): Promise<Response>;
+}
+export const APIClient: IAPIClient = {
+    fetchNotifications: async ({ apikey, query, participating }: { apikey: string; query: string; participating: boolean }): Promise<Response> => {
+        return new Promise((resolve, reject) => { });
+        // https://docs.github.com/en/rest/activity/notifications?apiVersion=2022-11-28
+        const headers = {
+            "Accept": "application/vnd.github+json",
+            "Authorization": `token ${apikey}`,
+            "X-GitHub-Api-Version": "2022-11-28"
+        };
+
+        let url = "https://api.github.com/notifications";
+        const qs = ["per_page=50", "all=false"];
+        if (query !== "") {
+            qs.push(`query=${encodeURIComponent(query)}`)
+        }
+        if (participating) {
+            qs.push(`participating=${participating}`)
+        }
+        if (qs.length > 0) {
+            url += "?" + qs.join("&")
+        }
+        // TODO: abort controller
+        const res = await fetch(url, { headers });
+        return res
     }
-    if (participating) {
-        qs.push(`participating=${participating}`)
-    }
-    if (qs.length > 0) {
-        url += "?" + qs.join("&")
-    }
-    // TODO: abort controller
-    const res = await fetch(url, { headers });
-    return res
 }
 
+let CLIENT = APIClient; 
+export function setAPIClient(client: IAPIClient): IAPIClient {
+    const prev = CLIENT;
+    CLIENT = client;
+    return prev;
+}
+
+// ----------------------------------------
+// helpers
+// ----------------------------------------
 
 export function filterResponseData({ rows, query, debug }) {
     if (query !== "") { // 手抜きの query
@@ -215,7 +232,7 @@ export function filterResponseData({ rows, query, debug }) {
             }
         })
     }
-    
+
     if (!debug) {
         rows = rows.map((d) => {
             const id = d.id
