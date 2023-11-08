@@ -138,8 +138,6 @@ ${err.stack}`);
 }
 export const apiClient = {
   fetchNotifications: async ({ apikey, query, participating }) => {
-    return new Promise((resolve, reject) => {
-    });
     const headers = {
       "Accept": "application/vnd.github+json",
       "Authorization": `token ${apikey}`,

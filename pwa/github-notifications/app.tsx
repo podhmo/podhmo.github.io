@@ -177,7 +177,6 @@ export interface IAPIClient {
 }
 export const apiClient: IAPIClient = {
     fetchNotifications: async ({ apikey, query, participating }: { apikey: string; query: string; participating: boolean }): Promise<Response> => {
-        return new Promise((resolve, reject) => { });
         // https://docs.github.com/en/rest/activity/notifications?apiVersion=2022-11-28
         const headers = {
             "Accept": "application/vnd.github+json",
