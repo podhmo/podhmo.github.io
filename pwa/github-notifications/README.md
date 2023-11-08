@@ -21,4 +21,12 @@ components確認
 
 ```console
 $ make
+esbuild --serve=8080 --servedir=. --outdir=dist *.tsx
+
+ > Local:   http://127.0.0.1:8080/
+ > Network: http://172.29.141.76:8080/
 ```
+
+- index http://localhost:8080
+- mockup http://localhost:8080/mockup.html
+- components http://localhost:8080/components.html
