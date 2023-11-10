@@ -223,10 +223,8 @@ const REPOSITORY = {
         let res: Response;
         try {
             res = await CLIENT.fetchNotificationsAPI({ query, participating })
+        } finally {
             setLoading(() => false);
-        } catch (err) {
-            setLoading(() => false);
-            throw err;
         }
 
         if (res.status !== 200) {
