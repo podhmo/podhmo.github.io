@@ -1,4 +1,4 @@
-import { h, Fragment } from 'preact';
+import { h, Fragment, Component } from 'preact';
 import { useCallback, useState } from 'preact/hooks'
 
 import type { ComponentChildren } from "preact";
@@ -18,22 +18,18 @@ const STATE = {
 }
 
 const DEBUG = false;
-type todofixSubmitHandler = any
 
 
 export function App() {
-    const [version, setVersion] = useState<number>(1);
+    const [version, setVersion] = useState(1);
 
     const [rawrows, setRawRows] = useState<Array<any> | undefined>(undefined);
     const [rows, setRows] = useState<Array<NotificationType>>([]);
 
-    const [loading, setLoading] = useState<boolean>(false);
-    const [errorMessage, setErrorMessage] = useState<string>("");
-    const onError = useCallback((err: Error) => {
-        setErrorMessage(() => `err: ${err}\n\n${err.stack}`);
-    }, [])
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<any>(null)
 
-    const handleSubmit = useCallback(async (ev) => {
+    const handleSubmit = useCallback(async (ev: SubmitEvent) => {
         ev.preventDefault()
         // console.log("submit ev:%o", ev);
 
@@ -41,13 +37,13 @@ export function App() {
         // console.log("state: ", JSON.stringify(STATE, null, null));
 
         try {
+            setError(null);
             const state = STATE.input;
             const { raw, data } = await REPOSITORY.fetchNotification({ query: state.query, participating: state.participating, setLoading });
             setRawRows(() => state.debug ? raw : undefined)
             setRows(() => data);
-            setErrorMessage(() => "");
         } catch (err) {
-            onError(err);
+            setError(err)
             setRows(() => []);
             throw err;
         }
@@ -64,17 +60,42 @@ export function App() {
                 </a>
             </p>
 
-            <RawOutputPanel
-                input={STATE.input}
-                data={rawrows || rows}
-                version={version}
-                errorMessage={errorMessage}></RawOutputPanel>
-
-            {rows && <CardListPanel rows={rows} onError={onError}></CardListPanel>}
+            <ErrorBoundary error={error}>
+                <RawOutputPanel
+                    input={STATE.input}
+                    data={rawrows || rows}
+                    version={version}></RawOutputPanel>
+                {rows && <CardListPanel rows={rows}></CardListPanel>}
+            </ErrorBoundary>
         </>
     );
 }
 
+class ErrorBoundary extends Component<{ error?: Error }, { error?: Error }> {
+    componentDidCatch(err: Error) {
+        this.setState({ error: err })
+    }
+    render() {
+        const err = this.state.error || this.props.error;
+        if (err) {
+            let errorMessage = "";
+            if (err instanceof Error) {
+                errorMessage = `${err.stack}`;
+            } else {
+                errorMessage = `ng: {err}`;
+            }
+            return (
+                <details open>
+                    <summary> error is occured</summary>
+                    <pre id="output" style={{ padding: "1rem", "background-color": "#fee" }}>{errorMessage}</pre>
+                </details>
+            )
+        }
+        return this.props.children
+    }
+}
+
+type todofixSubmitHandler = any
 export function InputFormPanel({ onSubmit, loading }: { onSubmit: todofixSubmitHandler; loading: boolean }) {
     const [username, setusername] = useState<string>(STATE.input.username);
     const [apikey, setapikey] = useState<string>(STATE.apikey);
@@ -84,8 +105,8 @@ export function InputFormPanel({ onSubmit, loading }: { onSubmit: todofixSubmitH
 
     const params = { username, apikey, query, participating, debug };
     return (<>
-        {DEBUG && <pre>input: {JSON.stringify(params, null, null)}</pre>}
-        {DEBUG && <pre>state: {JSON.stringify(STATE.input, null, null)}</pre>}
+        {DEBUG && <pre>input: {JSON.stringify(params, null, 2)}</pre>}
+        {DEBUG && <pre>state: {JSON.stringify(STATE.input, null, 2)}</pre>}
         <form method="POST" id="auth-form" onSubmit={onSubmit}>
             <details open>
                 <summary role="button" class="secondary">form</summary>
@@ -151,17 +172,8 @@ export function InputFormPanel({ onSubmit, loading }: { onSubmit: todofixSubmitH
     )
 }
 
-export function RawOutputPanel({ input, data, version, errorMessage }: { input?: any; data?: Array<any>; version: number; errorMessage?: string }) {
+export function RawOutputPanel({ input, data, version }: { input?: any; data?: Array<any>; version: number }) {
     const style = { padding: "1rem" };
-    if (errorMessage !== "") {
-        return (
-            <details open>
-                <summary> raw response</summary>
-                <pre id="output" style={{ ...style, "background-color": "#fee" }}>{errorMessage}</pre>
-            </details>
-        );
-    }
-
     // return (<pre id="output" style={style}>version{version}: {JSON.stringify(input, null, null)}</pre>)
     return (
         <details>
@@ -171,24 +183,19 @@ export function RawOutputPanel({ input, data, version, errorMessage }: { input?:
     );
 }
 
-function CardListPanel({ rows, onError, children }: { rows: Array<any>, onError: (err: Error) => void, children?: ComponentChildren }) {
-    try {
-        const props = rows.map((row) => {
-            const html_url = apiURLtohtmlURL(row.url);
-            const avatar_url = row.owner.avatar_url.includes("?") ? `${row.owner.avatar_url}&s=80` : `${row.owner.avatar_url}?s=80&v=4`;
-            const parts = html_url.split("/");
-            return {
-                "title": row.repository,
-                "typ": row.subjectType,
-                "link": { "href": html_url, "text": `#${parts[parts.length - 1]}`, "tab": true },
-                "message": { "text": row.title, author: { name: row.owner.name, url: avatar_url }, "cdate": row.updated_at }
-            }
-        });
-        return (<>{props.map((p) => <NotificationCard key={p.title} {...p}></NotificationCard>)}</>)
-    } catch (err) {
-        onError(err);
-        return
-    }
+function CardListPanel({ rows, children }: { rows: Array<any>, children?: ComponentChildren }) {
+    const props = rows.map((row) => {
+        const html_url = apiURLtohtmlURL(row.url);
+        const avatar_url = row.owner.avatar_url.includes("?") ? `${row.owner.avatar_url}&s=80` : `${row.owner.avatar_url}?s=80&v=4`;
+        const parts = html_url.split("/");
+        return {
+            "title": row.repository,
+            "typ": row.subjectType,
+            "link": { "href": html_url, "text": `#${parts[parts.length - 1]}`, "tab": true },
+            "message": { "text": row.title, author: { name: row.owner.name, url: avatar_url }, "cdate": row.updated_at }
+        }
+    });
+    return (<>{props.map((p) => <NotificationCard key={p.title} {...p}></NotificationCard>)}</>)
 }
 
 
@@ -211,7 +218,7 @@ type NotificationType = {
 
 
 const REPOSITORY = {
-    fetchNotification: async ({ query, participating, setLoading }: { query: string, participating: boolean, setLoading: StateUpdater<boolean | undefined> }): Promise<{ raw: any[], data: NotificationType[] }> => {
+    fetchNotification: async ({ query, participating, setLoading }: { query: string, participating: boolean, setLoading: StateUpdater<boolean> }): Promise<{ raw: any[], data: NotificationType[] }> => {
         setLoading(() => true);
         let res: Response;
         try {
@@ -227,7 +234,7 @@ const REPOSITORY = {
             throw new Error(`ng: ${res.status} ${res.statusText}: ${errorMessage}`);
         }
 
-        let rows = await res.json() as any[]; // xxx:
+        let rows = await res.json(); // xxx:
         if (query !== "") { // 手抜きの query
             // e.g. `is:unread org:encode`
             query.split(/\s+/).forEach((q) => {
