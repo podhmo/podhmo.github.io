@@ -58,9 +58,17 @@ export function App() {
         <>
             <h1 class="title">GitHub Notifications</h1>
             <InputFormPanel onSubmit={handleSubmit} loading={loading}></InputFormPanel>
-            <p><a href="https://github.com/settings/tokens" target="_blank">please set PAT(personal access token)</a></p>
+            <p>
+                <a href="https://github.com/settings/tokens" target="_blank">
+                    please set PAT(personal access token)
+                </a>
+            </p>
 
-            <RawOutputPanel input={STATE.input} data={rawrows || rows} version={version} errorMessage={errorMessage}></RawOutputPanel>
+            <RawOutputPanel
+                input={STATE.input}
+                data={rawrows || rows}
+                version={version}
+                errorMessage={errorMessage}></RawOutputPanel>
 
             {rows && <CardListPanel rows={rows} onError={onError}></CardListPanel>}
         </>
