@@ -1,6 +1,10 @@
 {
     "compilerOptions": {
-        "lib": ["es2022", "dom"],
+        "strict": true,
+        "lib": [
+            "es2022",
+            "dom"
+        ],
         "jsxFactory": "h",
         "jsxFragmentFactory": "Fragment",
         "jsx": "preserve"
