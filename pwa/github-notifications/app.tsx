@@ -1,20 +1,22 @@
 import { h, Fragment, Component } from 'preact';
 import { useCallback, useState } from 'preact/hooks'
+import { signal } from '@preact/signals'
 
 import type { ComponentChildren } from "preact";
 import type { StateUpdater } from 'preact/hooks';
+import type { JSX } from "preact";
 
 // my components
 import { NotificationCard } from './components.js';
 
 const STATE = {
     input: {
-        username: "github-notifications",
-        query: "",
-        debug: false,
-        participating: true,
+        username: signal<string>("github-notifications"),
+        query: signal<string>(""),
+        participating: signal<boolean>(true),
+        debug: signal<boolean>(false)
     },
-    apikey: ""
+    apikey: signal<string>(""),
 }
 
 const DEBUG = false;
@@ -27,27 +29,25 @@ export function App() {
     const [rows, setRows] = useState<Array<NotificationType>>([]);
 
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<any>(null)
+    const [error, setError] = useState<Error | undefined>(undefined)
 
-    const handleSubmit = useCallback(async (ev: SubmitEvent) => {
+    const handleSubmit = useCallback(async (ev: JSX.TargetedEvent<HTMLFormElement>) => {
         ev.preventDefault()
         // console.log("submit ev:%o", ev);
 
         setVersion((prev) => prev + 1)
         // console.log("state: ", JSON.stringify(STATE, null, null));
-
         try {
-            setError(null);
-            const state = STATE.input;
-            const { raw, data } = await REPOSITORY.fetchNotification({ query: state.query, participating: state.participating, setLoading });
-            setRawRows(() => state.debug ? raw : undefined)
+            setError(undefined);
+            const { raw, data } = await REPOSITORY.fetchNotification({ query: STATE.input.query.value, participating: STATE.input.participating.value, setLoading });
+            setRawRows(() => STATE.input.debug ? raw : undefined)
             setRows(() => data);
         } catch (err) {
             setError(err)
             setRows(() => []);
             throw err;
         }
-    }, [version])
+    }, [])
 
 
     return (
@@ -80,7 +80,7 @@ class ErrorBoundary extends Component<{ error?: Error }, { error?: Error }> {
         if (err) {
             let errorMessage = "";
             if (err instanceof Error) {
-                errorMessage = `${err.stack}`;
+                errorMessage = `${err}\n${err.stack}`;
             } else {
                 errorMessage = `ng: {err}`;
             }
@@ -95,18 +95,51 @@ class ErrorBoundary extends Component<{ error?: Error }, { error?: Error }> {
     }
 }
 
-type todofixSubmitHandler = any
-export function InputFormPanel({ onSubmit, loading }: { onSubmit: todofixSubmitHandler; loading: boolean }) {
-    const [username, setusername] = useState<string>(STATE.input.username);
-    const [apikey, setapikey] = useState<string>(STATE.apikey);
-    const [query, setquery] = useState<string>(STATE.input.query);
-    const [participating, setparticipating] = useState<boolean>(STATE.input.participating);
-    const [debug, setdebug] = useState<boolean>(STATE.input.debug); // todo: rename to verbose
+export function InputFormPanel({
+    onSubmit,
+    loading,
+}: {
+    onSubmit: (ev: JSX.TargetedEvent<HTMLFormElement>) => void,
+    loading: boolean;
+}) {
+    const input = STATE.input; // signals
 
-    const params = { username, apikey, query, participating, debug };
+    const handleUsernameChange = useCallback(
+        (ev: JSX.TargetedEvent<HTMLInputElement>) => {
+            if (ev.currentTarget) { input.username.value = ev.currentTarget.value; }
+        },
+        []
+    );
+
+    const handleApikeyChange = useCallback(
+        (ev: JSX.TargetedEvent<HTMLInputElement>) => {
+            if (ev.currentTarget) { STATE.apikey.value = ev.currentTarget.value; }
+        },
+        []
+    );
+
+    const handleQueryChange = useCallback(
+        (ev: JSX.TargetedEvent<HTMLInputElement>) => {
+            if (ev.currentTarget) { input.query.value = ev.currentTarget.value; }
+        },
+        []
+    );
+
+    const handleParticipatingChange = useCallback(
+        (ev: JSX.TargetedEvent<HTMLInputElement>) => {
+            if (ev.currentTarget) { input.participating.value = ev.currentTarget.checked; }
+        },
+        []
+    );
+
+    const handleDebugChange = useCallback(
+        (ev: JSX.TargetedEvent<HTMLInputElement>) => {
+            if (ev.currentTarget) { input.debug.value = ev.currentTarget.checked; }
+        },
+        []
+    );
+
     return (<>
-        {DEBUG && <pre>input: {JSON.stringify(params, null, 2)}</pre>}
-        {DEBUG && <pre>state: {JSON.stringify(STATE.input, null, 2)}</pre>}
         <form method="POST" id="auth-form" onSubmit={onSubmit}>
             <details open>
                 <summary role="button" class="secondary">form</summary>
@@ -117,25 +150,25 @@ export function InputFormPanel({ onSubmit, loading }: { onSubmit: todofixSubmitH
                         id="username"
                         autoComplete="username"
                         tabIndex={-1}
-                        onInput={(ev) => setusername((prev) => { const v = ev.currentTarget.value; STATE.input.username = v; return v })}
-                        value={username}
+                        onInput={handleUsernameChange}
+                        value={input.username.value}
                     />
                     <label htmlFor="password">apikey</label>
                     <input
-                        type="password"
+                        type="text"
                         id="apikey"
                         autoComplete="current-password"
-                        onInput={(ev) => setapikey((prev) => { const v = ev.currentTarget.value; STATE.apikey = v; return v })}
-                        value={apikey}
                         tabIndex={-1}
+                        onInput={handleApikeyChange}
+                        value={STATE.apikey.value}
                     />
                     <label htmlFor="query">query</label>
                     <input
                         type="search"
                         id="query"
                         tabIndex={-1}
-                        onInput={(ev) => setquery((prev) => { const v = ev.currentTarget.value; STATE.input.query = v; return v })}
-                        value={query}
+                        onInput={handleQueryChange}
+                        value={input.query.value}
                     />
                     <div class="grid">
                         <fieldset>
@@ -144,8 +177,8 @@ export function InputFormPanel({ onSubmit, loading }: { onSubmit: todofixSubmitH
                                 <input
                                     type="checkbox"
                                     id="participating"
-                                    checked={participating}
-                                    onClick={(ev) => setparticipating((prev) => { const v = ev.currentTarget.checked; STATE.input.participating = v; return v })}
+                                    checked={input.participating.value}
+                                    onClick={handleParticipatingChange}
                                     role="switch"
                                 />
                             </label>
@@ -156,9 +189,10 @@ export function InputFormPanel({ onSubmit, loading }: { onSubmit: todofixSubmitH
                                 <input
                                     type="checkbox"
                                     id="debugStatus"
-                                    checked={debug}
-                                    onClick={(ev) => setdebug((prev) => { const v = ev.currentTarget.checked; STATE.input.debug = v; return v })}
-                                    role="switch" />
+                                    checked={input.debug.value}
+                                    onClick={handleDebugChange}
+                                    role="switch"
+                                />
                             </label>
                         </fieldset>
                     </div>
@@ -169,10 +203,11 @@ export function InputFormPanel({ onSubmit, loading }: { onSubmit: todofixSubmitH
             </button>
         </form>
     </>
-    )
+    );
 }
 
-export function RawOutputPanel({ input, data, version }: { input?: any; data?: Array<any>; version: number }) {
+
+export function RawOutputPanel({ input, data, version }: { input: typeof STATE.input; data?: Array<any>; version: number }) {
     const style = { padding: "1rem" };
     // return (<pre id="output" style={style}>version{version}: {JSON.stringify(input, null, null)}</pre>)
     return (
@@ -195,7 +230,12 @@ function CardListPanel({ rows, children }: { rows: Array<any>, children?: Compon
             "message": { "text": row.title, author: { name: row.owner.name, url: avatar_url }, "cdate": row.updated_at }
         }
     });
-    return (<>{props.map((p) => <NotificationCard key={p.title} {...p}></NotificationCard>)}</>)
+    return (
+        <details open>
+            <summary>notifications</summary>
+            {props.map((p) => <NotificationCard key={p.title} {...p}></NotificationCard>)}
+        </details>
+    );
 }
 
 
@@ -301,7 +341,7 @@ interface IAPIClient {
 
 export const apiClient: IAPIClient = {
     fetchNotificationsAPI: async ({ query, participating }: { query: string; participating: boolean }): Promise<Response> => {
-        const headers = apiHeaders(STATE.apikey);
+        const headers = apiHeaders(STATE.apikey.value);
         let url = "https://api.github.com/notifications";
         const qs = ["per_page=50", "all=false"];
         if (query !== "") {
