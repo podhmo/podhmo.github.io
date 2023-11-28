@@ -13,8 +13,8 @@ export function App() {
     setVersion((prev) => prev + 1);
     try {
       setError(void 0);
-      const { raw, data } = await REPOSITORY.fetchNotification({ query: STATE.input.query.value, participating: STATE.input.participating.value, setLoading });
-      setRawRows(() => STATE.input.debug.value ? raw : void 0);
+      const { raw, data } = await REPOSITORY.fetchNotification({ query: STATE.input.query$.value, participating: STATE.input.participating$.value, setLoading });
+      setRawRows(() => STATE.input.debug$.value ? raw : void 0);
       setRows(() => data);
     } catch (err) {
       setError(err);
@@ -58,7 +58,7 @@ export function InputFormPanel({
   const handleUsernameChange = useCallback(
     (ev) => {
       if (ev.currentTarget) {
-        input.username.value = ev.currentTarget.value;
+        input.username$.value = ev.currentTarget.value;
       }
     },
     []
@@ -66,7 +66,7 @@ export function InputFormPanel({
   const handleApikeyChange = useCallback(
     (ev) => {
       if (ev.currentTarget) {
-        STATE.apikey.value = ev.currentTarget.value;
+        STATE.apikey$.value = ev.currentTarget.value;
       }
     },
     []
@@ -74,7 +74,7 @@ export function InputFormPanel({
   const handleQueryChange = useCallback(
     (ev) => {
       if (ev.currentTarget) {
-        input.query.value = ev.currentTarget.value;
+        input.query$.value = ev.currentTarget.value;
       }
     },
     []
@@ -82,7 +82,7 @@ export function InputFormPanel({
   const handleParticipatingChange = useCallback(
     (ev) => {
       if (ev.currentTarget) {
-        input.participating.value = ev.currentTarget.checked;
+        input.participating$.value = ev.currentTarget.checked;
       }
     },
     []
@@ -90,7 +90,7 @@ export function InputFormPanel({
   const handleDebugChange = useCallback(
     (ev) => {
       if (ev.currentTarget) {
-        input.debug.value = ev.currentTarget.checked;
+        input.debug$.value = ev.currentTarget.checked;
       }
     },
     []
@@ -103,7 +103,7 @@ export function InputFormPanel({
       autoComplete: "username",
       tabIndex: -1,
       onInput: handleUsernameChange,
-      value: input.username.value
+      value: input.username$.value
     }
   ), /* @__PURE__ */ h("label", { htmlFor: "password" }, "apikey"), /* @__PURE__ */ h(
     "input",
@@ -113,7 +113,7 @@ export function InputFormPanel({
       autoComplete: "current-password",
       tabIndex: -1,
       onInput: handleApikeyChange,
-      value: STATE.apikey.value
+      value: STATE.apikey$.value
     }
   ), /* @__PURE__ */ h("label", { htmlFor: "query" }, "query"), /* @__PURE__ */ h(
     "input",
@@ -122,14 +122,14 @@ export function InputFormPanel({
       id: "query",
       tabIndex: -1,
       onInput: handleQueryChange,
-      value: input.query.value
+      value: input.query$.value
     }
   ), /* @__PURE__ */ h("div", { class: "grid" }, /* @__PURE__ */ h("fieldset", null, /* @__PURE__ */ h("legend", null, "participating"), /* @__PURE__ */ h("label", { htmlFor: "participating" }, /* @__PURE__ */ h(
     "input",
     {
       type: "checkbox",
       id: "participating",
-      checked: input.participating.value,
+      checked: input.participating$.value,
       onClick: handleParticipatingChange,
       role: "switch"
     }
@@ -138,7 +138,7 @@ export function InputFormPanel({
     {
       type: "checkbox",
       id: "debugStatus",
-      checked: input.debug.value,
+      checked: input.debug$.value,
       onClick: handleDebugChange,
       role: "switch"
     }

@@ -1,12 +1,12 @@
 import { signal } from "@preact/signals";
 export const STATE = {
   input: {
-    username: signal("github-notifications"),
-    query: signal(""),
-    participating: signal(true),
-    debug: signal(false)
+    username$: signal("github-notifications"),
+    query$: signal(""),
+    participating$: signal(true),
+    debug$: signal(false)
   },
-  apikey: signal("")
+  apikey$: signal("")
 };
 export const REPOSITORY = {
   fetchNotification: async ({ query, participating, setLoading }) => {
@@ -28,6 +28,9 @@ export const REPOSITORY = {
           return;
         }
         let [k, v] = q.split(":");
+        if (v === void 0) {
+          return;
+        }
         let isExclude = false;
         if (v.startsWith("-")) {
           isExclude = true;
@@ -75,7 +78,7 @@ export const REPOSITORY = {
 };
 export const apiClient = {
   fetchNotificationsAPI: async ({ query, participating }) => {
-    const headers = apiHeaders(STATE.apikey.value);
+    const headers = apiHeaders(STATE.apikey$.value);
     let url = "https://api.github.com/notifications";
     const qs = ["per_page=50", "all=false"];
     if (query !== "") {
