@@ -1,4 +1,5 @@
 serve:
-	esbuild --serve=8080 --servedir=. --outdir=dist *.tsx
+	deno task dev
 gen:
-	esbuild --outdir=dist *.tsx
+	deno task gen
+

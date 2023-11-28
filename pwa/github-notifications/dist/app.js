@@ -1,4 +1,4 @@
-import { h, Fragment } from "preact";
+import { h, Fragment, Component } from "preact";
 import { useCallback, useState } from "preact/hooks";
 import { NotificationCard } from "./components.js";
 const STATE = {
@@ -16,28 +16,48 @@ export function App() {
   const [rawrows, setRawRows] = useState(void 0);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const onError = useCallback((err) => {
-    setErrorMessage(() => `err: ${err}
-
-${err.stack}`);
-  }, []);
+  const [error, setError] = useState(null);
   const handleSubmit = useCallback(async (ev) => {
     ev.preventDefault();
     setVersion((prev) => prev + 1);
     try {
+      setError(null);
       const state = STATE.input;
       const { raw, data } = await REPOSITORY.fetchNotification({ query: state.query, participating: state.participating, setLoading });
       setRawRows(() => state.debug ? raw : void 0);
       setRows(() => data);
-      setErrorMessage(() => "");
     } catch (err) {
-      onError(err);
+      setError(err);
       setRows(() => []);
       throw err;
     }
   }, [version]);
-  return /* @__PURE__ */ h(Fragment, null, /* @__PURE__ */ h("h1", { class: "title" }, "GitHub Notifications"), /* @__PURE__ */ h(InputFormPanel, { onSubmit: handleSubmit, loading }), /* @__PURE__ */ h("p", null, /* @__PURE__ */ h("a", { href: "https://github.com/settings/tokens", target: "_blank" }, "please set PAT(personal access token)")), /* @__PURE__ */ h(RawOutputPanel, { input: STATE.input, data: rawrows || rows, version, errorMessage }), rows && /* @__PURE__ */ h(CardListPanel, { rows, onError }));
+  return /* @__PURE__ */ h(Fragment, null, /* @__PURE__ */ h("h1", { class: "title" }, "GitHub Notifications"), /* @__PURE__ */ h(InputFormPanel, { onSubmit: handleSubmit, loading }), /* @__PURE__ */ h("p", null, /* @__PURE__ */ h("a", { href: "https://github.com/settings/tokens", target: "_blank" }, "please set PAT(personal access token)")), /* @__PURE__ */ h(ErrorBoundary, { error }, /* @__PURE__ */ h(
+    RawOutputPanel,
+    {
+      input: STATE.input,
+      data: rawrows || rows,
+      version
+    }
+  ), rows && /* @__PURE__ */ h(CardListPanel, { rows })));
+}
+class ErrorBoundary extends Component {
+  componentDidCatch(err) {
+    this.setState({ error: err });
+  }
+  render() {
+    const err = this.state.error || this.props.error;
+    if (err) {
+      let errorMessage = "";
+      if (err instanceof Error) {
+        errorMessage = `${err.stack}`;
+      } else {
+        errorMessage = `ng: {err}`;
+      }
+      return /* @__PURE__ */ h("details", { open: true }, /* @__PURE__ */ h("summary", null, " error is occured"), /* @__PURE__ */ h("pre", { id: "output", style: { padding: "1rem", "background-color": "#fee" } }, errorMessage));
+    }
+    return this.props.children;
+  }
 }
 export function InputFormPanel({ onSubmit, loading }) {
   const [username, setusername] = useState(STATE.input.username);
@@ -46,7 +66,7 @@ export function InputFormPanel({ onSubmit, loading }) {
   const [participating, setparticipating] = useState(STATE.input.participating);
   const [debug, setdebug] = useState(STATE.input.debug);
   const params = { username, apikey, query, participating, debug };
-  return /* @__PURE__ */ h(Fragment, null, DEBUG && /* @__PURE__ */ h("pre", null, "input: ", JSON.stringify(params, null, null)), DEBUG && /* @__PURE__ */ h("pre", null, "state: ", JSON.stringify(STATE.input, null, null)), /* @__PURE__ */ h("form", { method: "POST", id: "auth-form", onSubmit }, /* @__PURE__ */ h("details", { open: true }, /* @__PURE__ */ h("summary", { role: "button", class: "secondary" }, "form"), /* @__PURE__ */ h("div", { style: { paddingLeft: "2rem" } }, /* @__PURE__ */ h("label", { htmlFor: "username" }, "username"), /* @__PURE__ */ h(
+  return /* @__PURE__ */ h(Fragment, null, DEBUG && /* @__PURE__ */ h("pre", null, "input: ", JSON.stringify(params, null, 2)), DEBUG && /* @__PURE__ */ h("pre", null, "state: ", JSON.stringify(STATE.input, null, 2)), /* @__PURE__ */ h("form", { method: "POST", id: "auth-form", onSubmit }, /* @__PURE__ */ h("details", { open: true }, /* @__PURE__ */ h("summary", { role: "button", class: "secondary" }, "form"), /* @__PURE__ */ h("div", { style: { paddingLeft: "2rem" } }, /* @__PURE__ */ h("label", { htmlFor: "username" }, "username"), /* @__PURE__ */ h(
     "input",
     {
       type: "text",
@@ -115,31 +135,23 @@ export function InputFormPanel({ onSubmit, loading }) {
     }
   )))))), /* @__PURE__ */ h("button", { type: "submit", tabIndex: -1, "aria-busy": loading ? "true" : "false" }, "fetch")));
 }
-export function RawOutputPanel({ input, data, version, errorMessage }) {
+export function RawOutputPanel({ input, data, version }) {
   const style = { padding: "1rem" };
-  if (errorMessage !== "") {
-    return /* @__PURE__ */ h("details", { open: true }, /* @__PURE__ */ h("summary", null, " raw response"), /* @__PURE__ */ h("pre", { id: "output", style: { ...style, "background-color": "#fee" } }, errorMessage));
-  }
   return /* @__PURE__ */ h("details", null, /* @__PURE__ */ h("summary", null, " raw response"), /* @__PURE__ */ h("pre", { id: "output", style }, "version", version, ": ", JSON.stringify(data, null, 2)));
 }
-function CardListPanel({ rows, onError, children }) {
-  try {
-    const props = rows.map((row) => {
-      const html_url = apiURLtohtmlURL(row.url);
-      const avatar_url = row.owner.avatar_url.includes("?") ? `${row.owner.avatar_url}&s=80` : `${row.owner.avatar_url}?s=80&v=4`;
-      const parts = html_url.split("/");
-      return {
-        "title": row.repository,
-        "typ": row.subjectType,
-        "link": { "href": html_url, "text": `#${parts[parts.length - 1]}`, "tab": true },
-        "message": { "text": row.title, author: { name: row.owner.name, url: avatar_url }, "cdate": row.updated_at }
-      };
-    });
-    return /* @__PURE__ */ h(Fragment, null, props.map((p) => /* @__PURE__ */ h(NotificationCard, { key: p.title, ...p })));
-  } catch (err) {
-    onError(err);
-    return;
-  }
+function CardListPanel({ rows, children }) {
+  const props = rows.map((row) => {
+    const html_url = apiURLtohtmlURL(row.url);
+    const avatar_url = row.owner.avatar_url.includes("?") ? `${row.owner.avatar_url}&s=80` : `${row.owner.avatar_url}?s=80&v=4`;
+    const parts = html_url.split("/");
+    return {
+      "title": row.repository,
+      "typ": row.subjectType,
+      "link": { "href": html_url, "text": `#${parts[parts.length - 1]}`, "tab": true },
+      "message": { "text": row.title, author: { name: row.owner.name, url: avatar_url }, "cdate": row.updated_at }
+    };
+  });
+  return /* @__PURE__ */ h(Fragment, null, props.map((p) => /* @__PURE__ */ h(NotificationCard, { key: p.title, ...p })));
 }
 const REPOSITORY = {
   fetchNotification: async ({ query, participating, setLoading }) => {
@@ -147,10 +159,8 @@ const REPOSITORY = {
     let res;
     try {
       res = await CLIENT.fetchNotificationsAPI({ query, participating });
+    } finally {
       setLoading(() => false);
-    } catch (err) {
-      setLoading(() => false);
-      throw err;
     }
     if (res.status !== 200) {
       const errorMessage = await res.text();
