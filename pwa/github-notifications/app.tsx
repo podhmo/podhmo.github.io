@@ -29,8 +29,8 @@ export function App() {
         // console.log("state: ", JSON.stringify(STATE, null, null));
         try {
             setError(undefined);
-            const { raw, data } = await REPOSITORY.fetchNotification({ query: STATE.input.query.value, participating: STATE.input.participating.value, setLoading });
-            setRawRows(() => STATE.input.debug.value ? raw : undefined)
+            const { raw, data } = await REPOSITORY.fetchNotification({ query: STATE.input.query$.value, participating: STATE.input.participating$.value, setLoading });
+            setRawRows(() => STATE.input.debug$.value ? raw : undefined)
             setRows(() => data);
         } catch (err) {
             setError(err)
@@ -96,35 +96,35 @@ export function InputFormPanel({
 
     const handleUsernameChange = useCallback(
         (ev: JSX.TargetedEvent<HTMLInputElement>) => {
-            if (ev.currentTarget) { input.username.value = ev.currentTarget.value; }
+            if (ev.currentTarget) { input.username$.value = ev.currentTarget.value; }
         },
         []
     );
 
     const handleApikeyChange = useCallback(
         (ev: JSX.TargetedEvent<HTMLInputElement>) => {
-            if (ev.currentTarget) { STATE.apikey.value = ev.currentTarget.value; }
+            if (ev.currentTarget) { STATE.apikey$.value = ev.currentTarget.value; }
         },
         []
     );
 
     const handleQueryChange = useCallback(
         (ev: JSX.TargetedEvent<HTMLInputElement>) => {
-            if (ev.currentTarget) { input.query.value = ev.currentTarget.value; }
+            if (ev.currentTarget) { input.query$.value = ev.currentTarget.value; }
         },
         []
     );
 
     const handleParticipatingChange = useCallback(
         (ev: JSX.TargetedEvent<HTMLInputElement>) => {
-            if (ev.currentTarget) { input.participating.value = ev.currentTarget.checked; }
+            if (ev.currentTarget) { input.participating$.value = ev.currentTarget.checked; }
         },
         []
     );
 
     const handleDebugChange = useCallback(
         (ev: JSX.TargetedEvent<HTMLInputElement>) => {
-            if (ev.currentTarget) { input.debug.value = ev.currentTarget.checked; }
+            if (ev.currentTarget) { input.debug$.value = ev.currentTarget.checked; }
         },
         []
     );
@@ -141,7 +141,7 @@ export function InputFormPanel({
                         autoComplete="username"
                         tabIndex={-1}
                         onInput={handleUsernameChange}
-                        value={input.username.value}
+                        value={input.username$.value}
                     />
                     <label htmlFor="password">apikey</label>
                     <input
@@ -150,7 +150,7 @@ export function InputFormPanel({
                         autoComplete="current-password"
                         tabIndex={-1}
                         onInput={handleApikeyChange}
-                        value={STATE.apikey.value}
+                        value={STATE.apikey$.value}
                     />
                     <label htmlFor="query">query</label>
                     <input
@@ -158,7 +158,7 @@ export function InputFormPanel({
                         id="query"
                         tabIndex={-1}
                         onInput={handleQueryChange}
-                        value={input.query.value}
+                        value={input.query$.value}
                     />
                     <div class="grid">
                         <fieldset>
@@ -167,7 +167,7 @@ export function InputFormPanel({
                                 <input
                                     type="checkbox"
                                     id="participating"
-                                    checked={input.participating.value}
+                                    checked={input.participating$.value}
                                     onClick={handleParticipatingChange}
                                     role="switch"
                                 />
@@ -179,7 +179,7 @@ export function InputFormPanel({
                                 <input
                                     type="checkbox"
                                     id="debugStatus"
-                                    checked={input.debug.value}
+                                    checked={input.debug$.value}
                                     onClick={handleDebugChange}
                                     role="switch"
                                 />

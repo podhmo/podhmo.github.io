@@ -6,12 +6,12 @@ import type { SubjectTypeEnum } from "./types/enums.ts"
 
 export const STATE = {
     input: {
-        username: signal<string>("github-notifications"),
-        query: signal<string>(""),
-        participating: signal<boolean>(true),
-        debug: signal<boolean>(false)
+        username$: signal<string>("github-notifications"),
+        query$: signal<string>(""),
+        participating$: signal<boolean>(true),
+        debug$: signal<boolean>(false)
     },
-    apikey: signal<string>(""),
+    apikey$: signal<string>(""),
 }
 
 
@@ -117,7 +117,7 @@ interface IAPIClient {
 
 export const apiClient: IAPIClient = {
     fetchNotificationsAPI: async ({ query, participating }: { query: string; participating: boolean }): Promise<Response> => {
-        const headers = apiHeaders(STATE.apikey.value);
+        const headers = apiHeaders(STATE.apikey$.value);
         let url = "https://api.github.com/notifications";
         const qs = ["per_page=50", "all=false"];
         if (query !== "") {
