@@ -14,7 +14,7 @@ export function App() {
     try {
       setError(void 0);
       const { raw, data } = await REPOSITORY.fetchNotification({ query: STATE.input.query.value, participating: STATE.input.participating.value, setLoading });
-      setRawRows(() => STATE.input.debug ? raw : void 0);
+      setRawRows(() => STATE.input.debug.value ? raw : void 0);
       setRows(() => data);
     } catch (err) {
       setError(err);

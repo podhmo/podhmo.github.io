@@ -30,7 +30,7 @@ export function App() {
         try {
             setError(undefined);
             const { raw, data } = await REPOSITORY.fetchNotification({ query: STATE.input.query.value, participating: STATE.input.participating.value, setLoading });
-            setRawRows(() => STATE.input.debug ? raw : undefined)
+            setRawRows(() => STATE.input.debug.value ? raw : undefined)
             setRows(() => data);
         } catch (err) {
             setError(err)
