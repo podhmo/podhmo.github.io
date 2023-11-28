@@ -1,11 +1,13 @@
 import { h, Fragment } from 'preact';
+
 import type { ComponentChildren } from "preact";
+import type { SubjectTypeEnum } from "./types/enums.ts";
 
 // -- types ----------------------------------------
-type Author = { name: string; url: string; }
+type Author = { name: string; url: string | undefined; }
 type Link = { href: string; text: string; tab?: boolean }
 type Message = { author: Author; text: string; cdate: string }
-type NotificationType = "PullRequest" | "Issue" | "Discussion";
+
 
 
 // -- components ----------------------------------------
@@ -18,7 +20,7 @@ export function GroupedRepositoryCard({ author, children }: GroupedRepositoryCar
     return (
         <article style={{ marginRight: "0%", paddingRight: "0%" }}>
             <div className="grid" style={{ grid: "auto-flow / 1fr 8fr 2fr" }}>
-                <Avatar src={author.url} />
+                <Avatar src={author.url || ""} />
                 <h2>{author.name}</h2>
             </div>
             {children}
@@ -26,13 +28,13 @@ export function GroupedRepositoryCard({ author, children }: GroupedRepositoryCar
     )
 }
 
-type NotificationCardProps = { title: string, link: Link, message: Message, typ: NotificationType, children?: ComponentChildren }
+type NotificationCardProps = { title: string, link: Link, message: Message, typ: SubjectTypeEnum, children?: ComponentChildren }
 export function NotificationCard({ title, link, message, typ, children }: NotificationCardProps) {
     const a = link.tab ? <a href={link.href} target="_blank" rel="noopener noreferrer">{link.text}</a> : <a href={link.href}>{link.text}</a>
     return (
         <article style={{ marginRight: "0%", paddingRight: "0%" }}>
             <div className="grid" style={{ grid: "auto-flow / 1fr 8fr 2fr" }}>
-                <Avatar src={message.author.url} />
+                <Avatar src={message.author.url || ""} />
                 <hgroup>
                     <h3>
                         {title}
@@ -60,7 +62,7 @@ export function CommentCard({ message }: CommentCardProps) {
     return (
         <article style={{ margin: 0 }}>
             <div className="grid" style={{ grid: "auto-flow / 1fr 8fr 2fr" }}>
-                <Avatar src={message.author.url}></Avatar>
+                <Avatar src={message.author.url || ""}></Avatar>
                 <hgroup>
                     <h4>{message.author.name}</h4>
                     <p>commented {message.cdate}</p>

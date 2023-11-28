@@ -1,0 +1,1 @@
+export type SubjectTypeEnum = "PullRequest" | "Issue" | "Discussion";
