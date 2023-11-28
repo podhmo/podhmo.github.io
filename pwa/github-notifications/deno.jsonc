@@ -1,4 +1,4 @@
-{
+  {
     "tasks": {
       "dev": "esbuild --serve=8080 --servedir=. --outdir=dist --tsconfig=deno.jsonc *.tsx",
       "gen": "esbuild --outdir=dist --tsconfig=deno.jsonc *.tsx"
