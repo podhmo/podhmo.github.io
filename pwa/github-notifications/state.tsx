@@ -57,6 +57,10 @@ export const REPOSITORY = {
                 }
 
                 let [k, v] = q.split(":")
+                if (v === undefined) { // support only "<predicate>:<value>" format
+                    return
+                }
+                
                 let isExclude = false;
                 if (v.startsWith("-")) {
                     isExclude = true;
