@@ -145,7 +145,7 @@ export function InputFormPanel({
                     />
                     <label htmlFor="password">apikey</label>
                     <input
-                        type="text"
+                        type="password"
                         id="apikey"
                         autoComplete="current-password"
                         tabIndex={-1}

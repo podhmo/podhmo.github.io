@@ -108,7 +108,7 @@ export function InputFormPanel({
   ), /* @__PURE__ */ h("label", { htmlFor: "password" }, "apikey"), /* @__PURE__ */ h(
     "input",
     {
-      type: "text",
+      type: "password",
       id: "apikey",
       autoComplete: "current-password",
       tabIndex: -1,
