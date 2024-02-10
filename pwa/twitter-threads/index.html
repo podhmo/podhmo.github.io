@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>copy thread contents in x/twitter threads</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- css -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+      html,body { margin:0; width:100%; overflow-y:hidden; }
+      iframe { width:100vw; height:100vh; }
+      pre { padding:  1vw;}
+    </style>
+  </head>
+
+  <body class="fullscreen">
+    <div class="container">
+      <h1 class="title">copy thread contents in x/twitter threads</h1>
+      <form type="submit">
+	<label> target url:  (e.g.  https://x.com/podhmo/status/1756344851866771886?s=20 ) <input id="target-url" value="https://x.com/podhmo/status/1756344851866771886?s=20"></input></label>
+	<button id="loadButton" type="submit">load</button>
+      </form>
+      <button id="copyButton" class="contrast">copy to clipboard</button>
+      <pre>copied text is here</pre>
+    </div>
+    <script>
+      var  popup;
+      var url;
+      
+      document.querySelector("form").addEventListener("submit",  async function(ev){
+	  ev.preventDefault();
+	  if (!!popup){
+	      popup.close();
+	      popup = undefined;
+	  }
+	  url = ev.currentTarget.querySelector("input").value;
+	  console.log("url: ", url);
+	  popup =  window.open(url, "", "popup=yes,width=100vw,height=100vh");
+	  console.log(popup);
+      });
+      
+      document.querySelector("button#copyButton").addEventListener("click", async function(ev){
+	  let text = "wslg上のguiでのimeはみんなどうしてるんだろ？\n\nWindowsのものはまだ使えない感じ？\n\nfcitxとかibusを使う感じっぽい";
+	  //  FIX-ME:
+	  //  let text = Array.from(popup.window.document.querySelectorAll("main article [data-testid=tweetText]")).map((x) => x.textContent).join("\n\n");
+	  document.querySelector("pre").innerText = text;
+	  await  navigator.clipboard.writeText(text);
+      } );
+    </script>
+  </body>
+</html>
