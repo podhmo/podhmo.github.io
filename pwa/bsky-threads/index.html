@@ -16,12 +16,15 @@
 
   <body class="fullscreen">
     <div class="container">
-      <h1 class="title">copy thread contents in x/twitter threads</h1>
+      <h1 class="title">copy thread contents in bsky threads</h1>
       <form type="submit">
-	<label> username <input id="username" value="podhmo"></input></label>
-	<label> handle <input id="handle" value="podhmo.bsky.social"></input></label>
-	<label> password <input id="password" type="password"></input></label>
-	<label> target url:  (e.g.  https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27 ) <input id="target-url"  value="https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27"></input></label>
+	<details open>
+          <summary role="button" class="secondary">form</summary>
+	  <label> username <input id="username" value="podhmo"></input></label>
+	  <label> handle <input id="handle" value="podhmo.bsky.social"></input></label>
+	  <label> password <input id="password" type="password"></input></label>
+	  <label> target url:  (e.g.  https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27 ) <input id="target-url"  value="https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27"></input></label>
+	</details>
 	<button id="loadButton" type="submit">load</button>
       </form>
       <pre>copied text is here</pre>
@@ -30,6 +33,7 @@
     <script>
       document.querySelector("form").addEventListener("submit",  async function(ev){
 	  ev.preventDefault();
+	  document.querySelector("#loadButton").setAttribute("aria-busy", "true");
 
 	  try {
 	      const username = ev.currentTarget.querySelector("input#username").value;
@@ -50,6 +54,8 @@
 	      document.querySelector("pre").innerText = JSON.stringify(await res.json(), null, 2);
 	  }  catch (e) {
 	      alert(e);
+	  } finally {
+	      document.querySelector("#loadButton").setAttribute("aria-busy", "false");
 	  }
       });
     </script>
