@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>copy thread contents in bsky threads</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- css -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+      html,body { margin:0; width:100%; overflow-y:hidden; }
+      iframe { width:100vw; height:100vh; }
+      pre { padding:  1vw;}
+    </style>
+  </head>
+
+  <body class="fullscreen">
+    <div class="container">
+      <h1 class="title">copy thread contents in x/twitter threads</h1>
+      <form type="submit">
+	<label> username <input id="username" value="podhmo"></input></label>
+	<label> handle <input id="handle" value="podhmo.bsky.social"></input></label>
+	<label> password <input id="password" type="password"></input></label>
+	<label> target url:  (e.g.  https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27 ) <input id="target-url"  value="https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27"></input></label>
+	<button id="loadButton" type="submit">load</button>
+      </form>
+      <pre>copied text is here</pre>
+    </div>
+    
+    <script>
+      document.querySelector("form").addEventListener("submit",  async function(ev){
+	  ev.preventDefault();
+
+	  try {
+	      const username = ev.currentTarget.querySelector("input#username").value;
+ 	      const password = ev.currentTarget.querySelector("input#password").value;
+	      const handle = ev.currentTarget.querySelector("input#handle").value;
+      	      const url = ev.currentTarget.querySelector("input#target-url").value;
+
+	      // login 
+	      const loginRes = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {"method": "POST",  "headers": {"Content-Type": "application/json"}, "referrerPolicy": "no-referrer", "body": JSON.stringify({"identifier": handle, "password": password})});
+	      const {did, accessJwt } = await loginRes.json();
+
+	      //  console.log(did,accessJwt);
+
+	      // get thread data
+     	      const atUri = `at://${did}/app.bsky.feed.post/${url.split("/post/")[1]}` // https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27 -> at://<did>/app.bsky.feed.post/3kl3jzsyucl27
+	      console.log(`request: https://bsky.social/xrpc/app.bsky.feed.getPostThread?uri=${atUri}`);
+	      const res = await fetch(`https://bsky.social/xrpc/app.bsky.feed.getPostThread?uri=${atUri}`, {"method": "GET", "headers": {"Accept": "application/json", "Authorization":  `Bearer ${accessJwt}`}, "referrerPolicy": "no-referrer"} )
+	      document.querySelector("pre").innerText = JSON.stringify(await res.json(), null, 2);
+	  }  catch (e) {
+	      alert(e);
+	  }
+      });
+    </script>
+  </body>
+</html>
