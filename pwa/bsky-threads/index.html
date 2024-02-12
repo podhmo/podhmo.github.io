@@ -50,7 +50,7 @@
 	      // get thread data : https://www.docs.bsky.app/docs/api/app-bsky-feed-get-post-thread
      	      const atUri = `at://${did}/app.bsky.feed.post/${url.split("/post/")[1]}` // https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27 -> at://<did>/app.bsky.feed.post/3kl3jzsyucl27
 	      console.log(`request: https://bsky.social/xrpc/app.bsky.feed.getPostThread?uri=${atUri}`);
-	      const res = await fetch(`https://bsky.social/xrpc/app.bsky.feed.getPostThread?uri=${atUri}`, {"method": "GET", "headers": {"Accept": "application/json", "Authorization":  `Bearer ${accessJwt}`}, "referrerPolicy": "no-referrer"} )
+	      const res = await fetch(`https://bsky.social/xrpc/app.bsky.feed.getPostThread?depth=200&uri=${atUri}`, {"method": "GET", "headers": {"Accept": "application/json", "Authorization":  `Bearer ${accessJwt}`}, "referrerPolicy": "no-referrer"} )
 	      data = await res.json()
 	      document.querySelector("pre").innerText = JSON.stringify(data, null, 2);
 
