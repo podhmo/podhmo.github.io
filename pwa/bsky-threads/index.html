@@ -47,6 +47,12 @@
 
 				// login 
 				const loginRes = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", { "method": "POST", "headers": { "Content-Type": "application/json" }, "referrerPolicy": "no-referrer", "body": JSON.stringify({ "identifier": handle, "password": password }) });
+				{
+					const res = loginRes;
+					if (res.status !== 200) {
+						throw new Error(JSON.stringify({ status: res.status, body: await res.json() }))
+					}
+				}
 				const { did, accessJwt } = await loginRes.json();
 
 				//  console.log(did,accessJwt);
@@ -55,6 +61,11 @@
 				const atUri = `at://${did}/app.bsky.feed.post/${url.split("/post/")[1]}` // https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27 -> at://<did>/app.bsky.feed.post/3kl3jzsyucl27
 				console.log(`request: https://bsky.social/xrpc/app.bsky.feed.getPostThread?uri=${atUri}`);
 				const res = await fetch(`https://bsky.social/xrpc/app.bsky.feed.getPostThread?depth=200&uri=${atUri}`, { "method": "GET", "headers": { "Accept": "application/json", "Authorization": `Bearer ${accessJwt}` }, "referrerPolicy": "no-referrer" })
+				{
+					if (res.status !== 200) {
+						throw new Error(JSON.stringify({ status: res.status, body: await res.json() }))
+					}
+				}
 				data = await res.json()
 				document.querySelector("pre").innerText = JSON.stringify(data, null, 2);
 
