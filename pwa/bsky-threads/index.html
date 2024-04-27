@@ -1,83 +1,88 @@
 <!doctype html>
 <html lang="ja">
-  <head>
-    <meta charset="utf-8">
-    <title>copy thread contents in bsky threads</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <!-- css -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
-    <style>
-    pre { padding:  1vw;}
-    </style>
-  </head>
 
-  <body class="fullscreen">
-    <div class="container">
-      <h1 class="title">copy thread contents in bsky threads</h1>
-      <form type="submit">
-	<details open>
-          <summary role="button" class="secondary">form</summary>
-	  <label> username <input id="username" value="podhmo"></input></label>
-	  <label> handle <input id="handle" value="podhmo.bsky.social"></input></label>
-	  <label> password <input id="password" type="password"></input></label>
-	  <label> target url:  (e.g.  https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27 ) <input id="target-url"></input></label>
-	</details>
-	<button id="loadButton" type="submit">load</button>
-      </form>
-      <pre>copied text is here</pre>
-    </div>
-    
-    <script>
-      var data;
+<head>
+	<meta charset="utf-8">
+	<title>copy thread contents in bsky threads</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-      document.querySelector("form").addEventListener("submit",  async function(ev){
-	  ev.preventDefault();
-	  document.querySelector("#loadButton").setAttribute("aria-busy", "true");
+	<!-- css -->
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+	<style>
+		pre {
+			padding: 1vw;
+		}
+	</style>
+</head>
 
-	  try {
-	      const username = ev.currentTarget.querySelector("input#username").value;
- 	      const password = ev.currentTarget.querySelector("input#password").value;
-	      const handle = ev.currentTarget.querySelector("input#handle").value;
-      	      const url = ev.currentTarget.querySelector("input#target-url").value;
+<body class="fullscreen">
+	<div class="container">
+		<h1 class="title">copy thread contents in bsky threads</h1>
+		<form type="submit">
+			<details open>
+				<summary role="button" class="secondary">form</summary>
+				<label> username <input id="username" value="podhmo"></input></label>
+				<label> handle <input id="handle" value="podhmo.bsky.social"></input></label>
+				<label> password <input id="password" type="password"></input></label>
+				<label> target url: (e.g. https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27 ) <input
+						id="target-url"></input></label>
+			</details>
+			<button id="loadButton" type="submit">load</button>
+		</form>
+		<pre>copied text is here</pre>
+	</div>
 
-	      // login 
-	      const loginRes = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {"method": "POST",  "headers": {"Content-Type": "application/json"}, "referrerPolicy": "no-referrer", "body": JSON.stringify({"identifier": handle, "password": password})});
-	      const {did, accessJwt } = await loginRes.json();
+	<script>
+		var data;
 
-	      //  console.log(did,accessJwt);
+		document.querySelector("form").addEventListener("submit", async function (ev) {
+			ev.preventDefault();
+			document.querySelector("#loadButton").setAttribute("aria-busy", "true");
 
-	      // get thread data : https://www.docs.bsky.app/docs/api/app-bsky-feed-get-post-thread
-     	      const atUri = `at://${did}/app.bsky.feed.post/${url.split("/post/")[1]}` // https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27 -> at://<did>/app.bsky.feed.post/3kl3jzsyucl27
-	      console.log(`request: https://bsky.social/xrpc/app.bsky.feed.getPostThread?uri=${atUri}`);
-	      const res = await fetch(`https://bsky.social/xrpc/app.bsky.feed.getPostThread?depth=200&uri=${atUri}`, {"method": "GET", "headers": {"Accept": "application/json", "Authorization":  `Bearer ${accessJwt}`}, "referrerPolicy": "no-referrer"} )
-	      data = await res.json()
-	      document.querySelector("pre").innerText = JSON.stringify(data, null, 2);
+			try {
+				const username = ev.currentTarget.querySelector("input#username").value;
+				const password = ev.currentTarget.querySelector("input#password").value;
+				const handle = ev.currentTarget.querySelector("input#handle").value;
+				const url = ev.currentTarget.querySelector("input#target-url").value;
 
-	      // parse response
-	      const buf =  [];
-	      walk(data.thread, buf);
+				// login 
+				const loginRes = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", { "method": "POST", "headers": { "Content-Type": "application/json" }, "referrerPolicy": "no-referrer", "body": JSON.stringify({ "identifier": handle, "password": password }) });
+				const { did, accessJwt } = await loginRes.json();
 
-	      // copy to clipboard
-	      document.querySelector("pre").innerText = buf.join("\n\n");
-	      await navigator.clipboard.writeText(buf.join("\n\n"));
-	  }  catch (e) {
-	      alert(e);
-	  } finally {
-	      document.querySelector("#loadButton").setAttribute("aria-busy", "false");
-	  }
-      });
+				//  console.log(did,accessJwt);
 
-      function walk(data, buf) {
-	  if(data.post && data.post.record && data.post.record.text) {
-	      buf.push(data.post.record.text);
-	  }
-	  if(data.replies) {
-	      for (const child of data.replies){
-		  walk(child, buf);
-	      }
-	  }
-      }
-    </script>
-  </body>
+				// get thread data : https://www.docs.bsky.app/docs/api/app-bsky-feed-get-post-thread
+				const atUri = `at://${did}/app.bsky.feed.post/${url.split("/post/")[1]}` // https://bsky.app/profile/podhmo.bsky.social/post/3kl3jzsyucl27 -> at://<did>/app.bsky.feed.post/3kl3jzsyucl27
+				console.log(`request: https://bsky.social/xrpc/app.bsky.feed.getPostThread?uri=${atUri}`);
+				const res = await fetch(`https://bsky.social/xrpc/app.bsky.feed.getPostThread?depth=200&uri=${atUri}`, { "method": "GET", "headers": { "Accept": "application/json", "Authorization": `Bearer ${accessJwt}` }, "referrerPolicy": "no-referrer" })
+				data = await res.json()
+				document.querySelector("pre").innerText = JSON.stringify(data, null, 2);
+
+				// parse response
+				const buf = [];
+				walk(data.thread, buf);
+
+				// copy to clipboard
+				document.querySelector("pre").innerText = buf.join("\n\n");
+				await navigator.clipboard.writeText(buf.join("\n\n"));
+			} catch (e) {
+				alert(e);
+			} finally {
+				document.querySelector("#loadButton").setAttribute("aria-busy", "false");
+			}
+		});
+
+		function walk(data, buf) {
+			if (data.post && data.post.record && data.post.record.text) {
+				buf.push(data.post.record.text);
+			}
+			if (data.replies) {
+				for (const child of data.replies) {
+					walk(child, buf);
+				}
+			}
+		}
+	</script>
+</body>
+
 </html>
