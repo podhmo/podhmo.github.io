@@ -18,6 +18,6 @@ func main(){
 	fmt.Println("|char|input|")
 	fmt.Println("|:--|:--|")
 	for _, name := range names {
-		fmt.Printf("|%s|%s|\n", m[name], name)
+		fmt.Printf("|%s|`%s`|\n", m[name], name)
 	}
 }
