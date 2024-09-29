@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title></title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <style>
+        .answer-text {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            max-width: 50%;
+            max-height: 1em;
+            padding: 0;
+
+        }
+    </style>
+</head>
+
+<body>
+    <main class="container">
+        <h1>prompt select</h1>
+        <p id="answer"> select prompt is ... <code class="answer-text"></code>
+        </p>
+
+        <pre id="code"></pre>
+        <div id="select">
+        </div>
+    </main>
+
+    <script type="module">
+        import { parse } from "./src/_parse.js";
+
+        // TODO: AbortController, CloseWatcher
+
+        let selectedContent = "";
+
+        document.querySelector("#select").addEventListener("click", (e) => {
+            const target = e.target.closest("article"); // 親方向にarticle要素を探す
+
+            if (target.classList.contains("candidate")) {
+                const pre = target.querySelector("pre");
+                if (pre) {
+                    selectedContent = pre.textContent; // 内容を変数に保持
+                    document.querySelector("#answer code").textContent = selectedContent;
+                }
+            }
+        });
+
+        fetch("./README.md")
+            .then(res => res.text())
+            .then(text => {
+                const md = text.split("\n");
+                const blocks = parse(md, { tag: "" });
+
+                document.querySelector("#select").innerHTML = blocks.map((block, i) => {
+                    return `<article class="candidate">
+                        <h3>${i + 1}</h3>
+                        <pre>${block.join("\n")}</pre>
+                    </article>`;
+                }).join("");
+                // document.querySelector("#code").textContent = JSON.stringify(blocks, null, 2);
+            })
+            .catch((err) => {
+                document.querySelector("#code").textContent = `Error: ${err}`;
+            });
+    </script>
+</body>
+
+</html>
