@@ -1,3 +1,3 @@
 test:
-	deno run --allow-read ./main.ts README.md
+	deno test --allow-read ./src
 .PHONY: test

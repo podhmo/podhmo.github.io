@@ -1,3 +1,14 @@
+
+export function parse(lines, { tag = "" }) {
+    const ret = []
+    for (const block of collectCodeBlocks(lines)) {
+        if (block.tag === tag) {
+            ret.push(block.lines);
+        }
+    }
+    return ret;
+}
+
 /**
 * Collects code blocks from an array of lines.
 *
