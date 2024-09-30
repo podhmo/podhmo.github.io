@@ -19,6 +19,10 @@
             padding: 0;
 
         }
+
+        .selected {
+            border: 2px solid #ccc;
+        }
     </style>
 </head>
 
@@ -38,11 +42,21 @@
 
         // TODO: AbortController, CloseWatcher
 
-        let selectedContent = "";
+        const mdResource = "./README.md"; // リソースのURL
+        let selectedContent = ""; // 選択された内容 (state)
+
 
         document.querySelector("#select").addEventListener("click", (e) => {
             const target = e.target.closest("article"); // 親方向にarticle要素を探す
 
+            // 選択状態の切り替え
+            const prevSelected = target.parentElement.querySelector(".selected");
+            if (prevSelected) {
+                prevSelected.classList.remove("selected");
+            }
+            target.classList.add("selected");
+
+            // 選択された内容を表示
             if (target.classList.contains("candidate")) {
                 const pre = target.querySelector("pre");
                 if (pre) {
@@ -52,7 +66,7 @@
             }
         });
 
-        fetch("./README.md")
+        fetch(mdResource)
             .then(res => res.text())
             .then(text => {
                 const md = text.split("\n");
