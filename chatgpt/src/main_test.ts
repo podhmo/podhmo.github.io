@@ -1,7 +1,7 @@
 import { assertEquals } from "jsr:@std/assert";
 import { TextLineStream } from "jsr:@std/streams@0.223.0/text-line-stream";
 
-import { parse } from "./_parse.js";
+import { parse } from "./parse.js";
 
 async function loadTexts(filename: string) {
     using file = await Deno.open(filename, { read: true });
