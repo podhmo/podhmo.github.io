@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+  <title>copy code</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- style -->
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    pre {
+      padding: 1em;
+    }
+
+    .code {
+      position: relative;
+      padding-right: 2em;
+      /* アイコンのスペースを確保 */
+    }
+
+    .code::after {
+      content: "📋";
+      position: absolute;
+      top: 0;
+      right: 0;
+      cursor: pointer;
+      font-size: 1.5em;
+      padding: 0.25em;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <pre class="code">
+      package main
+      
+      import (
+        "fmt"
+      )
+      
+      func main(){
+        fmt.Println("Hello, World!")
+      }</pre>
+    <pre class="code">
+oyoyuo</pre>
+    </div>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      for (const pre of document.querySelectorAll('.code')) {
+        pre.addEventListener('click', (ev) => {
+          const pre = ev.currentTarget;
+          const rect = pre.getBoundingClientRect();
+          const iconSize = 32; // アイコンのサイズ（ピクセル）
+
+          // クリック位置が右上のアイコン領域内にあるかどうかを判定
+          if (ev.clientX >= rect.right - iconSize && ev.clientY <= rect.top + iconSize) {
+            const text = pre.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+              alert('Copied to clipboard');
+            }).catch(err => {
+              console.error('Failed to copy: ', err);
+            });
+          }
+        });
+      }
+    });
+  </script>
+
+</body>
+
+</html>
