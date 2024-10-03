@@ -1,9 +1,11 @@
-import { log } from "./log.js";
+import { bind } from "./log.js";
 
-log("2. toplevel, on defer", { selector: "#log" });
+const log = bind("#log");
+
+log("2. toplevel, on defer");
 window.addEventListener("DOMContentLoaded", (ev) => {
-    log(`4. ${ev.type}: on defer`, { selector: "#log" });
+    log(`4. ${ev.type}: on defer`);
 })
 window.addEventListener("load", (ev) => {
-    log(`6. ${ev.type}: on defer`, { selector: "#log" }); // ev.type == "" みたい
+    log(`6. ${ev.type}: on defer`); // ev.type == "" みたい
 })

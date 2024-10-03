@@ -6,3 +6,9 @@ export function log(msg, { selector = "", tag = "li" } = {}) {
         document.querySelector(selector).appendChild(li)
     }
 }
+
+export function bind(selector) {
+    return function (msg) {
+        log(msg, { selector });
+    }
+}

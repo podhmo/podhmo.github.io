@@ -15,14 +15,15 @@
 <script type="module" src="./loaded__app.js" defer></script>
 
 <script type="module">
-    import { log } from "./log.js";
+    import { bind } from "./log.js";
+    const log = bind("#log");
 
-    log("1. toplevel, inline", {selector: "#log"}); // 必ずしもdeferより早いとは限らない
+    log("1. toplevel, inline"); // 必ずしもdeferより早いとは限らない
     window.addEventListener("DOMContentLoaded", (ev) => {
-        log(`3. ${ev.type}: inline`, {selector: "#log"});
+        log(`3. ${ev.type}: inline`);
     })
     window.addEventListener("load", (ev) => {
-        log(`5. ${ev.type}: inline`, {selector: "#log"}); // ev.type == "" みたい
+        log(`5. ${ev.type}: inline`); // ev.type == "" みたい
     })       
 </script>
 
