@@ -12,15 +12,17 @@
 </head>
 
 <!-- deferはインラインスクリプトでは無視される -->
-<script type="module" src="./app.js" defer></script>
+<script type="module" src="./loaded__app.js" defer></script>
 
 <script type="module">
-    console.log("1. inline"); // 必ずしもdeferより早いとは限らない
+    import { log } from "./log.js";
+
+    log("1. toplevel, inline", {selector: "#log"}); // 必ずしもdeferより早いとは限らない
     window.addEventListener("DOMContentLoaded", (ev) => {
-        console.log(`3. ${ev.type}: inline`);
+        log(`3. ${ev.type}: inline`, {selector: "#log"});
     })
     window.addEventListener("load", (ev) => {
-        console.log(`5. ${ev.type}: inline`); // ev.type == "" みたい
+        log(`5. ${ev.type}: inline`, {selector: "#log"}); // ev.type == "" みたい
     })       
 </script>
 
@@ -29,6 +31,16 @@
     <main class="container">
         <h1>event handling</h1>
         <p>DOMContentLoadedなどの順序をconsole.logで確認したい</p>
+        <ul>
+            <li>deferのないものは読み込まれたタイミングですぐに実行される。</li>
+            <li>deferはbodyが全部読み込まれたあとDomContentLoadedの前に呼ばれる。全体のリソースが読み込まれたあとにloadedが呼ばれる。</li>
+            <li>deferはインラインスクリプトでは無視される</li>
+        </ul>
+        <article>
+            <p>console.logの順序</p>
+            <ol id="log">
+            </ol>
+        </article>
     </main>
 </body>
 

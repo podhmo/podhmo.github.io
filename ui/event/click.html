@@ -21,18 +21,29 @@
             <li><button>button 2</button></li>
             <li><button>button 3</button></li>
         </ul>
+        <article>
+            <p>click event</p>
+            <ol id="log">
+            </ol>
     </main>
 </body>
 
 <script type="module">
+    import { log } from "./log.js";
+
     document.querySelector("ul").addEventListener("click", (ev) => {
-        console.log(`⬆️ bubbling phase, event:${ev.type}, currentTarget:${ev.currentTarget.tagName}, target:${ev.target.tagName}, content:${ev.target.textContent}`);
+        log(`⬆️ bubbling phase, event:${ev.type}, currentTarget:${ev.currentTarget.tagName}, target:${ev.target.tagName}, content:${ev.target.textContent}`, { selector: "#log" });
         ev.preventDefault();
     })
     document.querySelector("ul").addEventListener("click", (ev) => {
-        console.log(`⬇️ capture phase, event:${ev.type}, currentTarget:${ev.currentTarget.tagName}, target:${ev.target.tagName}, content:${ev.target.textContent}`);
+        log(`⬇️ capture phase, event:${ev.type}, currentTarget:${ev.currentTarget.tagName}, target:${ev.target.tagName}, content:${ev.target.textContent}`, { selector: "#log" });
         ev.preventDefault();
     }, { "capture": true, "once": false, "passive": false })
+
+    document.querySelector("ul").addEventListener("click", (ev) => {
+        log(`⬆️ once, event:${ev.type}, currentTarget:${ev.currentTarget.tagName}, target:${ev.target.tagName}, content:${ev.target.textContent}`, { selector: "#log" });
+        ev.preventDefault();
+    }, { "once": true })
 </script>
 
 </html>
