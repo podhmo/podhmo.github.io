@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <style>
+        button {
+            width: 200px;
+            height: 100px;
+        }
+    </style>
+</head>
+
+<body>
+    <p>eventを貼り付けた場所が<code>currentTarget</code>に発火した場所が<code>target</code>に</p>
+    <ul>
+        <li><button>button 1</button></li>
+        <li><button>button 2</button></li>
+        <li><button>button 3</button></li>
+    </ul>
+</body>
+<script type="module">
+    document.querySelector("ul").addEventListener("click", (ev) => {
+        console.log(`⬆️ bubbling phase, event:${ev.type}, currentTarget:${ev.currentTarget.tagName}, target:${ev.target.tagName}, content:${ev.target.textContent}`);
+        ev.preventDefault();
+    })
+    document.querySelector("ul").addEventListener("click", (ev) => {
+        console.log(`⬇️ capture phase, event:${ev.type}, currentTarget:${ev.currentTarget.tagName}, target:${ev.target.tagName}, content:${ev.target.textContent}`);
+        ev.preventDefault();
+    }, {"capture": true, "once": false, "passive": false})
+</script>
+</html>

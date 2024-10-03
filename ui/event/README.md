@@ -1,5 +1,7 @@
 # event
 
+## loaded.html
+
 DOMのイベントの順序を把握したい
 
 1. scripタグは読み込まれたタイミングで実行される
@@ -13,3 +15,13 @@ DOMのイベントの順序を把握したい
 - 一旦asyncのことは忘れる
 - bubbling phaseとcapture phaseは第三引数で変えられるけれど気にしなくて良いだろう
 - inline scriptのdeferが無効なのは割とめんどくさい
+
+## click.html
+
+- addEventListenerのcapture phaseとbubbling phaseのハンドリングの方法を把握したい
+- targetが発火場所でcurrentTargetがlistenerをくっつけた場所ということを把握したいe
+
+思ったこと
+
+- コールバックの解除は？
+- AbortControllerやCloseWatcherは？
