@@ -29,6 +29,7 @@ DOMのイベントの順序を把握したい
 思ったこと
 
 - コールバックの解除は？ > removeEventListener
+    - 今はAbortControllerのsignalを渡すのが普通っぽい https://developer.mozilla.org/ja/docs/Web/API/EventTarget/addEventListener#%E4%B8%AD%E6%96%AD%E5%8F%AF%E8%83%BD%E3%81%AA%E3%83%AA%E3%82%B9%E3%83%8A%E3%83%BC%E3%81%AE%E8%BF%BD%E5%8A%A0
 - AbortControllerやCloseWatcherは？
 
 ## paste-image.html
