@@ -15,6 +15,7 @@ DOMのイベントの順序を把握したい
 おもったこと
 
 - イベントの発生順序の全貌がほしい？
+    - https://developer.mozilla.org/en-US/docs/Web/API/Window#events
 - 一旦asyncのことは忘れる
 - bubbling phaseとcapture phaseは第三引数で変えられるけれど気にしなくて良いだろう
 - inline scriptのdeferが無効なのは割とめんどくさい
