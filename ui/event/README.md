@@ -1,5 +1,8 @@
 # event
 
+- <https://podhmo.github.io/ui/event/loaded.html>
+- <https://podhmo.github.io/ui/event/click.html>
+
 ## loaded.html
 
 DOMのイベントの順序を把握したい
