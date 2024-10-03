@@ -43,3 +43,7 @@ DOMのイベントの順序を把握したい
 - window.clipboardDataって何者？ -> 古いIE用のフォールバックらしい。不要そう。
 - contenteditableは必須？ -> pateイベントにふれるために必須の模様
 - JSから触る場合は`navigator.clipboard`を使う感じ？ -> 今回はイベントベースのものなので使っていない
+
+memo
+
+- これは発展的な内容？ [Unblocking clipboard access  |  Articles  |  web.dev](https://web.dev/articles/async-clipboard)
