@@ -3,6 +3,7 @@
 - <https://podhmo.github.io/ui/event/loaded.html>
 - <https://podhmo.github.io/ui/event/click.html>
 - <https://podhmo.github.io/ui/event/paste-image.html>
+- <https://podhmo.github.io/ui/event/abort-controller.html>
 
 ## loaded.html
 
@@ -48,3 +49,18 @@ DOMのイベントの順序を把握したい
 memo
 
 - これは発展的な内容？ [Unblocking clipboard access  |  Articles  |  web.dev](https://web.dev/articles/async-clipboard)
+
+## abort-controller.html
+
+AbortControllerに追いついていない。とりあえずfetch()のときに中断用に使うみたいな認識だった。
+
+- 色々なListenerにsignalというオプションでAbortController.signalが渡せる
+- 中断可能な操作を実装するのにも使える。removeEventListenerがお役御免
+- https://developer.mozilla.org/en-US/docs/Web/API/AbortController
+    - abort()で終わる
+    - signal.addEventListener("abort")で追加の処理が書ける
+
+思ったこと
+
+- CloseWatcherの存在との使い分けが把握しきれていない (firefoxはまだ未対応)
+

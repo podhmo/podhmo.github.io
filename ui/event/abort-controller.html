@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>abort-controllerで中断可能な操作</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <main class="container">
+        <ul>
+            <li>通常はfetch()の中断に使う</li>
+            <li>いろいろなListenerのsignalオプションに渡せる</li>
+            <li>abort()で中断。<code>signal.addEventLisner("abort", ...)</code>で追加の操作ができる</li>
+        </ul>
+        <button id="counter">click: <span>0</span></button>
+        <article>
+            <p>5以上になったら止まる</p>
+            <p>10秒経過で止まる</p>
+        </article>
+    </main>
+
+    <script type="module">
+        const controller = new AbortController();
+        const signal = controller.signal;
+        let count = 0; // state
+
+        signal.addEventListener("abort", () => {
+            console.log(`abort! count: ${count}, reason: ${signal.reason}`);
+
+            // disable button
+            document.getElementById("counter").disabled = true;
+        })
+
+        document.getElementById("counter").addEventListener("click", (ev) => {
+            count++
+            console.log("click", count);
+            if (count >= 5) {
+                controller.abort("count is over 5");
+            }
+            const span = ev.currentTarget.querySelector("span").textContent = count
+        }, { signal });
+
+        setTimeout(() => {
+            controller.abort("timeout");
+        }, 10000); // 10s経過で中断
+    </script>
+</body>
+
+</html>
