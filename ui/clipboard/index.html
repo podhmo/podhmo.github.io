@@ -1,46 +1,52 @@
 <!DOCTYPE html>
-<html>
-
-<head>
+<html lang="ja" data-theme="dark">
+  <head>
     <title>clipboard example</title>
-    <meta charset="utf-8" />    
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<script type="module">
-    document.addEventListener("DOMContentLoaded", (ev) => {
-        const el = document.querySelector("#form");
-        el.addEventListener("submit", (ev) => {
-            ev.preventDefault();
-            const el = document.querySelector("#input");
-            console.log(el);
-            const text = el.value;
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  </head>
 
-            console.log("----------------------------------------")
-            console.log("text:", text);
-            console.log("----------------------------------------")
+  <body>
+    <main class="container">
+      <h1>save to clipboard</h1>
 
-            navigator.clipboard.writeText(text).then(() => { document.querySelector("#output").innerHTML = text; }).catch((err) => { console.log(`ng: ${err}`) });
-        })
-    })
-</script>
-
-<body>
-    <form action="" method="POST" id="form" style="display:flex; flex-direction: column;">
+      <form action="" method="POST" id="form" style="display:flex; flex-direction: column;">
         <div>
-            <label for="input">input:</label>
-            <textarea id="input"></textarea>
+          <label for="input">input:</label>
+          <textarea id="input"></textarea>
         </div>
         <div>
-            <button type="submit">save to clipboard</button>
+          <button type="submit">save to clipboard</button>
         </div>
-    </form>
-    <div>
+      </form>
+
+      <div>
         <label for="output">output:</label>
-    <pre id="output">
+        <pre id="output" style="padding:1em;">
 
-    </pre>
-</div>
-</body>
+        </pre>
+    </main>
+  </body>
+
+  <script type="module">
+    const el = document.querySelector("#form");
+    el.addEventListener("submit", (ev) => {
+        ev.preventDefault();
+
+        const el = document.querySelector("#input");
+        const text = el.value;
+
+        console.log("----------------------------------------")
+        console.log("text:", text);
+        console.log("----------------------------------------")
+
+        navigator.clipboard.writeText(text).then(() => { document.querySelector("#output").innerHTML = text; }).catch((err) => { console.log(`ng: ${err}`) });
+    })
+  </script>
+
 
 </html>
