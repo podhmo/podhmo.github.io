@@ -31,7 +31,7 @@
         console.log(`${ev.type}: types is ${d.types}`); // types is Files or text/plain
 
         if (d.types.includes("Files")) {
-            // d.items[0] == DataTransferItem { kind: "file", type: "image/png" }ee
+            // d.items[0] == DataTransferItem { kind: "file", type: "image/png" }
             for (const item of d.items) {
                 const reader = new FileReader();
                 reader.addEventListener(

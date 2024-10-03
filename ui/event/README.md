@@ -36,10 +36,10 @@ DOMのイベントの順序を把握したい
 画像をクリップボードから投稿する方法が知りたい。
 
 - contenteditable=trueの要素でpasteイベントを使う
-- ev.clipboardDataでDataTransfer オブジェクトが取れる https://developer.mozilla.org/en-US/docs/Web/API/DataTransfer
+- ev.clipboardDataでDataTransfer オブジェクトが取れる https://developer.mozilla.org/en-US/docs/Web/API/DataTransfere
 
 思ったこと
 
-- pasteイベントを使う感じ？
-- contenteditableは必須？
-- JSから触る場合は`navigator.clipboard`を使う感じ？
+- window.clipboardDataって何者？ -> 古いIE用のフォールバックらしい。不要そう。
+- contenteditableは必須？ -> pateイベントにふれるために必須の模様
+- JSから触る場合は`navigator.clipboard`を使う感じ？ -> 今回はイベントベースのものなので使っていない
