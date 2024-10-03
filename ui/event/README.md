@@ -23,9 +23,9 @@ DOMのイベントの順序を把握したい
 ## click.html
 
 - addEventListenerのcapture phaseとbubbling phaseのハンドリングの方法を把握したい
-- targetが発火場所でcurrentTargetがlistenerをくっつけた場所ということを把握したいe
+- targetが発火場所でcurrentTargetがlistenerをくっつけた場所ということを把握したい
 
 思ったこと
 
-- コールバックの解除は？
+- コールバックの解除は？ > removeEventListener
 - AbortControllerやCloseWatcherは？
