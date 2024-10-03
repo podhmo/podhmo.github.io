@@ -11,7 +11,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
 </head>
 
+<!-- deferはインラインスクリプトでは無視される -->
 <script type="module" src="./app.js" defer></script>
+
 <script type="module">
     console.log("1. inline"); // 必ずしもdeferより早いとは限らない
     window.addEventListener("DOMContentLoaded", (ev) => {
@@ -25,6 +27,7 @@
 
 <body>
     <main class="container">
+        <h1>event handling</h1>
         <p>DOMContentLoadedなどの順序をconsole.logで確認したい</p>
     </main>
 </body>
