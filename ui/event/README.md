@@ -2,6 +2,7 @@
 
 - <https://podhmo.github.io/ui/event/loaded.html>
 - <https://podhmo.github.io/ui/event/click.html>
+- <https://podhmo.github.io/ui/event/paste-image.html>
 
 ## loaded.html
 
@@ -29,3 +30,16 @@ DOMのイベントの順序を把握したい
 
 - コールバックの解除は？ > removeEventListener
 - AbortControllerやCloseWatcherは？
+
+## paste-image.html
+
+画像をクリップボードから投稿する方法が知りたい。
+
+- contenteditable=trueの要素でpasteイベントを使う
+- ev.clipboardDataでDataTransfer オブジェクトが取れる https://developer.mozilla.org/en-US/docs/Web/API/DataTransfer
+
+思ったこと
+
+- pasteイベントを使う感じ？
+- contenteditableは必須？
+- JSから触る場合は`navigator.clipboard`を使う感じ？
