@@ -1,9 +1,16 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja" data-theme="dark">
 
 <head>
-    <meta charset="utf-8" />
+    <title>event handling</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
 </head>
+
 <script type="module" src="./app.js" defer></script>
 <script type="module">
     console.log("1. inline"); // 必ずしもdeferより早いとは限らない
@@ -15,8 +22,11 @@
     })       
 </script>
 
+
 <body>
-    <p>DOMContentLoadedなどの順序をconsole.logで確認したい</p>
+    <main class="container">
+        <p>DOMContentLoadedなどの順序をconsole.logで確認したい</p>
+    </main>
 </body>
 
 </html>

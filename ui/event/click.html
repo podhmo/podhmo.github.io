@@ -1,24 +1,27 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja" data-theme="dark">
 
 <head>
+    <title>click event handling</title>
     <meta charset="utf-8">
-    <style>
-        button {
-            width: 200px;
-            height: 100px;
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
 </head>
 
 <body>
-    <p>eventを貼り付けた場所が<code>currentTarget</code>に発火した場所が<code>target</code>に</p>
-    <ul>
-        <li><button>button 1</button></li>
-        <li><button>button 2</button></li>
-        <li><button>button 3</button></li>
-    </ul>
+    <main class="container">
+        <p>eventを貼り付けた場所が<code>currentTarget</code>に発火した場所が<code>target</code>に</p>
+        <ul>
+            <li><button>button 1</button></li>
+            <li><button>button 2</button></li>
+            <li><button>button 3</button></li>
+        </ul>
+    </main>
 </body>
+
 <script type="module">
     document.querySelector("ul").addEventListener("click", (ev) => {
         console.log(`⬆️ bubbling phase, event:${ev.type}, currentTarget:${ev.currentTarget.tagName}, target:${ev.target.tagName}, content:${ev.target.textContent}`);
@@ -27,6 +30,7 @@
     document.querySelector("ul").addEventListener("click", (ev) => {
         console.log(`⬇️ capture phase, event:${ev.type}, currentTarget:${ev.currentTarget.tagName}, target:${ev.target.tagName}, content:${ev.target.textContent}`);
         ev.preventDefault();
-    }, {"capture": true, "once": false, "passive": false})
+    }, { "capture": true, "once": false, "passive": false })
 </script>
+
 </html>
