@@ -64,3 +64,7 @@ AbortControllerに追いついていない。とりあえずfetch()のときに�
 
 - CloseWatcherの存在との使い分けが把握しきれていない (firefoxはまだ未対応)
 
+memo
+
+- https://kettanaito.com/blog/dont-sleep-on-abort-controller
+
