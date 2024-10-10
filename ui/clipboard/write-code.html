@@ -28,6 +28,11 @@
       cursor: pointer;
       font-size: 1.5em;
       padding: 0.25em;
+      transition: content 0.3s ease;
+    }
+
+    .code.copied::after {
+      content: "✅";
     }
   </style>
 </head>
@@ -50,8 +55,7 @@
       func main(){
         fmt.Println("Hello, World!")
       }</pre>
-    <pre class="code">
-oyoyuo</pre>
+    <pre class="code">oyoyuo</pre>
     </div>
   </main>
 
@@ -67,7 +71,15 @@ oyoyuo</pre>
           if (ev.clientX >= rect.right - iconSize && ev.clientY <= rect.top + iconSize) {
             const text = pre.innerText;
             navigator.clipboard.writeText(text).then(() => {
-              alert('Copied to clipboard');
+
+              // アイコンをチェックマークに変更
+              {
+                pre.classList.add('copied');
+                setTimeout(() => {
+                  pre.classList.remove('copied');
+                }, 2000); // 2s後に元に戻す
+              }
+
             }).catch(err => {
               console.error('Failed to copy: ', err);
             });
@@ -76,7 +88,6 @@ oyoyuo</pre>
       }
     });
   </script>
-
 </body>
 
 </html>
