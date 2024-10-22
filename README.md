@@ -2,7 +2,7 @@
 
 https://podhmo.github.io
 
->![NOTE]
+>[!NOTE]
 >ここにあるものはすべて未完成
 
 - pwa -- スマホ用のPWA(未完成)
