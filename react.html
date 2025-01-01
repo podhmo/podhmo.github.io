@@ -1,10 +1,29 @@
-<div id="root" />
+<!DOCTYPE html>
+<html data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<title>_client.tsx</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+</head>
+<body>
+<main id=root class="container">
+<h1>...</h1>
+</main>
 <script type="module">
-import React from 'https://dev.jspm.io/react@16'
-import ReactDOM from 'https://dev.jspm.io/react-dom@16'
+// _client.tsx
+import { StrictMode } from "https://esm.sh/react@18";
+import { createRoot } from "https://esm.sh/react-dom@18/client";
+import { jsx } from "https://esm.sh/react@18/jsx-runtime";
+function App() {
+  return /* @__PURE__ */ jsx("h1", { children: "Hello, world!" });
+}
+var root = createRoot(document.getElementById("root"));
+root.render(
+  /* @__PURE__ */ jsx(StrictMode, { children: /* @__PURE__ */ jsx(App, {}) })
+);
 
-ReactDOM.render(
-  React.createElement('h1', null, 'hai'),
-  document.querySelector('#root')
-)
 </script>
+</body>
+</html>
