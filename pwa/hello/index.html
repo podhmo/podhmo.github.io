@@ -1,28 +1,65 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWA Hello World</title>
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <link rel="manifest" href="manifest.json">
+    <style>
+      /* 通知用要素のスタイル */
+      .sw-notification {
+          position: fixed;
+          top: 1rem;
+          right: 1rem;
+          width: 12rem;
+          padding: 0.5rem;
+          background-color: #cfc;
+          border: 1px solid #000;
+          border-radius: 0.25rem;
+          font-size: 1rem;
+          font-weight: bold;
+          cursor: pointer;
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+      }
+      .sw-notification.error {
+          background-color: #fdd;
+          border-color: #f00;
+      }
+      .sw-notification:hover {
+          opacity: 0.9;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hello, PWA World!</h1>
+    <script>
+      if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('service-worker.js')
+              .then(() => {
+                  console.log('Service Worker registered!');
+                  showNotification('Service Worker registered successfully!', {});
+              })
+              .catch(err => {
+                  console.error('Service Worker registration failed:', {css: "error"});
+                  showNotification('Service Worker registration failed!', true);
+              });
+      }
 
-<head>
-  <meta charset="utf-8">
-  <title>Hello World</title>
-  <link rel="stylesheet" href="/pwa/hello/style.css">
-  <link rel="manifest" href="/pwa/hello/app.webmanifest">
-  <link rel="icon" href="/pwa/hello/images/icons/icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="/pwa/hello/images/icons/icon-152x152.png">
-  <meta name="theme-color" content="white" />
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Hello World">
-  <meta name="msapplication-TileImage" content="images/icons/icon-144x144.png">
-  <meta name="msapplication-TileColor" content="#FFFFFF">
-  <meta name="theme-color" content="#ccc" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-
-<body class="fullscreen">
-  <div class="container">
-    <h1 class="title">Hello World!</h1>
-  </div>
-  <script src="/pwa/hello/main.js"></script>
-</body>
-
+      // 通知要素を生成する関数
+      function showNotification(message, options) {
+          const notification = document.createElement('div');
+          notification.className = ["sw-notification", options.css].filter((x) => !!x).join(" ");
+          notification.textContent = message;
+          notification.addEventListener('click', () => {
+              notification.remove();
+          });
+          document.body.appendChild(notification);
+      }
+    </script>
+  </body>
 </html>
