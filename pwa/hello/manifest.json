@@ -1,7 +1,7 @@
 {
   "name": "PWA Hello World",
   "short_name": "PWA Demo",
-  "start_url": "/",
+  "start_url": "/pwa/hello",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000",
