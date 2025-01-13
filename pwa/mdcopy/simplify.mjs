@@ -1,5 +1,5 @@
 /** シンプルな表現のURLに変換する */
-export function symplifyURL(url) {
+export function simplifyURL(url) {
     if (url.startsWith("https://www.amazon.") && url.includes("/dp/")) { // for Amazon product page
         // e.g. https://www.amazon.com/{description}/dp/{asin}/...
         const u = new URL(url);
