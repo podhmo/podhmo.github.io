@@ -36,7 +36,7 @@
       <section class="grid">
         <section>
           <p>保存されたテキスト</p>
-          <pre id="copied"></pre>
+          <p id="copied"></p>
         </section>
         <section>
           <p>渡されたデータ</p>
@@ -45,7 +45,8 @@
       </section>
     </article>
   </main>
-  <script>
+  <script type="module">
+    import { simplifyURL } from "./simplify.mjs"
 
     const params = new URLSearchParams(location.search);
     const url = params.get('url') || '';
@@ -56,8 +57,8 @@
 
     // x/twitterの場合はtextだけしか渡されない
     // 多くの場合にurlが渡されずtextにはurlが入っている
-    const mdtext = `[${title || text}](${url || text})`;
-    
+    const mdtext = `[${title || text}](${simplifyURL(url || text)})`;
+
     navigator.clipboard.writeText(mdtext).then(() => {
       document.getElementById('copied').textContent = mdtext;
     }).catch((err) => {

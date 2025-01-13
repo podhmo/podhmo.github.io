@@ -1,2 +1,4 @@
 serve:
-	python3 -m http.server 8080
+	deno run --allow-net --allow-read jsr:@std/http/file-server --port 8080
+test:
+	deno test -A .
