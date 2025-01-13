@@ -53,11 +53,12 @@
     const title = params.get('title') || '';
     const text = params.get('text') || '';
 
-    document.getElementById('data').textContent = JSON.stringify({ url, title, text }, null, 2);
+    const simplifiedUrl = simplifyURL(url || text)
+    document.getElementById('data').textContent = JSON.stringify({ simplifiedUrl, url, title, text }, null, 2);
 
     // x/twitterの場合はtextだけしか渡されない
     // 多くの場合にurlが渡されずtextにはurlが入っている
-    const mdtext = `[${title || text}](${simplifyURL(url || text)})`;
+    const mdtext = `[${title || text}](${simplifiedUrl})`;
 
     navigator.clipboard.writeText(mdtext).then(() => {
       document.getElementById('copied').textContent = mdtext;

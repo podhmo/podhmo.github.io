@@ -60,17 +60,31 @@
   </header>
   <main class="container">
     <article>
-      <h1>mdcopy</h1>
-      <p>
-        markdown形式でいい感じにタイトルとリンクをクリップボードにコピーする。
-        mobileで「ホーム画面に追加」をしてインストールして使う。
-        使うときには、共有メニューから「mdcopy」を選択する。
-      </p>
-      <ul>
-        <li><a href="https://developer.mozilla.org/en-US/docs/Web/Manifest/share_target">share target API</a>でデータを送る
-        </li>
-        <li><a href="https://github.com/podhmo/podhmo.github.io/tree/master/pwa/mdcopy">code (github)</a></li>
-      </ul>
+      <section>
+        <h1>mdcopy</h1>
+        <p>
+          markdown形式でいい感じにタイトルとリンクをクリップボードにコピーする。
+          mobileで「ホーム画面に追加」をしてインストールして使う。
+          使うときには、共有メニューから「mdcopy」を選択する。
+        </p>
+        <ul>
+          <li><a href="https://developer.mozilla.org/en-US/docs/Web/Manifest/share_target">share target API</a>でデータを送る
+          </li>
+          <li><a href="https://github.com/podhmo/podhmo.github.io/tree/master/pwa/mdcopy">code (github)</a></li>
+        </ul>
+
+        <hr />
+
+        <details>
+          <summary role="button" class="secondary outline">debug用のform</summary>
+          <form action="./shared-handler.html" method="GET">
+            <label for="title">タイトル</label><input type="text" name="title" id="title">
+            <label for="url">URL</label><input type="url" name="url" id="url" required>
+            <label for="text">テキスト</label><input type="text" name="text" id="text">
+            <button type="submit">mdcopyを使う</button>
+          </form>
+        </details>
+      </section>
     </article>
   </main>
 
