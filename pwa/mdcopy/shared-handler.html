@@ -54,7 +54,10 @@
 
     document.getElementById('data').textContent = JSON.stringify({ url, title, text }, null, 2);
 
-    const mdtext = `[${title}](${url || text})`;
+    // x/twitterの場合はtextだけしか渡されない
+    // 多くの場合にurlが渡されずtextにはurlが入っている
+    const mdtext = `[${title || text}](${url || text})`;
+    
     navigator.clipboard.writeText(mdtext).then(() => {
       document.getElementById('copied').textContent = mdtext;
     }).catch((err) => {
