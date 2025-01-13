@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+  <title>mdcopy</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- style -->
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+
+  <!-- for pwa-->
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* 通知用要素のスタイル */
+    .sw-notification {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      width: 12rem;
+      padding: 0.5rem;
+      background-color: #cfc;
+      border: 1px solid #000;
+      border-radius: 0.25rem;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .sw-notification.error {
+      background-color: #fdd;
+      border-color: #f00;
+    }
+
+    .sw-notification:hover {
+      opacity: 0.9;
+    }
+  </style>
+
+</head>
+
+<body>
+  <header class="container">
+    <nav aria-label="breadcrumb">
+      <ul>
+        <li>Home</li>
+      </ul>
+    </nav>
+  </header>
+  <main class="container">
+    <article>
+      <h1>mdcopy</h1>
+      <p>
+        markdownをいい感じでクリップボードにコピーする
+      </p>
+      <ul>
+        <li><a href="https://developer.mozilla.org/en-US/docs/Web/Manifest/share_target">share target API</a>でデータを送る
+        </li>
+        <li><a href="https://github.com/podhmo/podhmo.github.io/tree/master/pwa/mdcopy">code (github)</a></li>
+      </ul>
+    </article>
+  </main>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => {
+          console.log('Service Worker registered!');
+          showNotification('Service Worker registered successfully!', {});
+        })
+        .catch(err => {
+          console.error('Service Worker registration failed:', { css: "error" });
+          showNotification('Service Worker registration failed!', true);
+        });
+    }
+
+    // 通知要素を生成する関数
+    function showNotification(message, options) {
+      const notification = document.createElement('div');
+      notification.className = ["sw-notification", options.css].filter((x) => !!x).join(" ");
+      notification.textContent = message;
+      notification.addEventListener('click', () => {
+        notification.remove();
+      });
+      document.body.appendChild(notification);
+    }
+  </script>
+</body>
+
+</html>
