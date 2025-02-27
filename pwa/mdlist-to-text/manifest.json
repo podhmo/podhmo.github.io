@@ -1,0 +1,25 @@
+{
+  "name": "link mdlist-to-text",
+  "short_name": "mdlist-to-text",
+  "start_url": "/pwa/mdlist-to-text",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "share_target": {
+    "action": "/pwa/mdlist-to-text/shared-handler.html",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}
