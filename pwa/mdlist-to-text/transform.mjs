@@ -7,23 +7,23 @@
 //   - それ以外はインデントの数だけレベルを落としたセクションとして扱う
 // - `*`を使った箇条書きは連続する*の数だけネストされた箇条書きとして扱われる
 // - インデント付きの空白改行はただの改行として変換される
-function convertMarkdown(
-    text: string,
-): string {
-    type Node = {
-        type: "title" | "section" | "text" | "list" | "empty";
-        text: string;
-        children?: Node[];
-        level: number;
-    };
+export function convertMarkdown(
+    text,
+) {
+    // type Node = {
+    //     type: "title" | "section" | "text" | "list" | "empty";
+    //     text: string;
+    //     children?: Node[];
+    //     level: number;
+    // };
 
-    type Group = {
-        maxLevel: number;
-        items: Node[];
-    };
+    // type Group = {
+    //     maxLevel: number;
+    //     items: Node[];
+    // };
 
-    const groups: Group[] = [];
-    let currentGroup: Group = { maxLevel: 0, items: [] };
+    const groups = [];
+    let currentGroup = { maxLevel: 0, items: [] };
 
     // grouping
     const re = /^( *)- ?(.)/;
@@ -128,28 +128,4 @@ function convertMarkdown(
         }
     }
     return buf.join("\n");
-}
-
-if (import.meta.main) {
-    const testInput = `
-タイトル
-- @ ここに文章を書いてみる
-- ここは章タイトル
-  - @ ここは章の文章
-  - ここは節タイトル
-    - ここは節の文章
-    - ここも同様
-  - 節2のタイトル
-    - これは節2の文章
-  - @ これは実質節2の文章
-- @ ここも実質節2の文章
-- ここは章2のタイトル
-  - ここは章2の文章
-  - * 箇条書き
-  - ** ネストしたもの
-  - ** ネストしたもの2
-  - * 箇条書き2
-  - ここも章2の文章
-`;
-    console.log(convertMarkdown(testInput.trim()));
 }
