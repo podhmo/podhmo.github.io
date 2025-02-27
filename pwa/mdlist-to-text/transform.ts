@@ -2,105 +2,136 @@
 // 以下の様なルールでmarkdownテキストを変換する
 // - 先頭のインデント無しのテキストは ## のsectionとして扱われる
 // - `-`を使った箇条書きはテキストとして扱われる
+//   - `-`を使った箇条書きの行であっても、`@`が先頭についたアイテムは無条件でテキストとして扱われる
+//   - `-`の箇条書きがネストした時トップレベル毎の箇条書きをグルーピングし最もレベル（深度）の深い箇条書きのアイテムはテキストとして扱われる
+//   - それ以外はインデントの数だけレベルを落としたセクションとして扱う
 // - `*`を使った箇条書きは連続する*の数だけネストされた箇条書きとして扱われる
 // - インデント付きの空白改行はただの改行として変換される
-// - `-`を使った箇条書きの行であっても、`@`が先頭についたアイテムは無条件でテキストとして扱われる
-//
-// ただし、
-// - `-`の箇条書きがネストした時トップレベル毎の箇条書きをグルーピングし最もレベル（深度）の深い箇条書きのアイテムはテキストとして扱われる
-// - それ以外はインデントの数だけレベルを落としたセクションとして扱う
-function convertMarkdown(text: string): string {
-    const lines = text.split("\n");
-    const result: string[] = [];
-    const bulletGroups: string[][] = [];
-    let currentGroup: string[] = [];
+function convertMarkdown(
+    text: string,
+): string {
+    type Node = {
+        type: "title" | "section" | "text" | "list" | "empty";
+        text: string;
+        children?: Node[];
+        level: number;
+    };
 
-    // 行を処理して変換
-    lines.forEach((line, index) => {
-        // 空行の処理
+    type Group = {
+        maxLevel: number;
+        items: Node[];
+    };
+
+    const groups: Group[] = [];
+    let currentGroup: Group = { maxLevel: 0, items: [] };
+
+    // grouping
+    const re = /^( *)- ?(.)/;
+    for (const line of text.split("\n")) {
         if (line.trim() === "") {
-            if (currentGroup.length > 0) {
-                bulletGroups.push([...currentGroup]);
-                currentGroup = [];
+            currentGroup.items.push({ type: "empty", text: "", level: -1 });
+            continue;
+        }
+
+        const m = re.exec(line);
+        if (!m) {
+            if (currentGroup.items.length > 0) {
+                groups.push(currentGroup);
             }
-            result.push("");
-            return;
+            currentGroup = { maxLevel: 0, items: [] };
+            currentGroup.items.push({ type: "title", text: line, level: -1 });
+            continue;
         }
 
-        // インデントなしのテキストはセクションとして処理
-        if (
-            !line.startsWith(" ") && !line.startsWith("-") &&
-            !line.startsWith("*")
-        ) {
-            if (currentGroup.length > 0) {
-                bulletGroups.push([...currentGroup]);
-                currentGroup = [];
-            }
-            result.push(`## ${line.trim()}`);
-            return;
+        const lv = m[1]?.length || 0;
+        if (lv === 0) {
+            groups.push(currentGroup);
+            currentGroup = { maxLevel: 0, items: [] };
         }
 
-        // 箇条書きの処理
-        if (
-            line.trim().startsWith("-") || line.trim().startsWith("*") ||
-            line.trim().startsWith("@")
-        ) {
-            currentGroup.push(line);
+        switch (m[2]) {
+            case "@":
+                currentGroup.items.push({
+                    type: "text",
+                    text: line.substring(line.indexOf("@") + 1).trimStart(),
+                    level: lv,
+                });
+                break;
+            case "*":
+                currentGroup.items.push({
+                    type: "list",
+                    text: line.substring(line.indexOf("*") - 1).trim(),
+                    level: lv,
+                });
+                break;
+            default:
+                currentGroup.items.push({
+                    type: "section",
+                    text: line.substring(m[0].length - 1),
+                    level: lv,
+                });
+                if (currentGroup.maxLevel < lv) {
+                    currentGroup.maxLevel = lv;
+                }
+                break;
         }
-    });
-
-    // 最後のグループを追加
-    if (currentGroup.length > 0) {
-        bulletGroups.push(currentGroup);
+    }
+    if (currentGroup.items.length > 0) {
+        groups.push(currentGroup);
     }
 
-    // 各箇条書きグループを処理
-    bulletGroups.forEach((group) => {
-        // 最大深度の計算
-        const maxDepth = Math.max(...group.map((line) => {
-            const match = line.match(/^(\s*)/);
-            return match ? match[1].length / 2 : 0;
-        }));
+    // emit
+    const buf = [];
 
-        group.forEach((line) => {
-            const trimmed = line.trim();
-            const indentMatch = line.match(/^(\s*)/);
-            const indentLevel = indentMatch ? indentMatch[1].length / 2 : 0;
-
-            // @で始まる場合は常にテキスト
-            if (trimmed.startsWith("- @")) {
-                result.push(line.replace("- @", "").trim());
-                return;
-            }
-
-            // - で始まる箇条書き
-            if (trimmed.startsWith("-")) {
-                if (maxDepth === 0 || indentLevel === maxDepth) {
-                    result.push(trimmed.substring(1).trim());
-                } else {
-                    const sectionLevel = 2 + indentLevel;
-                    result.push(
-                        `${"#".repeat(sectionLevel)} ${
-                            trimmed.substring(1).trim()
-                        }`,
-                    );
+    for (const group of groups) {
+        for (const item of group.items) {
+            switch (item.type) {
+                case "empty": {
+                    buf.push("");
+                    break;
                 }
-                return;
+                case "title": {
+                    buf.push(`## ${item.text}`);
+                    buf.push("");
+                    break;
+                }
+                case "text": {
+                    buf.push(item.text);
+                    buf.push("");
+                    break;
+                }
+                case "section": {
+                    if (item.level === group.maxLevel) {
+                        buf.push(item.text); // as text
+                    } else {
+                        buf.push(
+                            `##${
+                                "#".repeat((item.level / 2) + 1)
+                            } ${item.text}`,
+                        );
+                    }
+                    buf.push("");
+                    break;
+                }
+                case "list": {
+                    let i = 0;
+                    for (const k of item.text.split("*")) {
+                        if (k !== "") {
+                            break;
+                        }
+                        i++;
+                    }
+                    buf.push(`${"  ".repeat(i)}- ${item.text.substring(i)}`);
+                    break;
+                }
             }
-
-            // * で始まる箇条書き
-            if (trimmed.startsWith("*")) {
-                const starCount = trimmed.match(/^\*+/)![0].length;
-                const content = trimmed.substring(starCount).trim();
-                result.push(`${"  ".repeat(starCount - 1)}- ${content}`);
-            }
-        });
-    });
-
-    return result.join("\n");
+        }
+    }
+    return buf.join("\n");
 }
 
-const testInput = `
+if (import.meta.main) {
+    const testInput = `
 タイトル
 - @ ここに文章を書いてみる
 - ここは章タイトル
@@ -120,5 +151,5 @@ const testInput = `
   - * 箇条書き2
   - ここも章2の文章
 `;
-
-console.log(convertMarkdown(testInput.trim()));
+    console.log(convertMarkdown(testInput.trim()));
+}
