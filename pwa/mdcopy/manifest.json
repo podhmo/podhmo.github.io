@@ -1,5 +1,6 @@
 {
-  "name": "link mdcopy",
+  "id": "pwa/mdcopy",
+  "name": "mdcopy",
   "short_name": "mdcopy",
   "start_url": "/pwa/mdcopy",
   "display": "standalone",

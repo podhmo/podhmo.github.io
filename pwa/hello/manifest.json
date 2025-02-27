@@ -1,4 +1,5 @@
 {
+  "id": "pwa/hello",
   "name": "PWA Hello World",
   "short_name": "PWA Demo",
   "start_url": "/pwa/hello",

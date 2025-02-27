@@ -1,5 +1,6 @@
 {
-  "name": "link mdlist-to-text",
+  "id": "pwa/mdlist-to-text",
+  "name": "mdlist-to-text",
   "short_name": "mdlist-to-text",
   "start_url": "/pwa/mdlist-to-text",
   "display": "standalone",
