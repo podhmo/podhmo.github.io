@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+  <title>mdlist-to-text</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- style -->
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+
+  <!-- for pwa-->
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    .container pre {
+      padding: 1rem;
+    }
+  </style>
+</head>
+
+<body>
+  <header class="container">
+    <nav aria-label="breadcrumb">
+      <ul>
+        <li><a href="./">Home</a></li>
+        <li>shared target handler</li>
+      </ul>
+    </nav>
+  </header>
+  <main class="container">
+    <article>
+      <h1>mdlist-to-text</h1>
+      <section class="grid">
+        <section>
+          <p>保存されたテキスト</p>
+          <pre id="copied"></pre>
+        </section>
+        <section>
+          <p>渡されたデータ</p>
+          <pre id="data"></pre>
+        </section>
+      </section>
+    </article>
+  </main>
+  <script type="module">
+    import { convertMarkdown} from "./transform.mjs";
+
+    const params = new URLSearchParams(location.search);
+    const inputText = (params.get('text') || '').trim();
+
+    document.getElementById('data').textContent = inputText;
+
+    const outputText = convertMarkdown(inputText);
+
+    navigator.clipboard.writeText(outputText).then(() => {
+      document.getElementById('copied').textContent = outputText;
+    }).catch((err) => {
+      const el = document.getElementById('copied');
+      el.textContent = `Failed to copy to clipboard. ${err}`
+      el.style.backgroundColor = '#fdd';
+    });
+
+  </script>
+</body>
+
+</html>
