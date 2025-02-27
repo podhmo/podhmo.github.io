@@ -12,7 +12,7 @@
 function convertMarkdown(text: string): string {
     const lines = text.split("\n");
     const result: string[] = [];
-    let bulletGroups: string[][] = [];
+    const bulletGroups: string[][] = [];
     let currentGroup: string[] = [];
 
     // 行を処理して変換
@@ -68,8 +68,8 @@ function convertMarkdown(text: string): string {
             const indentLevel = indentMatch ? indentMatch[1].length / 2 : 0;
 
             // @で始まる場合は常にテキスト
-            if (trimmed.startsWith("@")) {
-                result.push(line.replace("@", "").trim());
+            if (trimmed.startsWith("- @")) {
+                result.push(line.replace("- @", "").trim());
                 return;
             }
 
