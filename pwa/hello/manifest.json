@@ -1,5 +1,5 @@
 {
-  "id": "pwa/hello",
+  "id": "https://podhmo.github.io/pwa/hello",
   "name": "PWA Hello World",
   "short_name": "PWA Demo",
   "start_url": "/pwa/hello",
