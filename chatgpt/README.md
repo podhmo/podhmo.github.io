@@ -1,5 +1,9 @@
 # ChatGPT
 
+TODO: いいかんじで選択してコピペしたい
+
+- https://github.com/podhmo/individual-sandbox/tree/master/daily/20250512/example_html 
+
 ## 良さそうなプロンプト集
 
 ### 箇条書き
