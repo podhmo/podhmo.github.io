@@ -203,3 +203,11 @@ gemini 2.5 proを主に利用
 あなたの「キーワードとその解釈・自信度・代替解釈リスト」と要約を読んだ後、私の意図と異なる解釈があれば、それを指摘し修正します。
 最終的には、私たちの間で解釈の齟齬がない状態を目指します。
 ````
+
+## ai studioの履歴をmarkdownに
+
+1. JSONとしてgoogle driveからダウンロード
+2. ダウンロードしたJSONからmarkdownを抽出。
+
+https://gist.github.com/podhmo/41f33ef7f3feaec665e8eaf439ec6c9a
+
