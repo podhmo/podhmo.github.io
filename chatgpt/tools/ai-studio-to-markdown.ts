@@ -88,6 +88,12 @@ function formatChatHistoryToMarkdown(
                     currentAiBlockContent = [];
                     currentAiBlockHasThought = false;
                 }
+
+                if(chunk.text === undefined || chunk.text.trim() === "") {
+                    // ユーザーの入力が空の場合はスキップ
+                    continue;
+                }
+
                 // Userブロックを追加
                 displayBlocks.push({
                     type: "user",
