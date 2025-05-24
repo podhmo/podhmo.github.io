@@ -1,5 +1,5 @@
-import { ensureDir } from "jsr:@std/fs/ensure-dir";
-import { dirname, join } from "jsr:@std/path";
+import { ensureDir } from "jsr:@std/fs@1.0.17";
+import { dirname, join } from "jsr:@std/path@1.0.9";
 
 const TRIGGER_WORD_GENERATE = "##SCAFFOLD_GENERATE##";
 const TRIGGER_WORD_PLAN = "##SCAFFOLD_PLAN##";
