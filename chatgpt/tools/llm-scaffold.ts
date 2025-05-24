@@ -70,11 +70,7 @@ def greet(name):
 
 あなたの期待される回答形式:
 
-- \`src/index.js\` - アプリケーションのエントリーポイント
-- \`src/components/PostList.js\` - 投稿一覧を表示するコンポーネント
-- \`src/components/PostDetail.js\` - 個別の投稿を表示するコンポーネント
-- \`src/services/api.js\` - API通信を行うモジュール
-- \`public/index.html\` - HTMLのベースファイル
+- \`hello.py\` - アプリケーションのエントリーポイント
 - \`README.md\` - プロジェクトの説明ファイル
 
 これらの指示に従って、適切なモードで応答してください。
