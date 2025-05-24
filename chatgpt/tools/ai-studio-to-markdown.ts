@@ -21,7 +21,7 @@ interface RunSettings {
 }
 
 interface Chunk {
-    text: string;
+    text?: string;
     role: "user" | "model";
     tokenCount?: number;
     isThought?: boolean;
@@ -60,6 +60,10 @@ function formatChatHistoryToMarkdown(
             chunk.role === "user"
         );
         userChunks.forEach((chunk, index) => {
+            if (chunk.text === undefined || chunk.text.trim() === "") {
+                // ユーザーの入力が空の場合はスキップ
+                return;
+            }
             outputParts.push(`${userName}:\n${chunk.text.trim()}`);
             if (index < userChunks.length - 1) {
                 outputParts.push("\n\n---\n\n");
