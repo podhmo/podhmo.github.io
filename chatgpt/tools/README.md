@@ -6,6 +6,6 @@
 ## install
 
 ```bash
-deno install --allow-read ./ai-studio-to-markdown.ts
-deno install --allow-read --allow-write -n lm-scaffold ./llm-scaffold.ts
+deno install -f --global --allow-read ./ai-studio-to-markdown.ts
+deno install -f --global --allow-read --allow-write -n llm-scaffold ./llm-scaffold.ts
 ```
