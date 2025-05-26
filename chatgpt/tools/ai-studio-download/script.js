@@ -1,7 +1,5 @@
-// script.js - ESM (ECMAScript Modules)
-
-// --- 定数定義 ---
-const CLIENT_ID = '1069760790971-k5fl0p0qkmedqvpqun9k6atnmc5pl4mh.apps.googleusercontent.com'; // TODO: 取得したクライアントIDに置き換えてください
+// TODO: 取得したクライアントIDに置き換えてください
+const CLIENT_ID = '1069760790971-k5fl0p0qkmedqvpqun9k6atnmc5pl4mh.apps.googleusercontent.com'; 
 const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
 const GOOGLE_AI_STUDIO_FOLDER_NAME = "Google AI Studio";
@@ -18,6 +16,11 @@ const contentSection = document.getElementById('content');
 const fileListElement = document.getElementById('file-list');
 const loadingMessage = document.getElementById('loading-message');
 const noFilesMessage = document.getElementById('no-files-message');
+
+// Markdownダウンロードオプション用のDOM要素を取得
+const includeThoughtsCheckbox = document.getElementById('includeThoughtsCheckbox');
+const onlyUserInputsCheckbox = document.getElementById('onlyUserInputsCheckbox');
+
 
 // --- Google API ライブラリロード完了時のコールバック ---
 // これらはグローバルスコープに公開する必要があるため、windowオブジェクトにアタッチします。
@@ -195,7 +198,7 @@ function normalizeFileName(originalName) {
  */
 function displayFiles(files) {
     if (!fileListElement) return;
-    fileListElement.innerHTML = ''; 
+    fileListElement.innerHTML = '';
     files.forEach(file => {
         const listItem = document.createElement('li');
         
@@ -214,11 +217,14 @@ function displayFiles(files) {
         const downloadMdButton = document.createElement('button');
         downloadMdButton.textContent = 'MD形式でDL';
         downloadMdButton.onclick = () => handleDownloadFile(file.id, `${normalizedBaseName}.md`, 'text/markdown', (jsonText => {
-            const withThouts = true; // AIの思考プロセスを表示するかどうか
-            const userName = 'ユーザー';
-            const aiName = 'AI';
-            const onlyUserInputs = false; // ユーザーの入力のみを表示するかどうか
-            return formatChatHistoryToMarkdown(JSON.parse(jsonText), withThouts, userName, aiName, onlyUserInputs);
+            // UIの状態を読み取り、オプションオブジェクトを作成して渡す
+            const options = {
+                withThoughts: includeThoughtsCheckbox ? includeThoughtsCheckbox.checked : false,
+                onlyUserInputs: onlyUserInputsCheckbox ? onlyUserInputsCheckbox.checked : false,
+                userName: 'ユーザー', // 固定値として保持
+                aiName: 'AI',       // 固定値として保持
+            };
+            return formatChatHistoryToMarkdown(JSON.parse(jsonText), options);
         }));
 
         actionsDiv.appendChild(downloadJsonButton);
@@ -368,23 +374,34 @@ function showError(message) {
 //     chunkedPrompt: ChunkedPrompt;
 // }
 
+/**
+ * Markdown変換オプションの型定義 (JSDoc用)
+ * @typedef {Object} MarkdownConversionOptions
+ * @property {boolean} [withThoughts=false] - 思考プロセスを含めるかどうか
+ * @property {string} [userName='ユーザー'] - ユーザーとして表示する名前
+ * @property {string} [aiName='AI'] - AIとして表示する名前
+ * @property {boolean} [onlyUserInputs=false] - ユーザーの入力のみを表示するかどうか
+ */
+
 
 /**
  * チャット履歴をMarkdown形式にフォーマットする関数
  * @param {object} chatHistory - チャット履歴オブジェクト
- * @param {boolean} withThoughts - 思考プロセスを含めるかどうか
- * @param {string} userName - ユーザー名
- * @param {string} aiName - AI名
- * @param {boolean} onlyUserInputs - ユーザーの入力のみを表示するかどうか
+ * @param {MarkdownConversionOptions} options - Markdown変換オプション
  * @returns {string} - フォーマットされたMarkdown文字列
  */
 function formatChatHistoryToMarkdown(
     chatHistory,
-    withThoughts,
-    userName,
-    aiName,
-    onlyUserInputs,
+    options = {} // デフォルト値として空オブジェクトを指定
 ) {
+    // オプションのデフォルト値を設定
+    const {
+        withThoughts = false,
+        userName = 'ユーザー',
+        aiName = 'AI',
+        onlyUserInputs = false,
+    } = options;
+
     const outputParts = [];
 
     if (onlyUserInputs) {
@@ -412,18 +429,17 @@ function formatChatHistoryToMarkdown(
 
         const displayBlocks = [];
         let currentAiBlockContent = [];
-        let currentAiBlockHasThought = false;
+        // let currentAiBlockHasThought = false; // このフラグは不要になった
 
         for (const chunk of chatHistory.chunkedPrompt.chunks) {
             if (chunk.role === "user") {
                 // 現在処理中のAIブロックがあれば確定
                 if (currentAiBlockContent.length > 0) {
                     displayBlocks.push({
-                        type: "ai",
+                        type: "model", // AIブロックは'model'ロールとして扱う
                         content: currentAiBlockContent,
                     });
                     currentAiBlockContent = [];
-                    currentAiBlockHasThought = false;
                 }
 
                 if(chunk.text === undefined || chunk.text.trim() === "") {
@@ -439,15 +455,15 @@ function formatChatHistoryToMarkdown(
             } else if (chunk.role === "model") {
                 if (chunk.isThought) {
                     if (withThoughts) {
-                        currentAiBlockHasThought = true;
                         // 思考プロセスの開始前に改行が必要な場合 (例: AIの返答が先に来ていた場合)
-                        if (
+                         if (
                             currentAiBlockContent.length > 0 &&
                             !currentAiBlockContent.at(-1)?.includes(
                                 "</summary>",
-                            )
+                            ) && // 直前が思考プロセスでなければ
+                            !currentAiBlockContent.at(-1)?.startsWith(aiName + ":") // 直前がAIの返答でなければ
                         ) {
-                            currentAiBlockContent.push("");
+                           // currentAiBlockContent.push(""); // summaryの前に空行は不要かもしれない
                         }
                         currentAiBlockContent.push("<details>");
                         currentAiBlockContent.push(
@@ -458,24 +474,31 @@ function formatChatHistoryToMarkdown(
                             currentAiBlockContent.push(line)
                         );
                         currentAiBlockContent.push("</details>");
+                        if (chunk.finishReason) { // 思考プロセスの後にfinishReasonがある場合
+                             currentAiBlockContent.push(`\n(思考終了理由: ${chunk.finishReason})`);
+                        }
                     }
                 } else { // AIの実際の返答
                     // AIの返答前に改行が必要な場合 (例: 思考プロセスが先に来ていた場合)
                     if (
                         currentAiBlockContent.length > 0 &&
-                        !currentAiBlockContent.at(-1)?.startsWith(aiName + ":")
+                        !currentAiBlockContent.at(-1)?.startsWith(aiName + ":") && // 直前がAIの返答でなければ
+                        !currentAiBlockContent.at(-1)?.includes("</details>") // 直前が思考プロセスの閉じタグでなければ
                     ) {
-                        currentAiBlockContent.push("");
+                        // currentAiBlockContent.push(""); // AIの返答の前に空行は不要かもしれない
                     }
                     currentAiBlockContent.push(
                         `${aiName}:\n${chunk.text.trim()}`,
                     );
+                     if (chunk.finishReason) { // 返答の後にfinishReasonがある場合
+                         currentAiBlockContent.push(`\n(返答終了理由: ${chunk.finishReason})`);
+                     }
                 }
             }
         }
         // 最後のAIブロックが残っていれば追加
         if (currentAiBlockContent.length > 0) {
-            displayBlocks.push({ type: "ai", content: currentAiBlockContent });
+            displayBlocks.push({ type: "model", content: currentAiBlockContent });
         }
 
         // displayBlocksを結合して出力
@@ -495,7 +518,12 @@ function formatChatHistoryToMarkdown(
     // メタデータの追加
     outputParts.push("## メタデータ\n\n");
     outputParts.push("```json\n");
-    outputParts.push(JSON.stringify(chatHistory.runSettings, null, 2));
+    // runSettings と systemInstruction をメタデータとして追加
+    const metadata = {
+        runSettings: chatHistory.runSettings,
+        systemInstruction: chatHistory.systemInstruction || null, // systemInstruction が存在しない場合を考慮
+    };
+    outputParts.push(JSON.stringify(metadata, null, 2));
     outputParts.push("\n```\n");
 
     return outputParts.join("");
@@ -505,27 +533,22 @@ function formatChatHistoryToMarkdown(
 // --- 初期化処理 ---
 // DOMContentLoadedはtype="module"では通常不要ですが、念のため。
 // scriptの実行はDOM解析後なので、要素は利用可能です。
-if (authorizeButton) {
-    authorizeButton.onclick = handleAuthClick;
-}
-if (signoutButton) {
-    signoutButton.onclick = handleSignoutClick;
-}
-// 初期状態ではログインボタンのみ表示（maybeEnableAuthUIで制御されるが、CSSで非表示のものが多いため）
-if (authorizeButton) authorizeButton.style.display = 'none'; // maybeEnableAuthUIで表示に切り替わる
-if (signoutButton) signoutButton.style.display = 'none';
-if (contentSection) contentSection.style.display = 'none';
-
-// 初期状態ではログインボタンが表示されるべきなので、maybeEnableAuthUIの呼び出し後に表示されることを期待。
-// もしgisLoaded/gapiLoadedが先に呼ばれると、maybeEnableAuthUIが実行され、
-// authorizeButton.style.display = 'block'がセットされる。
-// 安全のため、初期状態をCSSで制御するか、明示的にここで設定する。
-// Pico.cssはデフォルトでボタンを表示するため、JavaScript側で初期非表示を制御する。
+// ただし、async defer属性が付いているため、DOMContentLoadedを待つ方が安全。
 document.addEventListener('DOMContentLoaded', () => {
-    // ここで初期UI状態を確定させる（例：ログインボタン以外非表示）
+    if (authorizeButton) {
+        authorizeButton.onclick = handleAuthClick;
+    }
+    if (signoutButton) {
+        signoutButton.onclick = handleSignoutClick;
+    }
+    // 初期UI状態を設定
     if (authorizeButton) authorizeButton.style.display = 'none'; // GIS/GAPIロード後に表示される
     if (signoutButton) signoutButton.style.display = 'none';
     if (contentSection) contentSection.style.display = 'none';
     if (loadingMessage) loadingMessage.style.display = 'none';
     if (noFilesMessage) noFilesMessage.style.display = 'none';
+
+    // オプションチェックボックスの初期状態を設定（HTMLでcheckedがあればそれが優先される）
+    // なければJSでデフォルト値を設定することも可能だが、HTMLに任せる
+    // 例：if (includeThoughtsCheckbox && includeThoughtsCheckbox.checked === undefined) includeThoughtsCheckbox.checked = true;
 });
