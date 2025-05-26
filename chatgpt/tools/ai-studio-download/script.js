@@ -32,7 +32,23 @@ window.gisLoaded = () => {
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: '', // トークンレスポンスはrequestAccessTokenのPromiseで処理
+        // https://developers.google.com/identity/oauth2/web/reference/js-reference?hl=en
+        callback: async (response) => {
+            if (response.error) {
+                console.error('Access token error:', err);
+                showError('認証に失敗しました。');
+                updateSigninStatus(false);
+                return
+            }
+            gapi.client.setToken(response);
+            updateSigninStatus(true);
+            await listFilesInAiStudioFolder();
+        },
+        error_callback: (error) => {
+            console.error('Error during token request:', error);
+            showError('認証に失敗しました。');
+            updateSigninStatus(false);
+        }
     });
     gisInited = true;
     maybeEnableAuthUI();
@@ -75,19 +91,7 @@ async function handleAuthClick() {
     }
     if (gapi.client.getToken() === null) {
         tokenClient.requestAccessToken({prompt: 'consent'})
-            .then(async (response) => {
-                if (response.error) {
-                    throw response;
-                }
-                gapi.client.setToken(response);
-                updateSigninStatus(true);
-                await listFilesInAiStudioFolder();
-            })
-            .catch((err) => {
-                console.error('Access token error:', err);
-                showError('認証に失敗しました。');
-                updateSigninStatus(false);
-            });
+        // その後の処理はコールバックで行う
     } else {
         updateSigninStatus(true);
         await listFilesInAiStudioFolder();
