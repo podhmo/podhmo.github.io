@@ -22,40 +22,6 @@ const includeThoughtsCheckbox = document.getElementById('includeThoughtsCheckbox
 const onlyUserInputsCheckbox = document.getElementById('onlyUserInputsCheckbox');
 
 
-// --- Google API ライブラリロード完了時のコールバック ---
-// これらはグローバルスコープに公開する必要があるため、windowオブジェクトにアタッチします。
-window.gapiLoaded = () => {
-    gapi.load('client', initializeGapiClient);
-};
-
-window.gisLoaded = () => {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        // https://developers.google.com/identity/oauth2/web/reference/js-reference?hl=en
-        callback: async (response) => {
-            if (response.error) {
-                console.error('Access token error:', err);
-                showError('認証に失敗しました。');
-                updateSigninStatus(false);
-                return
-            }
-            gapi.client.setToken(response);
-            updateSigninStatus(true);
-            await listFilesInAiStudioFolder();
-        },
-        error_callback: (error) => {
-            console.error('Error during token request:', error);
-            showError('認証に失敗しました。');
-            updateSigninStatus(false);
-        }
-    });
-    gisInited = true;
-    maybeEnableAuthUI();
-};
-
-// --- 関数定義 ---
-
 /**
  * GAPIクライアントの初期化
  */
@@ -556,3 +522,57 @@ document.addEventListener('DOMContentLoaded', () => {
     // なければJSでデフォルト値を設定することも可能だが、HTMLに任せる
     // 例：if (includeThoughtsCheckbox && includeThoughtsCheckbox.checked === undefined) includeThoughtsCheckbox.checked = true;
 });
+
+/* 歴史的経緯により、以下のスクリプトタグはHTMLに直接書くことが推奨されているが、esmとの呼び出し関係を気にするために動的に生成する
+<script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+<script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+ */
+
+// --- Google API ライブラリロード完了時のコールバック ---
+// これらはグローバルスコープに公開する必要があるため、windowオブジェクトにアタッチします。
+window.gapiLoaded = () => {
+    gapi.load('client', initializeGapiClient);
+};
+
+window.gisLoaded = () => {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        // https://developers.google.com/identity/oauth2/web/reference/js-reference?hl=en
+        callback: async (response) => {
+            if (response.error) {
+                console.error('Access token error:', err);
+                showError('認証に失敗しました。');
+                updateSigninStatus(false);
+                return
+            }
+            gapi.client.setToken(response);
+            updateSigninStatus(true);
+            await listFilesInAiStudioFolder();
+        },
+        error_callback: (error) => {
+            console.error('Error during token request:', error);
+            showError('認証に失敗しました。');
+            updateSigninStatus(false);
+        }
+    });
+    gisInited = true;
+    maybeEnableAuthUI();
+};
+
+(() => {
+    // 動的にスクリプトタグを生成してGoogle APIライブラリを読み込む
+    const gapiScript = document.createElement('script');
+    gapiScript.src = 'https://apis.google.com/js/api.js';
+    gapiScript.async = true;
+    gapiScript.defer = true;
+    gapiScript.onload = window.gapiLoaded; // onloadイベントでコールバックを呼び出す
+    document.head.appendChild(gapiScript);
+
+    const gisScript = document.createElement('script');
+    gisScript.src = 'https://accounts.google.com/gsi/client';
+    gisScript.async = true;
+    gisScript.defer = true;
+    gisScript.onload = window.gisLoaded; // onloadイベントでコールバックを呼び出す
+    document.head.appendChild(gisScript);
+})();
