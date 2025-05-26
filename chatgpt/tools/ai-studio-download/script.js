@@ -1,7 +1,7 @@
 // script.js - ESM (ECMAScript Modules)
 
 // --- 定数定義 ---
-const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com'; // TODO: 取得したクライアントIDに置き換えてください
+const CLIENT_ID = '1069760790971-k5fl0p0qkmedqvpqun9k6atnmc5pl4mh.apps.googleusercontent.com'; // TODO: 取得したクライアントIDに置き換えてください
 const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
 const GOOGLE_AI_STUDIO_FOLDER_NAME = "Google AI Studio";
@@ -151,9 +151,9 @@ async function listFilesInAiStudioFolder() {
         const aiStudioFolderId = folderSearchResponse.result.files[0].id;
 
         const fileListResponse = await gapi.client.drive.files.list({
-            q: `'${aiStudioFolderId}' in parents and mimeType='application/json' and trashed=false`,
-            orderBy: 'createdTime desc',
-            fields: 'files(id, name, createdTime)',
+            q: `'${aiStudioFolderId}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed=false`,
+            orderBy: 'modifiedTime desc',
+            fields: 'files(id, name, createdTime, modifiedTime)',
             pageSize: 100,
             spaces: 'drive'
         });
@@ -200,7 +200,7 @@ function displayFiles(files) {
         const listItem = document.createElement('li');
         
         const fileNameSpan = document.createElement('span');
-        fileNameSpan.textContent = file.name;
+        fileNameSpan.textContent = `${file.name} (${file.createdTime})`; // 時刻を右寄せにしたい        
         
         const actionsDiv = document.createElement('div');
         actionsDiv.classList.add('file-actions');
@@ -225,41 +225,77 @@ function displayFiles(files) {
 }
 
 /**
- * ファイルをダウンロードする処理
+ * ファイルをダウンロードする処理 (Fetch API + TextDecoder版)
  * @param {string} fileId
  * @param {string} downloadFileName
  * @param {string} mimeType
  * @param {boolean} [isEmptyMarkdown=false]
  */
 async function handleDownloadFile(fileId, downloadFileName, mimeType, isEmptyMarkdown = false) {
-    if (!gapi.client.getToken()) {
+    const token = gapi.client.getToken();
+    if (!token) {
         showError('認証されていません。ログインしてください。');
         updateSigninStatus(false);
         return;
     }
+    
     try {
         let fileContent;
+
         if (isEmptyMarkdown) {
+            // Markdown形式ダウンロードで内容を空にする場合
             fileContent = ""; 
         } else {
-            const response = await gapi.client.drive.files.get({
-                fileId: fileId,
-                alt: 'media'
+            // --- Fetch API を使用してファイル内容を ArrayBuffer で取得 ---
+            // NOTE: gapi.client.drive.files.get ではなく、Fetch APIを使用 (勝手にjsの文字列(UTF-16)に変換されるのを防ぐため。しかもencodingを無視する)
+            // 似たようなissue: https://github.com/googleapis/google-api-nodejs-client/issues/1151 
+            const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+            const fetchResponse = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    // 取得したアクセストークンをAuthorizationヘッダーに含める
+                    'Authorization': `Bearer ${token.access_token}`
+                }
             });
-            fileContent = response.body;
+
+            // HTTPステータスコードがエラーを示す場合は例外をスロー
+            if (!fetchResponse.ok) {
+                const errorText = await fetchResponse.text(); // エラーレスポンスのボディを取得
+                // エラーメッセージにステータスコードとボディを含める
+                throw new Error(`ファイルダウンロードHTTPエラー！ ステータス: ${fetchResponse.status}, レスポンスボディ: ${errorText.substring(0, 200)}...`); // ボディが長い場合を考慮
+            }
+
+            // レスポンスボディを ArrayBuffer (生のバイトデータ) として取得
+            const arrayBuffer = await fetchResponse.arrayBuffer();
+
+            // 取得した ArrayBuffer を TextDecoder を使って明示的に UTF-8 としてデコード
+            const decoder = new TextDecoder('utf-8');
+            fileContent = decoder.decode(arrayBuffer);
+            // ------------------------------------------------------
         }
         
-        downloadHelper(downloadFileName, fileContent, mimeType);
+        // downloadHelper にデコード済みの UTF-8 文字列と適切な MIME タイプを渡す
+        const finalMimeType = mimeType.includes('charset') ? mimeType : `${mimeType};charset=utf-8`;
+        downloadHelper(downloadFileName, fileContent, finalMimeType);
 
     } catch (error) {
         console.error('Error downloading file:', error);
-        showError(`ファイルダウンロードエラー: ${error.result ? error.result.error.message : error.message}`);
-        if (error.status === 401 || error.status === 403) {
-            handleSignoutClick();
-            alert("認証エラーが発生しました。再度ログインしてください。");
+        // エラーメッセージを組み立てて表示
+        const errorMessage = error.message || '不明なファイルダウンロードエラー';
+        showError(`ファイルダウンロードエラー: ${errorMessage}`);
+        
+        // 認証関連のエラー（401 Unauthorized, 403 Forbidden）の場合、サインアウト処理を行う
+        // Fetchエラーメッセージにステータスコードが含まれるか確認
+        if (errorMessage.includes('ステータス: 401') || errorMessage.includes('ステータス: 403')) {
+             handleSignoutClick();
+             alert("認証エラーが発生しました。再度ログインしてください。");
+        } else if (error.status === 401 || error.status === 403) { // gapiエラーオブジェクトの可能性も考慮 (念のため)
+             handleSignoutClick();
+             alert("認証エラーが発生しました。再度ログインしてください。");
         }
     }
 }
+
 
 /**
  * ダウンロードヘルパー関数

@@ -1,4 +1,4 @@
-# Google Drive File Downloader
+# ai-studio-download
 
 このウェブアプリケーションは、Google Drive内の特定のフォルダ（デフォルトでは "Google AI Studio"）にあるJSONファイルをリスト表示し、ファイル名を正規化（空白をハイフンに置換）した上でダウンロードする機能を提供します。また、同じファイル内容（JSON）を元に、空のMarkdownファイルとしてダウンロードする機能も備えています（将来的にJSONからMarkdownへの変換機能追加を想定）。
 
