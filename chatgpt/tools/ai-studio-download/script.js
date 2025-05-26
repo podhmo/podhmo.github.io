@@ -213,7 +213,13 @@ function displayFiles(files) {
         
         const downloadMdButton = document.createElement('button');
         downloadMdButton.textContent = 'MD形式でDL';
-        downloadMdButton.onclick = () => handleDownloadFile(file.id, `${normalizedBaseName}.md`, 'text/markdown', true);
+        downloadMdButton.onclick = () => handleDownloadFile(file.id, `${normalizedBaseName}.md`, 'text/markdown', (jsonText => {
+            const withThouts = true; // AIの思考プロセスを表示するかどうか
+            const userName = 'ユーザー';
+            const aiName = 'AI';
+            const onlyUserInputs = false; // ユーザーの入力のみを表示するかどうか
+            return formatChatHistoryToMarkdown(JSON.parse(jsonText), withThouts, userName, aiName, onlyUserInputs);
+        }));
 
         actionsDiv.appendChild(downloadJsonButton);
         actionsDiv.appendChild(downloadMdButton);
@@ -229,9 +235,9 @@ function displayFiles(files) {
  * @param {string} fileId
  * @param {string} downloadFileName
  * @param {string} mimeType
- * @param {boolean} [isEmptyMarkdown=false]
+ * @param {function} transformFunction - オプション: ファイル内容を変換する関数 (例: JSONをMarkdownに変換)
  */
-async function handleDownloadFile(fileId, downloadFileName, mimeType, isEmptyMarkdown = false) {
+async function handleDownloadFile(fileId, downloadFileName, mimeType, transformFunction = null) {
     const token = gapi.client.getToken();
     if (!token) {
         showError('認証されていません。ログインしてください。');
@@ -240,42 +246,42 @@ async function handleDownloadFile(fileId, downloadFileName, mimeType, isEmptyMar
     }
     
     try {
-        let fileContent;
+        let fileContent = "";
 
-        if (isEmptyMarkdown) {
-            // Markdown形式ダウンロードで内容を空にする場合
-            fileContent = ""; 
-        } else {
-            // --- Fetch API を使用してファイル内容を ArrayBuffer で取得 ---
-            // NOTE: gapi.client.drive.files.get ではなく、Fetch APIを使用 (勝手にjsの文字列(UTF-16)に変換されるのを防ぐため。しかもencodingを無視する)
-            // 似たようなissue: https://github.com/googleapis/google-api-nodejs-client/issues/1151 
-            const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-            const fetchResponse = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    // 取得したアクセストークンをAuthorizationヘッダーに含める
-                    'Authorization': `Bearer ${token.access_token}`
-                }
-            });
-
-            // HTTPステータスコードがエラーを示す場合は例外をスロー
-            if (!fetchResponse.ok) {
-                const errorText = await fetchResponse.text(); // エラーレスポンスのボディを取得
-                // エラーメッセージにステータスコードとボディを含める
-                throw new Error(`ファイルダウンロードHTTPエラー！ ステータス: ${fetchResponse.status}, レスポンスボディ: ${errorText.substring(0, 200)}...`); // ボディが長い場合を考慮
+        // --- Fetch API を使用してファイル内容を ArrayBuffer で取得 ---
+        // NOTE: gapi.client.drive.files.get ではなく、Fetch APIを使用 (勝手にjsの文字列(UTF-16)に変換されるのを防ぐため。しかもencodingを無視する)
+        // 似たようなissue: https://github.com/googleapis/google-api-nodejs-client/issues/1151 
+        const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+        const fetchResponse = await fetch(url, {
+            method: 'GET',
+            headers: {
+                // 取得したアクセストークンをAuthorizationヘッダーに含める
+                'Authorization': `Bearer ${token.access_token}`
             }
+        });
 
-            // レスポンスボディを ArrayBuffer (生のバイトデータ) として取得
-            const arrayBuffer = await fetchResponse.arrayBuffer();
-
-            // 取得した ArrayBuffer を TextDecoder を使って明示的に UTF-8 としてデコード
-            const decoder = new TextDecoder('utf-8');
-            fileContent = decoder.decode(arrayBuffer);
-            // ------------------------------------------------------
+        // HTTPステータスコードがエラーを示す場合は例外をスロー
+        if (!fetchResponse.ok) {
+            const errorText = await fetchResponse.text(); // エラーレスポンスのボディを取得
+            // エラーメッセージにステータスコードとボディを含める
+            throw new Error(`ファイルダウンロードHTTPエラー！ ステータス: ${fetchResponse.status}, レスポンスボディ: ${errorText.substring(0, 200)}...`); // ボディが長い場合を考慮
         }
+
+        // レスポンスボディを ArrayBuffer (生のバイトデータ) として取得
+        const arrayBuffer = await fetchResponse.arrayBuffer();
+
+        // 取得した ArrayBuffer を TextDecoder を使って明示的に UTF-8 としてデコード
+        const decoder = new TextDecoder('utf-8');
+        fileContent = decoder.decode(arrayBuffer);
+        // ------------------------------------------------------
         
         // downloadHelper にデコード済みの UTF-8 文字列と適切な MIME タイプを渡す
         const finalMimeType = mimeType.includes('charset') ? mimeType : `${mimeType};charset=utf-8`;
+
+        // transformFunctionが指定されている場合は変換を適用
+        if (transformFunction && typeof transformFunction === 'function') {
+            fileContent = transformFunction(fileContent);
+        }
         downloadHelper(downloadFileName, fileContent, finalMimeType);
 
     } catch (error) {
@@ -322,6 +328,179 @@ function showError(message) {
     console.error(message);
     alert(message);
 }
+
+ 
+// interface SafetySetting {
+//     category: string;
+//     threshold: string;
+// }
+
+// interface RunSettings {
+//     temperature: number;
+//     model: string;
+//     topP: number;
+//     topK: number;
+//     maxOutputTokens: number;
+//     safetySettings: SafetySetting[];
+//     responseMimeType: string;
+//     enableCodeExecution: boolean;
+//     enableSearchAsATool: boolean;
+//     enableBrowseAsATool: boolean;
+//     enableAutoFunctionResponse: boolean;
+// }
+
+// interface Chunk {
+//     text?: string;
+//     role: "user" | "model";
+//     tokenCount?: number;
+//     isThought?: boolean;
+//     finishReason?: string;
+// }
+
+// interface ChunkedPrompt {
+//     chunks: Chunk[];
+//     pendingInputs?: unknown[];
+// }
+
+// interface ChatHistory {
+//     runSettings: RunSettings;
+//     systemInstruction?: Record<string, unknown>;
+//     chunkedPrompt: ChunkedPrompt;
+// }
+
+
+/**
+ * チャット履歴をMarkdown形式にフォーマットする関数
+ * @param {object} chatHistory - チャット履歴オブジェクト
+ * @param {boolean} withThoughts - 思考プロセスを含めるかどうか
+ * @param {string} userName - ユーザー名
+ * @param {string} aiName - AI名
+ * @param {boolean} onlyUserInputs - ユーザーの入力のみを表示するかどうか
+ * @returns {string} - フォーマットされたMarkdown文字列
+ */
+function formatChatHistoryToMarkdown(
+    chatHistory,
+    withThoughts,
+    userName,
+    aiName,
+    onlyUserInputs,
+) {
+    const outputParts = [];
+
+    if (onlyUserInputs) {
+        outputParts.push("## ユーザー入力履歴\n\n");
+        const userChunks = chatHistory.chunkedPrompt.chunks.filter((chunk) =>
+            chunk.role === "user"
+        );
+        userChunks.forEach((chunk, index) => {
+            if (chunk.text === undefined || chunk.text.trim() === "") {
+                // ユーザーの入力が空の場合はスキップ
+                return;
+            }
+            outputParts.push(`${userName}:\n${chunk.text.trim()}`);
+            if (index < userChunks.length - 1) {
+                outputParts.push("\n\n---\n\n");
+            } else {
+                outputParts.push("\n\n"); // 最後の入力の後
+            }
+        });
+        if (userChunks.length === 0) {
+            outputParts.push("\n"); // 履歴がない場合、ヘッダーの後に改行
+        }
+    } else {
+        outputParts.push("## 対話履歴\n\n");
+
+        const displayBlocks = [];
+        let currentAiBlockContent = [];
+        let currentAiBlockHasThought = false;
+
+        for (const chunk of chatHistory.chunkedPrompt.chunks) {
+            if (chunk.role === "user") {
+                // 現在処理中のAIブロックがあれば確定
+                if (currentAiBlockContent.length > 0) {
+                    displayBlocks.push({
+                        type: "ai",
+                        content: currentAiBlockContent,
+                    });
+                    currentAiBlockContent = [];
+                    currentAiBlockHasThought = false;
+                }
+
+                if(chunk.text === undefined || chunk.text.trim() === "") {
+                    // ユーザーの入力が空の場合はスキップ
+                    continue;
+                }
+
+                // Userブロックを追加
+                displayBlocks.push({
+                    type: "user",
+                    content: [`${userName}:\n${chunk.text.trim()}`],
+                });
+            } else if (chunk.role === "model") {
+                if (chunk.isThought) {
+                    if (withThoughts) {
+                        currentAiBlockHasThought = true;
+                        // 思考プロセスの開始前に改行が必要な場合 (例: AIの返答が先に来ていた場合)
+                        if (
+                            currentAiBlockContent.length > 0 &&
+                            !currentAiBlockContent.at(-1)?.includes(
+                                "</summary>",
+                            )
+                        ) {
+                            currentAiBlockContent.push("");
+                        }
+                        currentAiBlockContent.push("<details>");
+                        currentAiBlockContent.push(
+                            "<summary>AIの思考プロセス</summary>",
+                        );
+                        currentAiBlockContent.push(""); // summaryと内容の間に空行
+                        chunk.text.trim().split("\n").forEach((line) =>
+                            currentAiBlockContent.push(line)
+                        );
+                        currentAiBlockContent.push("</details>");
+                    }
+                } else { // AIの実際の返答
+                    // AIの返答前に改行が必要な場合 (例: 思考プロセスが先に来ていた場合)
+                    if (
+                        currentAiBlockContent.length > 0 &&
+                        !currentAiBlockContent.at(-1)?.startsWith(aiName + ":")
+                    ) {
+                        currentAiBlockContent.push("");
+                    }
+                    currentAiBlockContent.push(
+                        `${aiName}:\n${chunk.text.trim()}`,
+                    );
+                }
+            }
+        }
+        // 最後のAIブロックが残っていれば追加
+        if (currentAiBlockContent.length > 0) {
+            displayBlocks.push({ type: "ai", content: currentAiBlockContent });
+        }
+
+        // displayBlocksを結合して出力
+        displayBlocks.forEach((block, index) => {
+            outputParts.push(block.content.join("\n"));
+            if (index < displayBlocks.length - 1) {
+                outputParts.push("\n\n---\n\n");
+            } else {
+                outputParts.push("\n\n"); // 最後のブロックの後
+            }
+        });
+        if (displayBlocks.length === 0) {
+            outputParts.push("\n");
+        }
+    }
+
+    // メタデータの追加
+    outputParts.push("## メタデータ\n\n");
+    outputParts.push("```json\n");
+    outputParts.push(JSON.stringify(chatHistory.runSettings, null, 2));
+    outputParts.push("\n```\n");
+
+    return outputParts.join("");
+}
+
 
 // --- 初期化処理 ---
 // DOMContentLoadedはtype="module"では通常不要ですが、念のため。
