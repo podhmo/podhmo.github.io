@@ -1,0 +1,52 @@
+/* style.css - 最小限のカスタムスタイル */
+
+/* ファイルリストのアイテムレイアウト */
+#file-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+#file-list li:last-child {
+    border-bottom: none;
+}
+
+/* ファイル操作ボタンの調整 */
+#file-list .file-actions button {
+    margin-left: 0.5rem;
+    min-width: 110px; /* ボタンの最小幅を少し調整 */
+}
+
+/* スマートフォンでのファイルリスト表示調整 */
+@media (max-width: 576px) {
+    #file-list li {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    #file-list .file-actions {
+        margin-top: 0.5rem;
+        width: 100%;
+        display: grid; /* Gridを使用してボタンを均等配置 */
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); /* 最小100pxで自動フィット */
+        gap: 0.5rem; /* ボタン間の隙間 */
+    }
+    #file-list .file-actions button {
+        margin-left: 0; /* 左マージンをリセット */
+        width: 100%; /* ボタンをコンテナ幅いっぱいに */
+    }
+}
+
+/* ローディングメッセージのマージン */
+#loading-message {
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* ファイルが見つからないメッセージのスタイル */
+#no-files-message {
+    margin-top: 1rem;
+    /* Pico.css の .secondary クラスのような見た目を直接指定する場合は以下を有効化 */
+    /* color: var(--pico-secondary); */
+}

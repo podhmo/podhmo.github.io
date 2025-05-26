@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive File Downloader</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>Google Drive File Downloader</h1>
+            <p>Google AI Studio フォルダ内の JSON ファイルをダウンロードします。</p>
+        </header>
+
+        <nav>
+            <ul>
+                <li><button id="authorize_button" style="display:none;">Googleアカウントでログイン</button></li>
+                <li><button id="signout_button" style="display:none;">ログアウト</button></li>
+            </ul>
+        </nav>
+
+        <section id="content" style="display:none;">
+            <h2>ファイル一覧 (Google AI Studio フォルダ内)</h2>
+            <div id="file-list-container">
+                <p aria-busy="true" id="loading-message" style="display:none;">ファイル一覧を読み込み中...</p>
+                <ul id="file-list"></ul>
+                <p id="no-files-message" style="display:none;">対象のファイルが見つかりませんでした。</p>
+            </div>
+        </section>
+        
+        <footer>
+            <small>Pico.css v2 を使用しています。</small>
+        </footer>
+    </main>
+
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    <script type="module" src="script.js"></script>
+</body>
+</html>

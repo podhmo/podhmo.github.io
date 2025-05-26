@@ -1,114 +1,76 @@
-# Google AI Studio 対話履歴ダウンローダー (Deno)
+# Google Drive File Downloader
 
-このDenoスクリプトは、Google Drive API を使用して、あなたの "Google AI Studio" フォルダに保存されている対話履歴をインタラクティブに選択し、ダウンロードするためのコマンドラインツールです。
+このウェブアプリケーションは、Google Drive内の特定のフォルダ（デフォルトでは "Google AI Studio"）にあるJSONファイルをリスト表示し、ファイル名を正規化（空白をハイフンに置換）した上でダウンロードする機能を提供します。また、同じファイル内容（JSON）を元に、空のMarkdownファイルとしてダウンロードする機能も備えています（将来的にJSONからMarkdownへの変換機能追加を想定）。
 
-実行すると、フォルダ内の対話履歴が更新日時とファイル名で一覧表示され、カーソルキーでダウンロードしたいファイルを選択できます。ダウンロードされるファイルは、シェルで扱いやすいようにファイル名が調整され（例: `会話履歴 1` -> `会話履歴-1.json`）、`.json` 拡張子が付与されます。
+このアプリケーションは、GitHub Pagesのような静的ホスティング環境での動作を想定しており、すべての処理はクライアントサイドのJavaScriptで行われます。
 
 ## 機能
 
--   "Google AI Studio" フォルダ内の対話履歴を更新日時の降順で一覧表示します。
--   表示された一覧から、カーソルキーを使ってダウンロードしたいファイルを選択できます。
--   選択された対話履歴をダウンロードします。
--   ダウンロード時のファイル名は、空白がハイフンに置換されるなど、シェルフレンドリーな形式に変換され、`.json` 拡張子が付きます。
+-   Google OAuth 2.0 を使用した安全なログイン
+-   Google Drive内の "Google AI Studio" フォルダ内のJSONファイルを時系列（降順）で一覧表示
+-   ファイル名の空白をハイフン (`-`) に置換する正規化処理
+-   正規化されたファイル名でJSONファイルをダウンロード (`<normalized-name>.json`)
+-   正規化されたファイル名で空のMarkdownファイルをダウンロード (`<normalized-name>.md`)
+-   Pico.css v2 を使用したシンプルなレスポンシブデザイン
+-   JavaScriptはES Modules (ESM) 形式で記述
 
-## セットアップ
+## 必要なもの・準備
 
-### 1. Denoのインストール
-
-Denoがまだインストールされていない場合は、公式サイトの指示に従ってインストールしてください:
-[https://deno.com/manual/getting_started/installation](https://deno.com/manual/getting_started/installation)
-
-### 2. サービスアカウントキーの準備
-
-このスクリプトはGoogle Drive APIにアクセスするためにサービスアカウントを使用します。
-
-1.  **Google Cloud Consoleでプロジェクトを選択または作成します。**
-2.  **Google Drive APIを有効にします。**
+1.  **Googleアカウント**
+2.  **Google Cloud Platform (GCP) プロジェクト**
+    -   もし既存のプロジェクトがなければ、[GCP Console](https://console.cloud.google.com/) で新しいプロジェクトを作成してください。
+3.  **OAuth 2.0 クライアント ID**
+    -   GCP Console でプロジェクトを選択します。
+    -   ナビゲーションメニューから「APIとサービス」 > 「認証情報」を選択します。
+    -   「+ 認証情報を作成」をクリックし、「OAuth クライアント ID」を選択します。
+    -   「アプリケーションの種類」で「ウェブアプリケーション」を選択します。
+    -   「名前」に任意の名前（例: `Google Drive File Downloader`）を入力します。
+    -   「承認済みの JavaScript 生成元」に、このアプリケーションをホストするURLを追加します。
+        -   GitHub Pages の場合: `https://YOUR_USERNAME.github.io` (YOUR_USERNAME はご自身のGitHubユーザー名に置き換えてください)
+        -   ローカル開発環境の場合: `http://localhost:PORT` (PORT は使用するポート番号、例: `http://localhost:8000`)
+    -   「承認済みのリダイレクト URI」は、このアプリケーションの現在の実装では直接使用しませんが、設定が必要な場合があります。JavaScript生成元と同じドメインで何かダミーのパス（例: `https://YOUR_USERNAME.github.io/oauth2callback`）などを設定しておくか、空のまま作成を試みてください。GISライブラリの`initTokenClient`では通常不要です。
+    -   「作成」をクリックすると、クライアントIDが表示されます。この値を控えておいてください。
+4.  **Google Drive API の有効化**
+    -   GCP Console でプロジェクトを選択します。
     -   ナビゲーションメニューから「APIとサービス」 > 「ライブラリ」を選択します。
-    -   「Google Drive API」を検索し、有効にします。
-3.  **サービスアカウントを作成します。**
-    -   ナビゲーションメニューから「IAMと管理」 > 「サービスアカウント」を選択します。
-    -   「サービスアカウントを作成」をクリックし、必要な情報を入力します（例: 名前 `ai-studio-downloader`）。
-    -   ロールは不要です（Driveの共有設定でアクセス権を付与するため）。
-    -   「完了」をクリックします。
-4.  **サービスアカウントキーを作成してダウンロードします。**
-    -   作成したサービスアカウントのメールアドレスをメモしておきます。
-    -   サービスアカウント一覧で、作成したアカウントのアクション列（︙）から「キーを管理」を選択します。
-    -   「鍵を追加」 > 「新しい鍵を作成」を選択します。
-    -   キーのタイプとして「JSON」を選択し、「作成」をクリックします。キーファイル（`.json`形式）が自動的にダウンロードされます。
-    -   ダウンロードしたキーファイルを安全な場所に保存し、名前を例えば `service-account-key.json` としておきます。**このファイルはGitなどのバージョン管理システムにコミットしないでください。**
-5.  **環境変数の設定 または コマンドライン引数での指定**
-    ダウンロードしたサービスアカウントキーファイルへのパスを、環境変数 `GOOGLE_APPLICATION_CREDENTIALS` に設定します。
-    例 (Linux/macOS):
-    ```bash
-    export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
+    -   「Google Drive API」を検索し、選択して「有効にする」をクリックします。
+
+## 設定方法
+
+1.  このリポジトリをクローンまたはダウンロードします。
+2.  `script.js` ファイルを開きます。
+3.  ファイルの先頭近くにある以下の行を見つけます。
+    ```javascript
+    const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com'; // TODO: 取得したクライアントIDに置き換えてください
     ```
-    または、スクリプト実行時に `--keyFile` オプションで指定することも可能です。
+4.  `'YOUR_CLIENT_ID.apps.googleusercontent.com'` の部分を、上記「必要なもの・準備」で取得したご自身の **OAuth 2.0 クライアント ID** に置き換えてください。
+5.  （オプション）検索対象のフォルダ名を変更したい場合は、`script.js` 内の `GOOGLE_AI_STUDIO_FOLDER_NAME` の値を変更してください。
 
-### 3. Google Drive フォルダの共有設定
+## 使い方
 
-**非常に重要:** 作成したサービスアカウントがあなたの "Google AI Studio" フォルダにアクセスできるように、そのフォルダをサービスアカウントのメールアドレスと共有する必要があります。
+1.  設定済みのファイルを、GitHub Pages やその他の静的ホスティングサービスにデプロイします。
+    -   GitHub Pages にデプロイする場合:
+        1.  このプロジェクトをGitHubリポジトリにプッシュします。
+        2.  リポジトリの「Settings」 > 「Pages」に移動します。
+        3.  「Branch」で `main` (または適切なブランチ) を選択し、「/ (root)」フォルダを選択して「Save」します。
+        4.  公開されたURL（例: `https://YOUR_USERNAME.github.io/REPOSITORY_NAME/`）にアクセスします。
+        5.  **注意:** もし `https://YOUR_USERNAME.github.io/REPOSITORY_NAME/` のようにサブディレクトリでホストする場合、GCPの「承認済みの JavaScript 生成元」にも `https://YOUR_USERNAME.github.io` を設定する必要があります（サブディレクトリなしのルートドメイン）。
+2.  アプリケーションを開くと、Google APIライブラリのロード後に「Googleアカウントでログイン」ボタンが表示されます。
+3.  ボタンをクリックし、Googleアカウントでログインし、要求される権限（Google Driveのファイルの読み取り）を承認します。
+4.  ログインに成功すると、"Google AI Studio" フォルダ（または設定したフォルダ）内のJSONファイルが一覧表示されます。
+5.  各ファイルの横にある「JSON形式でDL」ボタンをクリックすると、正規化されたファイル名でJSONファイルがダウンロードされます。
+6.  「MD形式でDL」ボタンをクリックすると、正規化されたファイル名で空のMarkdownファイルがダウンロードされます。
+7.  作業が終わったら「ログアウト」ボタンでログアウトできます。
 
-1.  Google Drive ([https://drive.google.com/](https://drive.google.com/)) を開きます。
-2.  "Google AI Studio" フォルダを見つけます。（通常、マイドライブ直下にあります）
-3.  フォルダを右クリックし、「共有」を選択します。
-4.  「ユーザーやグループと共有」の入力欄に、ステップ2-4でメモしたサービスアカウントのメールアドレス（例: `ai-studio-downloader@your-project-id.iam.gserviceaccount.com`）を入力します。
-5.  権限として「閲覧者」で十分です。
-6.  「送信」（または「保存」）をクリックします。
+## 注意点
 
-## インストール (コマンドとして登録)
+-   このアプリケーションはクライアントサイドで動作するため、Googleから取得したアクセストークンはブラウザのメモリ内に一時的に保持されます。ブラウザを閉じるかログアウトするとトークンは破棄（または無効化）されます。
+-   OAuthクライアントIDはJavaScriptコード内に含まれるため、ブラウザの開発者ツールなどで確認可能です。これはクライアントサイドウェブアプリケーションの一般的な特性です。セキュリティを確保するため、「承認済みの JavaScript 生成元」を正しく設定し、意図しないドメインからの利用を防ぐことが重要です。
+-   Google Drive APIの利用には、Googleの利用規約およびAPIの割り当て制限が適用されます。
 
-以下のコマンドを実行して、スクリプトを `ai-studio-download` という名前の実行可能なコマンドとしてインストールできます。
+## 今後の拡張予定
 
-```bash
-deno install --allow-net --allow-read --allow-write --allow-env --allow-sys \
-  -n ai-studio-download \
-  https://<このスクリプトのURL、またはローカルファイルのパス>/ai-studio-download.ts
-```
-
--   `--allow-net`: Google Drive APIへのネットワークアクセスを許可します。
--   `--allow-read`: サービスアカウントキーファイルの読み取り、カレントディレクトリの読み取り（相対パス解決のため）を許可します。
--   `--allow-write`: ダウンロードしたファイルの書き出しを許可します。
--   `--allow-env`: 環境変数 `GOOGLE_APPLICATION_CREDENTIALS` の読み取り、その他CLIの動作に必要な環境変数の読み取りを許可します。
--   `--allow-sys`: `cliffy/prompt` がターミナルの情報を取得するために必要となる場合があります (例: `Deno.osRelease()` など)。
--   `-n ai-studio-download`: コマンド名を指定します。
--   最後の引数には、この `ai-studio-download.ts` ファイルをホストしているURL、またはローカルに保存したファイルへのパスを指定してください。
-
-インストール後、パスが通っていればターミナルから直接 `ai-studio-download` コマンドを実行できるようになります。
-
-## 使用方法
-
-### ヘルプの表示
-
-```bash
-ai-studio-download --help
-```
-
-### 対話履歴の選択とダウンロード
-
-スクリプトを実行すると、"Google AI Studio" フォルダ内の対話履歴が更新日時順に一覧表示されます。
-
-```bash
-ai-studio-download
-```
-
-オプションで出力先ディレクトリやキーファイルを指定できます:
-```bash
-ai-studio-download --output ./my_chat_histories
-ai-studio-download --keyFile ./path/to/your-key.json
-```
-
-実行すると、以下のようなプロンプトが表示されます:
-
-```
-? ダウンロードする対話履歴を選択してください (↑↓キーで選択, Enterで決定):
-❯ 2023/10/27 10:30 - 新しいチャット
-  2023/10/26 15:00 - ADHD ASD 違い
-  2023/10/25 09:00 - プロンプトエンジニアリングについて
-  ...
-```
-
-カーソルキー (↑↓) でダウンロードしたいファイルを選択し、Enterキーを押すとダウンロードが開始されます。
-`Ctrl+C` でいつでも選択をキャンセルできます。
-
-    ダウンロードされるファイルは、例えば元のファイル名が `ADHD ASD 違い` であれば、カレントディレクトリ（または `--output` で指定したディレクトリ）に `ADHD-ASD-違い.json` のような名前で保存されます。
+-   ダウンロードするMarkdownファイルに、JSONファイルの内容をMarkdown形式に変換して含める機能。
+-   エラーハンドリングの改善。
+-   ページネーション（ファイル数が多い場合）。
+-   フォルダ選択機能。
