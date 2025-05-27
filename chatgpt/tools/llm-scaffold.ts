@@ -338,7 +338,7 @@ async function encodeFileToString(actualFilePath: string, displayPath: string): 
         }
 
 
-        return `\`\`\`\`${language}:${normalizedDisplayPath}\n${content}\n\`\`\`\`\n\n`;
+        return `\`\`\`\`${language}:${normalizedDisplayPath}\n${content.trimEnd()}\n\`\`\`\`\n\n`;
     } catch (e) {
         console.error(`Error reading file "${actualFilePath}" for encoding: ${e.message}`);
         return "";
