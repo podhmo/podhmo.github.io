@@ -1,10 +1,10 @@
-// src/gist.js
+// src/gist.js (変更なし)
 
 const GITHUB_API_BASE_URL = 'https://api.github.com';
 
 /**
  * GitHub Gistを作成します。
- * @param {string} accessToken - GitHubアクセストークン
+ * @param {string} accessToken - GitHubアクセストークン (User-to-Server)
  * @param {object} gistData - Gistデータ
  * @param {string} gistData.description - Gistの説明
  * @param {boolean} gistData.public - 公開フラグ (true: public, false: secret)

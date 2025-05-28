@@ -1,16 +1,17 @@
-// src/app.js
+// src/app.js (タイトル変更、セッションストレージキー変更以外はほぼ同じ)
 import { h, render } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import htm from 'htm';
 
 import { redirectToGitHubAuth, handleAuthCallback } from './auth.js';
 import { createGist } from './gist.js';
-import { GITHUB_CLIENT_ID } from './config.js'; // configの存在確認のため
+import { GITHUB_CLIENT_ID } from './config.js';
 
 const html = htm.bind(h);
+const SESSION_STORAGE_TOKEN_KEY = 'github_app_access_token_pkce';
 
 function App() {
-    const [accessToken, setAccessToken] = useState(sessionStorage.getItem('github_access_token_pkce'));
+    const [accessToken, setAccessToken] = useState(sessionStorage.getItem(SESSION_STORAGE_TOKEN_KEY));
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
@@ -18,25 +19,23 @@ function App() {
     const [fileName, setFileName] = useState('');
     const [fileContent, setFileContent] = useState(null);
     const [description, setDescription] = useState('');
-    const [isPublic, setIsPublic] = useState(true); // デフォルトは公開
+    const [isPublic, setIsPublic] = useState(true);
 
-    // 初期化処理: URLに認証コードがあればトークン取得を試みる
     useEffect(() => {
-        if (GITHUB_CLIENT_ID === 'YOUR_GITHUB_CLIENT_ID' || GITHUB_CLIENT_ID === '') {
+        if (GITHUB_CLIENT_ID === 'YOUR_GITHUB_APP_CLIENT_ID' || GITHUB_CLIENT_ID === '') {
             setError("開発者向け設定が完了していません。develop.mdに従ってsrc/config.jsを設定してください。");
             setIsLoading(false);
             return;
         }
 
         const processAuth = async () => {
-            // URLに 'code' パラメータがある場合、認証コールバック処理を行う
             if (window.location.search.includes('code=')) {
-                setIsLoading(true); // 認証処理中はローディング表示
+                setIsLoading(true);
                 try {
                     const token = await handleAuthCallback();
                     if (token) {
                         setAccessToken(token);
-                        sessionStorage.setItem('github_access_token_pkce', token); // トークンをセッションストレージに保存
+                        sessionStorage.setItem(SESSION_STORAGE_TOKEN_KEY, token);
                         setSuccessMessage('GitHubにログインしました。');
                         setTimeout(() => setSuccessMessage(null), 3000);
                     } else {
@@ -49,8 +48,7 @@ function App() {
                     setIsLoading(false);
                 }
             } else {
-                 // 'code' がない場合、既存のトークンがあればそれを使う
-                const existingToken = sessionStorage.getItem('github_access_token_pkce');
+                const existingToken = sessionStorage.getItem(SESSION_STORAGE_TOKEN_KEY);
                 if (existingToken) {
                     setAccessToken(existingToken);
                 }
@@ -58,17 +56,17 @@ function App() {
             }
         };
         processAuth();
-    }, []); // このeffectはマウント時に一度だけ実行
+    }, []);
 
     const handleLogin = () => {
         setError(null);
         setSuccessMessage(null);
-        redirectToGitHubAuth(); // PKCEフローを開始
+        redirectToGitHubAuth();
     };
 
     const handleLogout = () => {
         setAccessToken(null);
-        sessionStorage.removeItem('github_access_token_pkce'); // セッションストレージからトークン削除
+        sessionStorage.removeItem(SESSION_STORAGE_TOKEN_KEY);
         setFileName('');
         setFileContent(null);
         setDescription('');
@@ -116,11 +114,10 @@ function App() {
             const gistData = { description, public: isPublic, files };
             const result = await createGist(accessToken, gistData);
             setSuccessMessage(html`Gistが作成されました！ <a href="${result.html_url}" target="_blank" rel="noopener noreferrer">Gistを見る</a>`);
-            // フォームをリセット
             setFileName('');
             setFileContent(null);
             const fileInput = document.getElementById('file-input');
-            if (fileInput) fileInput.value = ''; // ファイル選択をクリア
+            if (fileInput) fileInput.value = '';
             setDescription('');
         } catch (err) {
             console.error(err);
@@ -130,24 +127,14 @@ function App() {
         }
     };
     
-    // 初回レンダリング時または config.js 未設定時のローディング表示制御
-    if (isLoading && (GITHUB_CLIENT_ID === 'YOUR_GITHUB_CLIENT_ID' || GITHUB_CLIENT_ID === '')) {
-         // config未設定時はuseEffect内でisLoading=falseになるので、ここでは何もしないか、
-         // useEffect内のエラーメッセージ表示に任せる
-    } else if (isLoading && !window.location.search.includes('code=')) {
-        // 認証コールバック中でない、通常のローディング（例：既存トークン確認中など）
-        // useEffect内で適切にsetIsLoading(false)が呼ばれるので、この分岐自体が不要になることも
-    }
-
-
     return html`
         <nav>
-            <ul><li><strong>Gist Uploader (PKCE)</strong></li></ul>
+            <ul><li><strong>Gist Uploader (GitHub App)</strong></li></ul>
             <ul>
                 ${accessToken ? html`
                     <li><button onClick=${handleLogout} class="secondary outline">ログアウト</button></li>
                 ` : html`
-                    <li><button onClick=${handleLogin} disabled=${isLoading || GITHUB_CLIENT_ID === 'YOUR_GITHUB_CLIENT_ID' || GITHUB_CLIENT_ID === ''}>GitHubでログイン</button></li>
+                    <li><button onClick=${handleLogin} disabled=${isLoading || GITHUB_CLIENT_ID === 'YOUR_GITHUB_APP_CLIENT_ID' || GITHUB_CLIENT_ID === ''}>GitHubでログイン</button></li>
                 `}
             </ul>
         </nav>
@@ -155,7 +142,7 @@ function App() {
         ${error && html`<article class="error-message" aria-live="assertive">${error}</article>`}
         ${successMessage && html`<article class="success-message" aria-live="assertive">${successMessage}</article>`}
 
-        ${isLoading && (GITHUB_CLIENT_ID !== 'YOUR_GITHUB_CLIENT_ID' && GITHUB_CLIENT_ID !== '') && html`<div aria-busy="true">読み込み中 / 認証処理中...</div>`}
+        ${isLoading && (GITHUB_CLIENT_ID !== 'YOUR_GITHUB_APP_CLIENT_ID' && GITHUB_CLIENT_ID !== '') && html`<div aria-busy="true">読み込み中 / 認証処理中...</div>`}
 
         ${accessToken && !isLoading ? html`
             <form onSubmit=${handleSubmitGist}>
@@ -187,7 +174,7 @@ function App() {
                     </button>
                 </fieldset>
             </form>
-        ` : !isLoading && !(GITHUB_CLIENT_ID === 'YOUR_GITHUB_CLIENT_ID' || GITHUB_CLIENT_ID === '') && html`
+        ` : !isLoading && !(GITHUB_CLIENT_ID === 'YOUR_GITHUB_APP_CLIENT_ID' || GITHUB_CLIENT_ID === '') && html`
             <p>GitHubアカウントでログインして、Gistの作成を開始してください。</p>
         `}
     `;

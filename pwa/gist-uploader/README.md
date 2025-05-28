@@ -1,12 +1,12 @@
-# Gist Uploader (PKCE)
+# Gist Uploader (GitHub App - PKCE)
 
 このツールは、ブラウザからGitHub Gistにファイルを簡単にアップロードするためのウェブアプリケーションです。
 Markdownファイルやソースコードなどを手軽にGistとして保存・共有できます。
-認証にはPKCE (Proof Key for Code Exchange) を利用したGitHub OAuthを使用します。
+認証には、GitHub Appとして登録し、PKCE (Proof Key for Code Exchange) を利用したユーザー認証フローを使用します。
 
 ## 主な機能
 
-- GitHubアカウントでのログイン (PKCEフロー)
+- GitHubアカウントでのログイン (GitHub App User-to-Server トークン、PKCEフロー)
 - ローカルからのファイルアップロード
 - Gistのファイル名、説明（Description）の指定
 - Gistの公開・非公開設定
@@ -37,4 +37,4 @@ Markdownファイルやソースコードなどを手軽にGistとして保存�
 
 ## 開発者の方へ
 
-このアプリケーションのセットアップ方法や技術的な詳細、特に認証部分のCORS対応については、`develop.md` を参照してください。
+このアプリケーションのセットアップ方法（GitHub Appの登録手順を含む）や技術的な詳細、特に認証部分のCORS対応については、`develop.md` を参照してください。

@@ -1,4 +1,4 @@
-// src/utils.js
+// src/utils.js (変更なし)
 
 /**
  * ランダムな文字列を生成してOAuthのstateパラメータやPKCEのcode_verifierとして使用します。

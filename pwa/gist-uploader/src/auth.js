@@ -2,11 +2,11 @@
 import { GITHUB_CLIENT_ID, REDIRECT_URI, GITHUB_OAUTH_SCOPES } from './config.js';
 import { generateRandomString, generateCodeVerifier, generateCodeChallenge, parseQueryParams } from './utils.js';
 
-const OAUTH_STATE_KEY = 'github_oauth_state_pkce';
-const PKCE_CODE_VERIFIER_KEY = 'github_pkce_code_verifier';
+const OAUTH_STATE_KEY = 'github_app_oauth_state_pkce';
+const PKCE_CODE_VERIFIER_KEY = 'github_app_pkce_code_verifier';
 
 /**
- * GitHub認証ページにリダイレクトします (PKCEフロー)。
+ * GitHub認証ページにリダイレクトします (GitHub App User-to-Server Token with PKCE)。
  */
 export async function redirectToGitHubAuth() {
     const state = generateRandomString();
@@ -17,9 +17,9 @@ export async function redirectToGitHubAuth() {
     const codeChallenge = await generateCodeChallenge(codeVerifier);
 
     const authUrl = new URL('https://github.com/login/oauth/authorize');
-    authUrl.searchParams.append('client_id', GITHUB_CLIENT_ID);
+    authUrl.searchParams.append('client_id', GITHUB_CLIENT_ID); // GitHub AppのClient ID
     authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
-    authUrl.searchParams.append('scope', GITHUB_OAUTH_SCOPES);
+    authUrl.searchParams.append('scope', GITHUB_OAUTH_SCOPES); // User Permissionsで要求したスコープ
     authUrl.searchParams.append('state', state);
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('code_challenge', codeChallenge);
@@ -42,20 +42,24 @@ async function fetchToken(code, codeVerifier) {
     // CORSポリシーによりブロックされる可能性が非常に高いです。
     // 実際の運用では、このリクエストを中継するプロキシサーバーのエンドポイントを指定してください。
     // 詳細は develop.md の「トークン取得時の注意 (CORS とプロキシの必要性)」セクションを参照してください。
-    const tokenUrl = 'https://github.com/login/oauth/access_token'; // <--- プロキシサーバーのURLに置き換えること！
+    
+    // const tokenUrl = 'https://github.com/login/oauth/access_token'; // <--- プロキシサーバーのURLに置き換えること！
+    const tokenUrl = "http://localhost:3333/api/github/token"; // プロキシサーバーのURLに置き換えること！
 
     const params = new URLSearchParams();
-    params.append('client_id', GITHUB_CLIENT_ID);
+    params.append('client_id', GITHUB_CLIENT_ID); // GitHub AppのClient ID
     params.append('grant_type', 'authorization_code');
     params.append('code', code);
     params.append('redirect_uri', REDIRECT_URI);
     params.append('code_verifier', codeVerifier);
-    // PKCEの場合、Client Secretはサーバーサイドプロキシが扱う場合に付与（クライアントサイドでは含めない）
+    // PKCEを利用する場合、Client Secretはクライアントサイドからは送信しません。
+    // もしプロキシ経由で、かつGitHubの仕様でClient Secretが必須な場合はプロキシ側で付与します。
+    // (通常、PKCEでは不要)
 
     const response = await fetch(tokenUrl, {
         method: 'POST',
         headers: {
-            'Accept': 'application/json', // GitHubはJSON形式のレスポンスを返すように要求
+            'Accept': 'application/json',
             'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: params.toString(),
@@ -77,7 +81,7 @@ async function fetchToken(code, codeVerifier) {
 
 
 /**
- * 認証コールバックを処理し、アクセストークンを取得します (PKCEフロー)。
+ * 認証コールバックを処理し、アクセストークンを取得します (GitHub App User-to-Server Token with PKCE)。
  * URLのクエリパラメータからcodeとstateを検証し、トークンエンドポイントにリクエストします。
  * @returns {Promise<string | null>} アクセストークン。エラー時はnull。
  */
@@ -88,7 +92,6 @@ export async function handleAuthCallback() {
     const storedState = sessionStorage.getItem(OAUTH_STATE_KEY);
     const codeVerifier = sessionStorage.getItem(PKCE_CODE_VERIFIER_KEY);
 
-    // コールバック後はURLからクエリパラメータを削除してクリーンにする
     if (window.history.replaceState) {
         window.history.replaceState(null, '', window.location.pathname);
     }
@@ -97,29 +100,26 @@ export async function handleAuthCallback() {
 
     if (!code) {
         if (params.error) {
-            console.error('GitHub OAuth Error:', params.error, params.error_description);
+            console.error('GitHub OAuth Error (GitHub App):', params.error, params.error_description);
         }
         return null;
     }
 
     if (receivedState !== storedState) {
-        console.error('OAuth state mismatch. Possible CSRF attack.');
+        console.error('OAuth state mismatch (GitHub App). Possible CSRF attack.');
         return null;
     }
 
     if (!codeVerifier) {
-        console.error('PKCE code_verifier not found in session storage.');
+        console.error('PKCE code_verifier not found in session storage (GitHub App).');
         return null;
     }
 
     try {
         const accessToken = await fetchToken(code, codeVerifier);
-        // アクセストークンをセッションストレージに保存する
-        // 今回は毎回ログインのため、`app.js`のstateで管理し、保存はしない方針だが、
-        // 必要ならここで sessionStorage.setItem('github_access_token', accessToken);
         return accessToken;
     } catch (error) {
-        console.error('Failed to obtain access token:', error);
+        console.error('Failed to obtain access token (GitHub App):', error);
         return null;
     }
 }
