@@ -6,9 +6,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -17,16 +19,35 @@ var (
 	dir     string
 	logger  *slog.Logger
 
-	// Proxy flags
 	enableGithubProxy bool
 	githubProxyPath   string
 	githubTokenURL    string
+	debugHTTP         bool
 )
 
 func init() {
-	// Setup logger
+	logLevel := slog.LevelInfo
+	flag.BoolVar(&debugHTTP, "debug-http", false, "Enable detailed HTTP request/response logging for proxy")
+
+	defaultPort := 3333
+	if p, err := strconv.Atoi(os.Getenv("PORT")); err == nil {
+		defaultPort = p
+	}
+	flag.IntVar(&port, "port", defaultPort, "Port to serve on")
+	flag.StringVar(&dir, "dir", ".", "Directory to serve files from")
+
+	flag.BoolVar(&enableGithubProxy, "enable-github-proxy", false, "Enable GitHub OAuth token proxy")
+	flag.StringVar(&githubProxyPath, "github-proxy-path", "/api/github/token", "Path for the GitHub token proxy endpoint")
+	flag.StringVar(&githubTokenURL, "github-token-url", "https://github.com/login/oauth/access_token", "GitHub OAuth token endpoint URL")
+
+	flag.Parse()
+
+	if debugHTTP {
+		logLevel = slog.LevelDebug
+	}
+
 	logHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: logLevel,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.TimeKey {
 				a.Value = slog.StringValue(a.Value.Time().Format(time.RFC3339Nano))
@@ -36,21 +57,6 @@ func init() {
 	})
 	logger = slog.New(logHandler)
 	slog.SetDefault(logger)
-
-	// Parse command line flags
-	defaultPort := 3333
-	if p, err := strconv.Atoi(os.Getenv("PORT")); err == nil {
-		defaultPort = p
-	}
-	flag.IntVar(&port, "port", defaultPort, "Port to serve on")
-	flag.StringVar(&dir, "dir", ".", "Directory to serve files from")
-
-	// Proxy related flags
-	flag.BoolVar(&enableGithubProxy, "enable-github-proxy", false, "Enable GitHub OAuth token proxy")
-	flag.StringVar(&githubProxyPath, "github-proxy-path", "/api/github/token", "Path for the GitHub token proxy endpoint")
-	flag.StringVar(&githubTokenURL, "github-token-url", "https://github.com/login/oauth/access_token", "GitHub OAuth token endpoint URL")
-
-	flag.Parse()
 
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -62,7 +68,7 @@ func init() {
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*") // For development. For production, specify allowed origins.
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Origin")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -75,7 +81,6 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// responseWriter is a wrapper around http.ResponseWriter to capture the status code
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -91,73 +96,123 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		start := time.Now()
 		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(rw, r)
-		logger.Info("request processed",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"remote_addr", r.RemoteAddr,
-			"user_agent", r.UserAgent(),
-			"status_code", rw.statusCode,
-			"duration", time.Since(start).String(),
+		logger.LogAttrs(r.Context(), slog.LevelInfo, "request processed",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("remote_addr", r.RemoteAddr),
+			slog.Int("status_code", rw.statusCode),
+			slog.String("duration", time.Since(start).String()),
 		)
 	})
 }
 
 func githubProxyHandlerFunc(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if r.Method != http.MethodPost {
-		logger.Warn("GitHub proxy: Method not allowed", "method", r.Method)
+		logger.WarnContext(ctx, "GitHub proxy: Method not allowed", "method", r.Method)
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		logger.Error("GitHub proxy: Failed to read request body", "error", err)
+		logger.ErrorContext(ctx, "GitHub proxy: Failed to read request body from client", "error", err)
 		http.Error(w, "Failed to read request body", http.StatusInternalServerError)
 		return
 	}
-	defer r.Body.Close()
+	defer r.Body.Close() // Close client request body
 
-	proxyReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, githubTokenURL, bytes.NewReader(bodyBytes))
+	if debugHTTP {
+		clientReqDump, dumpErr := httputil.DumpRequest(r, false) // false = do not dump body here, already read
+		if dumpErr == nil {
+			logger.DebugContext(ctx, "GitHub proxy: Received request from client",
+				slog.String("client_request_headers", string(clientReqDump)),
+				slog.String("client_request_body_raw", string(bodyBytes)), // Log the body we read
+			)
+		} else {
+			logger.WarnContext(ctx, "GitHub proxy: Failed to dump client request for logging", "error", dumpErr)
+		}
+	}
+
+	proxyReq, err := http.NewRequestWithContext(ctx, http.MethodPost, githubTokenURL, bytes.NewReader(bodyBytes)) // Use bodyBytes for new request
 	if err != nil {
-		logger.Error("GitHub proxy: Failed to create request to GitHub", "error", err)
+		logger.ErrorContext(ctx, "GitHub proxy: Failed to create new request to GitHub", "error", err)
 		http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)
 		return
 	}
 
-	// Copy necessary headers from original request to proxy request
-	// GitHub token endpoint expects 'application/json' or 'application/x-www-form-urlencoded'
-	// It's important that the client sends the correct Content-Type.
+	// Set headers for GitHub request
 	if clientContentType := r.Header.Get("Content-Type"); clientContentType != "" {
 		proxyReq.Header.Set("Content-Type", clientContentType)
 	} else {
-		// Default or based on typical PKCE flow client behavior
-		proxyReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		proxyReq.Header.Set("Content-Type", "application/x-www-form-urlencoded") // Default
+		logger.WarnContext(ctx, "GitHub proxy: Client did not send Content-Type, defaulting to application/x-www-form-urlencoded for GitHub request")
 	}
-	proxyReq.Header.Set("Accept", "application/json") // We expect JSON response from GitHub
+	proxyReq.Header.Set("Accept", "application/json") // GitHub token endpoint expects JSON response
 
-	logger.Info("GitHub proxy: Forwarding request", "target_url", githubTokenURL, "client_content_type", proxyReq.Header.Get("Content-Type"))
+	if debugHTTP {
+		// Log the request that will be sent to GitHub
+		// httputil.DumpRequestOut can be tricky with bodies that have been "consumed" by NewRequest
+		// So, we log the headers from DumpRequestOut and the body (bodyBytes) separately for clarity.
+		outgoingReqDump, dumpErr := httputil.DumpRequestOut(proxyReq, false) // false = do not attempt to dump body from proxyReq internals
+		if dumpErr == nil {
+			logger.DebugContext(ctx, "GitHub proxy: Sending request to GitHub",
+				slog.String("github_request_headers", string(outgoingReqDump)),
+				slog.String("github_request_body_raw", string(bodyBytes)), // This is the body being sent
+			)
+		} else {
+			logger.WarnContext(ctx, "GitHub proxy: Failed to dump outgoing GitHub request headers for logging", "error", dumpErr)
+			// Still log the body if header dump failed
+			logger.DebugContext(ctx, "GitHub proxy: Sending request body to GitHub (header dump failed)",
+                slog.String("github_request_body_raw", string(bodyBytes)),
+            )
+		}
+	}
 
-	httpClient := &http.Client{Timeout: 10 * time.Second} // Use a client with timeout
+	logger.InfoContext(ctx, "GitHub proxy: Forwarding request",
+		slog.String("target_url", githubTokenURL),
+		slog.String("content_type_to_github", proxyReq.Header.Get("Content-Type")),
+		slog.String("accept_to_github", proxyReq.Header.Get("Accept")))
+
+	httpClient := &http.Client{Timeout: 15 * time.Second}
 	resp, err := httpClient.Do(proxyReq)
 	if err != nil {
-		logger.Error("GitHub proxy: Failed to send request to GitHub", "error", err, "target_url", githubTokenURL)
-		http.Error(w, "Failed to contact GitHub authentication server", http.StatusBadGateway)
+		logger.ErrorContext(ctx, "GitHub proxy: Failed to send request to GitHub", "error", err, "target_url", githubTokenURL)
+		http.Error(w, "Failed to contact GitHub authentication server: "+err.Error(), http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() // Close GitHub response body
 
-	logger.Info("GitHub proxy: Received response from GitHub", "status_code", resp.StatusCode)
+	logger.InfoContext(ctx, "GitHub proxy: Received response from GitHub", "status_code", resp.StatusCode)
 
-	// Copy headers from GitHub response to our client response
-	// Only copy Content-Type, others might not be relevant or could be problematic
+	githubRespBodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.ErrorContext(ctx, "GitHub proxy: Failed to read response body from GitHub", "error", err)
+		w.WriteHeader(resp.StatusCode) // Still try to send status
+		http.Error(w, "Failed to read GitHub response body", http.StatusInternalServerError)
+		return
+	}
+
+	if debugHTTP {
+		var headersBuilder strings.Builder
+		for k, v := range resp.Header {
+			headersBuilder.WriteString(k + ": " + strings.Join(v, ", ") + "\n")
+		}
+		logger.DebugContext(ctx, "GitHub proxy: Received response details from GitHub",
+			slog.Int("github_response_status_code", resp.StatusCode),
+			slog.String("github_response_headers", headersBuilder.String()),
+			slog.String("github_response_body_raw", string(githubRespBodyBytes)),
+		)
+	}
+
+	// Forward relevant headers and body from GitHub to client
 	if contentType := resp.Header.Get("Content-Type"); contentType != "" {
 		w.Header().Set("Content-Type", contentType)
 	}
-
 	w.WriteHeader(resp.StatusCode)
-	if _, err := io.Copy(w, resp.Body); err != nil {
-		logger.Error("GitHub proxy: Failed to write GitHub response to client", "error", err)
-		// Headers already sent, cannot send a new http.Error
+	_, copyErr := w.Write(githubRespBodyBytes)
+	if copyErr != nil {
+		logger.ErrorContext(ctx, "GitHub proxy: Failed to write GitHub response to client", "error", copyErr)
 	}
 }
 
@@ -167,16 +222,14 @@ func main() {
 	if enableGithubProxy {
 		mux.HandleFunc(githubProxyPath, githubProxyHandlerFunc)
 		logger.Info("GitHub OAuth token proxy enabled", "path", githubProxyPath, "target_url", githubTokenURL)
+		if debugHTTP {
+			logger.Debug("GitHub Proxy HTTP debugging is enabled. Requests and responses will be logged with more detail.")
+		}
 	}
 
-	// File server should be registered after specific API routes to avoid overriding them.
-	// http.FileServer handles serving files from the 'dir' directory.
-	// For SPA, you might want a more sophisticated handler that serves index.html for non-file paths.
-	// But for python -m http.server equivalent, this is fine.
 	fileServer := http.FileServer(http.Dir(dir))
 	mux.Handle("/", fileServer)
 
-	// Chain middlewares: logging -> cors -> mux (which includes fileServer and potentially proxy)
 	handler := loggingMiddleware(corsMiddleware(mux))
 
 	addr := ":" + strconv.Itoa(port)

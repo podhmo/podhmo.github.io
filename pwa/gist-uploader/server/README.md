@@ -9,16 +9,13 @@ It is designed with Single Page Applications (SPAs) in mind, providing:
 
 -   Serves static files from a specified directory (defaults to the current directory).
 -   Configurable port (defaults to 3333).
--   CORS headers for static assets:
-    -   `Access-Control-Allow-Origin: *` (configurable in code for production)
-    -   `Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS`
-    -   `Access-Control-Allow-Headers: Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Origin`
-    -   `Access-Control-Allow-Credentials: true`
+-   CORS headers for static assets.
 -   Handles `OPTIONS` (preflight) requests for static assets.
 -   Structured logging using Go's standard `log/slog` package.
 -   **Optional GitHub OAuth Token Proxy**:
     -   When enabled, provides an endpoint (default: `/api/github/token`) that proxies requests to `https://github.com/login/oauth/access_token`.
-    -   This helps SPAs perform the token exchange part of the OAuth PKCE flow without running into CORS problems, as the request to GitHub is made server-to-server.
+    -   This helps SPAs perform the token exchange part of the OAuth PKCE flow without running into CORS problems.
+-   **Debug Logging**: Includes a `-debug-http` flag to enable detailed logging of requests and responses for the GitHub proxy.
 
 ## Prerequisites
 
@@ -26,97 +23,60 @@ It is designed with Single Page Applications (SPAs) in mind, providing:
 
 ## Build
 
-To build the server, navigate to the directory containing `main.go` and run:
-
 ```bash
 go build -o static-server main.go
 ```
 
-This will create an executable named `static-server` (or `static-server.exe` on Windows).
-
 ## Usage
 
-You can run the server from the command line.
-
-### Basic usage (serves current directory on port 3333, proxy disabled):
+### Basic usage:
 
 ```bash
 ./static-server
 ```
-or
-```bash
-go run main.go
-```
-
-### Specify port:
-
-```bash
-./static-server -port 8080
-```
-or set the `PORT` environment variable:
-```bash
-PORT=8080 ./static-server
-```
-
-### Specify directory to serve:
-
-```bash
-./static-server -dir /path/to/your/spa/build
-```
 
 ### Enable GitHub OAuth Token Proxy:
-
-To enable the proxy, use the `-enable-github-proxy` flag. Your SPA should then send its token request (typically a POST request with `code`, `client_id`, `redirect_uri`, `code_verifier`, etc.) to the local proxy endpoint.
 
 ```bash
 ./static-server -enable-github-proxy
 ```
+Your SPA should send its token request to `http://localhost:<port>/api/github/token`.
 
-Your SPA would then make a POST request to `http://localhost:3333/api/github/token` (or the port you are using).
+### Enable Detailed HTTP Debugging for Proxy:
 
-### Customize Proxy Settings (Optional):
-
--   `-github-proxy-path`: Change the local path for the proxy endpoint (default: `/api/github/token`).
-    ```bash
-    ./static-server -enable-github-proxy -github-proxy-path /my-oauth-proxy
-    ```
--   `-github-token-url`: Change the target GitHub token URL (default: `https://github.com/login/oauth/access_token`). *Usually, you don't need to change this.*
-
-### Combined options:
+If you are troubleshooting issues with the GitHub proxy, use the `-debug-http` flag. This will output detailed information about the requests sent to GitHub and the responses received.
+Make sure your logger level is set to Debug to see these messages. The `-debug-http` flag now automatically sets the log level to Debug.
 
 ```bash
-./static-server -port 8000 -dir ./public -enable-github-proxy
+./static-server -enable-github-proxy -debug-http
 ```
 
-The server will log requests, startup information, and proxy activity to the console.
+This will produce logs like:
+-   Headers and body of the request received by the proxy from your client.
+-   Headers and body of the request sent by the proxy to GitHub.
+-   Headers and body of the response received by the proxy from GitHub.
 
-Example output with proxy enabled:
-```
-time=2023-10-27T11:00:00.123Z level=INFO msg="GitHub OAuth token proxy enabled" path=/api/github/token target_url="https://github.com/login/oauth/access_token"
-time=2023-10-27T11:00:00.124Z level=INFO msg="Starting server" address="http://localhost:3333" serving_directory="/path/to/current/directory"
-...
-time=2023-10-27T11:00:10.456Z level=INFO msg="GitHub proxy: Forwarding request" target_url="https://github.com/login/oauth/access_token" client_content_type="application/x-www-form-urlencoded"
-time=2023-10-27T11:00:11.123Z level=INFO msg="GitHub proxy: Received response from GitHub" status_code=200
-time=2023-10-27T11:00:11.123Z level=INFO msg="request processed" method=POST path=/api/github/token remote_addr="[::1]:54322" user_agent="curl/7.79.1" status_code=200 duration=680ms
-```
+### Other Flags:
 
-## CORS Configuration Notes (for static assets)
+-   `-port <number>`: Port to serve on (default: 3333 or `PORT` env var).
+-   `-dir <path>`: Directory to serve files from (default: current directory).
+-   `-github-proxy-path <path>`: Local path for the proxy endpoint (default: `/api/github/token`).
+-   `-github-token-url <url>`: Target GitHub token URL (default: `https://github.com/login/oauth/access_token`).
 
--   The `Access-Control-Allow-Origin` header for static assets is set to `*` by default in `corsMiddleware`. This is convenient for development but is insecure for production environments. For production, you should modify the `corsMiddleware` function in `main.go` to specify the exact origin(s) that are allowed to access your resources.
-    Example: `w.Header().Set("Access-Control-Allow-Origin", "https://your-spa-domain.com")`
--   The GitHub proxy endpoint itself is also covered by this CORS policy, meaning your SPA running on `http://localhost:3333` can call `http://localhost:3333/api/github/token`. If your SPA is on a different origin during development (e.g. a webpack dev server on a different port), ensure that origin is allowed or keep `*` for development.
+## How to Use the Debug Logs
 
-## GitHub Proxy Notes
+1.  Run the server with `-enable-github-proxy -debug-http`.
+2.  Trigger the OAuth flow in your SPA so it makes a request to the proxy endpoint.
+3.  Observe the console output from the `static-server`.
+    -   Look for logs prefixed with `GitHub proxy: Sending request to GitHub`. This will show the exact headers and body being sent by the proxy.
+    -   Compare this to the request details that work when you "directly call" the GitHub API (e.g., from Postman or a browser's network tab if that specific direct call was successful without CORS issues).
+    -   Pay close attention to `Content-Type`, `Accept` headers, and the request `body`. Ensure the `client_id`, `code`, `redirect_uri`, and `code_verifier` in the body are exactly as expected by GitHub.
+    -   Check the logs for `GitHub proxy: Received response details from GitHub`. This will show GitHub's exact response (status, headers, body), which led to the `incorrect_client_credentials` error.
 
--   The proxy forwards POST requests from the specified `-github-proxy-path` to the `-github-token-url`.
--   It copies the client's request body and `Content-Type` header to the request sent to GitHub.
--   It sets the `Accept: application/json` header for the request to GitHub, as token responses are typically JSON.
--   It then streams the response (status, headers, body) from GitHub back to the client.
--   This is primarily intended for the OAuth **token exchange** step where a `code` is exchanged for an `access_token`.
--   **Important**: The client (your SPA) is responsible for constructing the correct request body (e.g., with `grant_type`, `client_id`, `code`, `redirect_uri`, `code_verifier` as required by GitHub's PKCE flow). The proxy simply relays this.
-
-## Development
-
-To modify or extend the server:
-1.  Edit `main.go`.
-2.  Rebuild using `go build -o static-server main.go`.
+This detailed logging should help identify any discrepancies between what your SPA intends to send, what the proxy actually sends, and what GitHub expects.
+The most common reasons for `incorrect_client_credentials` in a PKCE flow are:
+-   Incorrect `client_id`.
+-   `code` is invalid (expired, already used, or doesn't match the `client_id` and `redirect_uri`).
+-   `redirect_uri` in the token request does not exactly match the `redirect_uri` used in the authorization request.
+-   `code_verifier` does not match the `code_challenge` that was sent in the initial authorization request.
+-   The request body is not correctly formatted as `application/x-www-form-urlencoded` (or `application/json` if GitHub supports that for this endpoint and your client is configured for it).
