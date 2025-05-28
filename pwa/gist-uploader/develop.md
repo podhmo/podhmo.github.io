@@ -1,4 +1,4 @@
-# 開発者向けドキュメント - Gist Uploader
+# 開発者向けドキュメント - Gist Uploader (PKCE)
 
 このドキュメントは、Gist Uploader アプリケーションの開発者向けの情報を提供します。
 
@@ -11,16 +11,15 @@
 1.  GitHubにログインし、[Developer settings](https://github.com/settings/developers) にアクセスします。
 2.  「OAuth Apps」セクションで、「New OAuth App」ボタンをクリックします。
 3.  以下の情報を入力してアプリケーションを登録します。
-    *   **Application name**: 任意のアプリケーション名（例: `My Gist Uploader`）
+    *   **Application name**: 任意のアプリケーション名（例: `My Gist Uploader (PKCE)`）
     *   **Homepage URL**: アプリケーションをホストするURL（例: `http://localhost:8080` や `https://your-username.github.io/your-repo/`）
     *   **Application description**: (任意) アプリケーションの説明
     *   **Authorization callback URL**: **非常に重要です。** アプリケーションの `index.html` が存在するURLを指定します。
         *   例1 (ローカル開発時): `http://localhost:8080/` または `http://localhost:8080/index.html`
         *   例2 (GitHub Pagesデプロイ時): `https://your-username.github.io/your-repo/` (リポジトリ名が `your-repo` の場合)
-        *   GitHub Pages のルート (`https://your-username.github.io/`) にデプロイする場合はそのURL。
     *   **Enable Device Flow**: このアプリケーションでは使用しないため、チェックは不要です。
 
-4.  登録後、生成された **Client ID** を控えておきます。Client Secret はこのアプリケーションでは使用しません。
+4.  登録後、生成された **Client ID** を控えておきます。Client Secret はPKCEフローではクライアントサイドでは使用しません。
 
 ### 2. `src/config.js` の設定
 
@@ -38,22 +37,32 @@ export const GITHUB_CLIENT_ID = 'iv1.xxxxxxxxxxxxxxxx';
 export const REDIRECT_URI = 'http://localhost:8080/';
 ```
 
-## 認証フローについて (Implicit Grant Flow)
+## 認証フローについて (Authorization Code Flow with PKCE)
 
-このアプリケーションでは、GitHub OAuth の **Implicit Grant Flow** を使用しています。
+このアプリケーションでは、GitHub OAuth の **Authorization Code Flow with PKCE (Proof Key for Code Exchange)** を使用しています。
+PKCEは、OAuth 2.0 のよりセキュアな認証フローであり、特にモバイルアプリやシングルページアプリケーション (SPA) のような `Client Secret` を安全に保持できないクライアントに適しています。
 
-**選択理由**:
--   **クライアントサイド完結**: GitHub Pagesのような静的ホスティング環境では、サーバーサイドのコードを実行できず、OAuth App の `Client Secret` を安全に保持できません。Implicit Grant Flow は `Client Secret` を必要とせず、アクセストークンが直接ブラウザに返されるため、クライアントサイドのJavaScriptのみで認証を完結できます。
--   **CORS制約の回避**: PKCE (Proof Key for Code Exchange) を利用した Authorization Code Flow は、アクセストークン取得時にトークンエンドポイントへのPOSTリクエストが必要ですが、GitHubのトークンエンドポイント (`https://github.com/login/oauth/access_token`) は、ブラウザからの直接の `fetch` リクエストに対してCORSポリシーによりブロックされる場合があります。Implicit Grant Flowではこのエンドポイント呼び出しが不要です。
+### トークン取得時の注意 (CORS とプロキシの必要性)
 
-**セキュリティ上の注意点**:
--   Implicit Grant Flow は、アクセストークンがURLのフラグメント（例: `http://example.com/callback#access_token=XXXX&...`）に含まれてクライアントに渡されます。これにより、アクセストークンがブラウザの履歴に残ったり、リファラヘッダーを通じて外部に漏洩するリスクがあります。
--   このため、OAuth 2.0 のベストプラクティスでは、Authorization Code Flow と PKCE の組み合わせが推奨されています。
--   本アプリケーションでは、静的サイトでの手軽な実現を優先し、アクセストークンを永続化せずセッション中のみ利用することでリスクを低減しようとしていますが、このトレードオフを理解した上で使用してください。
+PKCEフローでは、認証コード (`code`) を取得した後、その `code` と `code_verifier` を使ってGitHubのトークンエンドポイント (`https://github.com/login/oauth/access_token`) にPOSTリクエストを送信し、アクセストークンを取得します。
 
-**代替案**:
-よりセキュアな認証をクライアントサイドのみのアプリケーションで実現したい場合、以下のような中間サーバー/プロキシを導入し、Authorization Code Flow + PKCE を利用することを検討できます。
--   Netlify Functions / Vercel Serverless Functions / Cloudflare Workers などのサーバーレス関数を利用して、トークンエンドポイントへのリクエストを中継し `Client Secret` を安全に管理する。
+**重要:** ブラウザからこのトークンエンドポイントへ直接 `fetch` API などでPOSTリクエストを送信しようとすると、**CORS (Cross-Origin Resource Sharing) ポリシーによりリクエストがブロックされる可能性が非常に高いです。** GitHubのトークンエンドポイントは、通常、任意のオリジンからのクロスドメインAJAXリクエストを許可していません。
+
+**このサンプルコード (`src/auth.js`) は、概念実証としてトークンエンドポイントへの直接リクエストを試みますが、実際の運用環境ではCORSエラーにより失敗します。**
+
+**必要な対応:**
+この問題を解決し、アクセストークンを安全に取得するためには、**ご自身でCORSを回避するためのプロキシサーバーを別途用意する必要があります。**
+このプロキシサーバーは、クライアント（ブラウザ）からのリクエストを受け取り、GitHubのトークンエンドポイントに必要なパラメータ（`client_id`, `code`, `code_verifier`, `redirect_uri`, `grant_type`）を付加してサーバーサイドからリクエストを送信し、取得したアクセストークンをクライアントに返す役割を担います。`Client Secret` が必要な場合は、このプロキシサーバー内で安全に管理できます（ただしPKCEの場合、`Client Secret` は必須ではありません）。
+
+プロキシサーバーの実装例:
+-   Netlify Functions
+-   Vercel Serverless Functions
+-   Cloudflare Workers
+-   AWS Lambda + API Gateway
+-   Nginx や Apache などのリバースプロキシ設定
+-   その他、任意のサーバーサイド言語（Node.js, Python, Ruby, Goなど）で構築した軽量なAPIエンドポイント
+
+プロキシサーバーを設置後、`src/auth.js` 内の `fetchToken` 関数の `tokenUrl` を、GitHubの直接のエンドポイントではなく、ご自身で用意したプロキシサーバーのエンドポイントURLに書き換える必要があります。
 
 ## 技術スタック
 
@@ -71,6 +80,7 @@ export const REDIRECT_URI = 'http://localhost:8080/';
         python -m http.server 8080
         ```
     -   ブラウザで `http://localhost:8080` を開きます。
+3.  **注意:** 上記の通り、ローカルで試す場合でも、トークン取得部分はCORSエラーになるため、プロキシを別途用意しない限りログインは完了しません。
 
 ## ファイル構成
 
@@ -79,7 +89,7 @@ export const REDIRECT_URI = 'http://localhost:8080/';
 -   `develop.md`: 開発者向け説明書（このファイル）。
 -   `src/`
     -   `app.js`: Preactアプリケーションのメインコンポーネント。UIとロジック。
-    -   `auth.js`: GitHub OAuth (Implicit Grant Flow) 関連の処理。
+    -   `auth.js`: GitHub OAuth (PKCE) 関連の処理。**トークン取得部分は要修正。**
     -   `gist.js`: Gist API 関連の処理。
-    -   `config.js`: GitHub Client ID などの設定ファイル。**このファイルはGit管理に含めず、各自で設定することを推奨します (例: `.gitignore` に `src/config.js` を追加)。** ただし、このサンプルでは簡単のため含めています。
-    -   `utils.js`: 汎用ユーティリティ関数。
+    -   `config.js`: GitHub Client ID などの設定ファイル。
+    -   `utils.js`: PKCEヘルパーなどの汎用ユーティリティ関数。

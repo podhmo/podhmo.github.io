@@ -1,6 +1,6 @@
 // src/app.js
-import { h, render, Component } from 'preact';
-import { useState, useEffect, useCallback } from 'preact/hooks';
+import { h, render } from 'preact';
+import { useState, useEffect } from 'preact/hooks';
 import htm from 'htm';
 
 import { redirectToGitHubAuth, handleAuthCallback } from './auth.js';
@@ -10,7 +10,7 @@ import { GITHUB_CLIENT_ID } from './config.js'; // configの存在確認のた�
 const html = htm.bind(h);
 
 function App() {
-    const [accessToken, setAccessToken] = useState(null);
+    const [accessToken, setAccessToken] = useState(sessionStorage.getItem('github_access_token_pkce'));
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
@@ -22,44 +22,53 @@ function App() {
 
     // 初期化処理: URLに認証コードがあればトークン取得を試みる
     useEffect(() => {
-        // config.jsが未設定の場合に警告
-        if (GITHUB_CLIENT_ID === 'YOUR_GITHUB_CLIENT_ID') {
+        if (GITHUB_CLIENT_ID === 'YOUR_GITHUB_CLIENT_ID' || GITHUB_CLIENT_ID === '') {
             setError("開発者向け設定が完了していません。develop.mdに従ってsrc/config.jsを設定してください。");
             setIsLoading(false);
             return;
         }
 
         const processAuth = async () => {
-            if (window.location.hash.includes('access_token=')) {
+            // URLに 'code' パラメータがある場合、認証コールバック処理を行う
+            if (window.location.search.includes('code=')) {
+                setIsLoading(true); // 認証処理中はローディング表示
                 try {
                     const token = await handleAuthCallback();
                     if (token) {
                         setAccessToken(token);
+                        sessionStorage.setItem('github_access_token_pkce', token); // トークンをセッションストレージに保存
                         setSuccessMessage('GitHubにログインしました。');
                         setTimeout(() => setSuccessMessage(null), 3000);
                     } else {
-                        setError('GitHub認証に失敗しました。');
+                        setError('GitHub認証に失敗しました。トークンを取得できませんでした。CORS設定やプロキシ設定を確認してください。');
                     }
                 } catch (err) {
                     console.error(err);
                     setError(`認証処理エラー: ${err.message}`);
+                } finally {
+                    setIsLoading(false);
                 }
+            } else {
+                 // 'code' がない場合、既存のトークンがあればそれを使う
+                const existingToken = sessionStorage.getItem('github_access_token_pkce');
+                if (existingToken) {
+                    setAccessToken(existingToken);
+                }
+                setIsLoading(false);
             }
-            setIsLoading(false);
         };
         processAuth();
-    }, []);
+    }, []); // このeffectはマウント時に一度だけ実行
 
     const handleLogin = () => {
         setError(null);
         setSuccessMessage(null);
-        redirectToGitHubAuth();
+        redirectToGitHubAuth(); // PKCEフローを開始
     };
 
     const handleLogout = () => {
         setAccessToken(null);
-        // 必要であれば localStorage や sessionStorage からトークンを削除
-        // 今回は毎回ログインなので、状態をリセットするだけで良い
+        sessionStorage.removeItem('github_access_token_pkce'); // セッションストレージからトークン削除
         setFileName('');
         setFileContent(null);
         setDescription('');
@@ -110,9 +119,9 @@ function App() {
             // フォームをリセット
             setFileName('');
             setFileContent(null);
-            document.getElementById('file-input').value = ''; // ファイル選択をクリア
+            const fileInput = document.getElementById('file-input');
+            if (fileInput) fileInput.value = ''; // ファイル選択をクリア
             setDescription('');
-            // isPublic は維持してもよいし、デフォルトに戻してもよい
         } catch (err) {
             console.error(err);
             setError(`Gist作成エラー: ${err.message}`);
@@ -120,26 +129,25 @@ function App() {
             setIsLoading(false);
         }
     };
-
-    if (isLoading && GITHUB_CLIENT_ID !== 'YOUR_GITHUB_CLIENT_ID' && !window.location.hash.includes('access_token=')) {
-        // 初期ロード時で、認証コールバックでない場合（configが設定済みの場合）
-        // ユーザーがページを開いた直後の状態
-        // ここでsetIsLoading(false)を呼ばないと何も表示されない
-        // useEffectのprocessAuth内で最後にsetIsLoading(false)しているので、この分岐は不要かもしれない
-        // しかし、認証コールバックではない初回表示のisLoadingを早期にfalseにするために明示的に記述
-        // useEffectの依存配列が空なので初回のみ実行されるが、その非同期処理完了を待つよりは...
-        // → useEffect内のsetIsLoading(false)に任せる方がシンプルで良い。この分岐は削除。
+    
+    // 初回レンダリング時または config.js 未設定時のローディング表示制御
+    if (isLoading && (GITHUB_CLIENT_ID === 'YOUR_GITHUB_CLIENT_ID' || GITHUB_CLIENT_ID === '')) {
+         // config未設定時はuseEffect内でisLoading=falseになるので、ここでは何もしないか、
+         // useEffect内のエラーメッセージ表示に任せる
+    } else if (isLoading && !window.location.search.includes('code=')) {
+        // 認証コールバック中でない、通常のローディング（例：既存トークン確認中など）
+        // useEffect内で適切にsetIsLoading(false)が呼ばれるので、この分岐自体が不要になることも
     }
 
 
     return html`
         <nav>
-            <ul><li><strong>Gist Uploader</strong></li></ul>
+            <ul><li><strong>Gist Uploader (PKCE)</strong></li></ul>
             <ul>
                 ${accessToken ? html`
                     <li><button onClick=${handleLogout} class="secondary outline">ログアウト</button></li>
                 ` : html`
-                    <li><button onClick=${handleLogin} disabled=${isLoading || GITHUB_CLIENT_ID === 'YOUR_GITHUB_CLIENT_ID'}>GitHubでログイン</button></li>
+                    <li><button onClick=${handleLogin} disabled=${isLoading || GITHUB_CLIENT_ID === 'YOUR_GITHUB_CLIENT_ID' || GITHUB_CLIENT_ID === ''}>GitHubでログイン</button></li>
                 `}
             </ul>
         </nav>
@@ -147,7 +155,7 @@ function App() {
         ${error && html`<article class="error-message" aria-live="assertive">${error}</article>`}
         ${successMessage && html`<article class="success-message" aria-live="assertive">${successMessage}</article>`}
 
-        ${isLoading && GITHUB_CLIENT_ID !== 'YOUR_GITHUB_CLIENT_ID' && html`<div aria-busy="true">処理中...</div>`}
+        ${isLoading && (GITHUB_CLIENT_ID !== 'YOUR_GITHUB_CLIENT_ID' && GITHUB_CLIENT_ID !== '') && html`<div aria-busy="true">読み込み中 / 認証処理中...</div>`}
 
         ${accessToken && !isLoading ? html`
             <form onSubmit=${handleSubmitGist}>
@@ -174,12 +182,12 @@ function App() {
                         </label>
                     </fieldset>
                     
-                    <button type="submit" disabled=${isLoading || !fileContent}>
+                    <button type="submit" disabled=${isLoading || !fileContent || !accessToken}>
                         ${isLoading ? html`<span aria-busy="true">作成中...</span>` : 'Gistを作成'}
                     </button>
                 </fieldset>
             </form>
-        ` : !isLoading && GITHUB_CLIENT_ID !== 'YOUR_GITHUB_CLIENT_ID' && html`
+        ` : !isLoading && !(GITHUB_CLIENT_ID === 'YOUR_GITHUB_CLIENT_ID' || GITHUB_CLIENT_ID === '') && html`
             <p>GitHubアカウントでログインして、Gistの作成を開始してください。</p>
         `}
     `;
