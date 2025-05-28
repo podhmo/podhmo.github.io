@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gist Uploader</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <script type="importmap">
+    {
+        "imports": {
+            "preact": "https://unpkg.com/preact@10.19.6/dist/preact.module.js",
+            "preact/hooks": "https://unpkg.com/preact@10.19.6/hooks/dist/hooks.module.js",
+            "htm": "https://unpkg.com/htm@3.1.1/dist/htm.module.js"
+        }
+    }
+    </script>
+    <style>
+        body { padding-top: 2rem; }
+        .container { max-width: 720px; }
+        .error-message { color: var(--pico-color-red-500); }
+        .success-message { color: var(--pico-color-green-500); }
+        nav { margin-bottom: 1rem; }
+        nav button { margin-left: auto; }
+    </style>
+</head>
+<body>
+    <main class="container" id="app"></main>
+    <script type="module" src="./src/app.js"></script>
+</body>
+</html>
