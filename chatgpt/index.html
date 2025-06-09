@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Template Clipper</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <style>
+        body {
+            margin: 0;
+            font-family: sans-serif;
+        }
+        .container {
+            padding: 1rem;
+            max-width: 800px; /* モバイルファーストだが、デスクトップでもある程度見やすく */
+        }
+        nav a {
+            margin-right: 1rem;
+        }
+        .template-body-container {
+            position: relative;
+        }
+        .copy-button {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            z-index: 10; /* 他の要素より手前に */
+        }
+        .placeholder-input {
+            margin: 0.5em 0;
+            display: block; /* 各入力欄を改行して表示 */
+        }
+        .placeholder-input label {
+            margin-right: 0.5em;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-root" class="container">
+        <header>
+            <h1>Prompt Template Clipper</h1>
+            <nav id="breadcrumbs"></nav>
+        </header>
+        <main id="content-area">
+            <p>Loading...</p>
+        </main>
+        <footer>
+            <small>Powered by Vanilla JS & lit-html & Pico.css</small>
+            <br>
+            <label for="sourceUrl">Load from URL:</label>
+            <input type="text" id="sourceUrlInput" name="sourceUrl" placeholder="Enter URL of Markdown file...">
+            <button id="loadSourceUrlButton">Load</button>
+        </footer>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "lit-html": "https://cdn.jsdelivr.net/npm/lit-html@3.1.3/lit-html.js",
+          "lit-html/directives/unsafe-html.js": "https://cdn.jsdelivr.net/npm/lit-html@3.1.3/directives/unsafe-html.js"
+        }
+      }
+    </script>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
