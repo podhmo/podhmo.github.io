@@ -1,6 +1,8 @@
-import { html } from 'lit-html';
+import { h } from 'preact';
+import { default as htm } from 'htm';
 import { render } from './render.js';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
+
+const html = htm.bind(h);
 
 /**
  * カテゴリ一覧を表示します。
@@ -19,11 +21,11 @@ export function renderCategoryList(categories, container, router) {
         ${categories.map(category => html`
             <article>
                 <header>
-                    <a href="/category/${encodeURIComponent(category.categoryName)}" @click=${(e) => { e.preventDefault(); router.navigateTo(`/category/${encodeURIComponent(category.categoryName)}`); }}>
+                    <a href="/category/${encodeURIComponent(category.categoryName)}" onClick=${(e) => { e.preventDefault(); router.navigateTo(`/category/${encodeURIComponent(category.categoryName)}`); }}>
                         <h3>${category.categoryName}</h3>
                     </a>
                 </header>
-                ${category.description ? html`<p>${unsafeHTML(category.description.replace(/\n/g, '<br>'))}</p>` : ''}
+                ${category.description ? html`<p dangerouslySetInnerHTML=${{ __html: category.description.replace(/\n/g, '<br>') }}></p>` : null}
                  <small>${category.templates.length} template(s)</small>
             </article>
         `)}

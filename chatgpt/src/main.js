@@ -1,4 +1,5 @@
-import { html } from 'lit-html';
+import { h } from 'preact';
+import { default as htm } from 'htm';
 import { Router } from './router.js';
 import { parseMarkdown } from './markdownParser.js';
 import { fetchData, getSourceUrlFromQuery } from './dataProvider.js';
@@ -9,6 +10,7 @@ import { renderTemplateList } from './ui/TemplateListView.js';
 import { renderTemplateDetail } from './ui/TemplateDetailView.js';
 import { render } from './ui/render.js';
 
+const html = htm.bind(h);
 const contentArea = document.getElementById('content-area');
 const breadcrumbsArea = document.getElementById('breadcrumbs');
 const sourceUrlInput = document.getElementById('sourceUrlInput');

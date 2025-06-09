@@ -1,6 +1,8 @@
-import { html } from 'lit-html';
+import { h } from 'preact';
+import { default as htm } from 'htm';
 import { render } from './render.js';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
+
+const html = htm.bind(h);
 
 /**
  * 特定のカテゴリに属するテンプレートの一覧を表示します。
@@ -10,7 +12,7 @@ import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
  */
 export function renderTemplateList(category, container, router) {
     if (!category || !category.templates || category.templates.length === 0) {
-        render(html`<p>No templates found in this category.</p><a href="/">Back to Categories</a>`, container);
+        render(html`<p>No templates found in this category.</p><a href="/" onClick=${(e) => { e.preventDefault(); router.navigateTo('/'); }}>Back to Categories</a>`, container);
         return;
     }
 
@@ -20,14 +22,14 @@ export function renderTemplateList(category, container, router) {
             <article>
                 <header>
                     <a href="/category/${encodeURIComponent(category.categoryName)}/template/${encodeURIComponent(template.templateName)}" 
-                       @click=${(e) => { e.preventDefault(); router.navigateTo(`/category/${encodeURIComponent(category.categoryName)}/template/${encodeURIComponent(template.templateName)}`); }}>
+                       onClick=${(e) => { e.preventDefault(); router.navigateTo(`/category/${encodeURIComponent(category.categoryName)}/template/${encodeURIComponent(template.templateName)}`); }}>
                         <h4>${template.templateName}</h4>
                     </a>
                 </header>
-                ${template.description ? html`<p>${unsafeHTML(template.description.replace(/\n/g, '<br>'))}</p>` : ''}
+                ${template.description ? html`<p dangerouslySetInnerHTML=${{ __html: template.description.replace(/\n/g, '<br>') }}></p>` : null}
             </article>
         `)}
-        <p><a href="/" @click=${(e) => { e.preventDefault(); router.navigateTo('/'); }}>Back to Categories</a></p>
+        <p><a href="/" onClick=${(e) => { e.preventDefault(); router.navigateTo('/'); }}>Back to Categories</a></p>
     `;
     render(templateList, container);
 }
