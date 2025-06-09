@@ -1,4 +1,4 @@
-import { html } from 'https://cdn.jsdelivr.net/npm/lit-html@3.1.3/lit-html.js';
+import { html } from 'lit-html';
 import { Router } from './router.js';
 import { parseMarkdown } from './markdownParser.js';
 import { fetchData, getDefaultSourceUrl, getSourceUrlFromQuery } from './dataProvider.js';

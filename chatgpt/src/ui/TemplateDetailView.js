@@ -1,6 +1,6 @@
-import { html, nothing } from 'https://cdn.jsdelivr.net/npm/lit-html@3.1.3/lit-html.js';
+import { html, nothing } from 'lit-html';
+import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
 import { render } from './render.js';
-import { unsafeHTML } from 'https://cdn.jsdelivr.net/npm/lit-html@3.1.3/directives/unsafe-html.js';
 
 /**
  * 選択されたテンプレートの詳細（説明、プロンプト本体、変数入力欄）を表示します。

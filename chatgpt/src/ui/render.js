@@ -1,4 +1,5 @@
-import { render as litRender } from 'https://cdn.jsdelivr.net/npm/lit-html@3.1.3/lit-html.js';
+import { html } from 'lit-html';
+import { render as litRender } from 'lit-html';
 
 /**
  * lit-htmlのrender関数をラップし、指定されたコンテナにUIを描画します。
