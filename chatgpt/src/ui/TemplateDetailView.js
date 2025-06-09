@@ -78,13 +78,15 @@ export function renderTemplateDetail(template, container) {
                     ${uniquePlaceholders.map(ph => html`
                         <div class="placeholder-input">
                             <label for="ph-${ph}">${ph}:</label>
-                            <input 
-                                type="text" 
-                                id="ph-${ph}" 
-                                name="${ph}" 
+                            <textarea
+                                id="ph-${ph}"
+                                name="${ph}"
                                 .value=${placeholderValues[ph]}
                                 @input=${(e) => updatePlaceholderValue(ph, e.target.value)}
-                                placeholder="Enter value for ${ph}">
+                                placeholder="Enter value for ${ph}"
+                                rows="3"
+                                style="width:100%"
+                            ></textarea>
                         </div>
                     `)}
                 </section>
