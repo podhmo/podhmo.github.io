@@ -1,22 +1,20 @@
 import { h } from 'preact';
 import { default as htm } from 'htm';
-import { render } from './render.js';
+// import { render } from './render.js'; // No longer needed here
 
 const html = htm.bind(h);
 
 /**
- * カテゴリ一覧を表示します。
+ * カテゴリ一覧のVNodeを返します。
  * @param {import('../markdownParser.js').ParsedCategory[]} categories - カテゴリの配列
- * @param {HTMLElement} container - 表示するコンテナ要素
  * @param {import('../router.js').Router} router - ルーターインスタンス
  */
-export function renderCategoryList(categories, container, router) {
+export function CategoryListView(categories, router) {
     if (!categories || categories.length === 0) {
-        render(html`<p>No categories found. Try loading a different Markdown source.</p>`, container);
-        return;
+        return html`<p>No categories found. Try loading a different Markdown source.</p>`;
     }
 
-    const categoryList = html`
+    return html`
         <h2>Categories</h2>
         ${categories.map(category => html`
             <article>
@@ -30,5 +28,4 @@ export function renderCategoryList(categories, container, router) {
             </article>
         `)}
     `;
-    render(categoryList, container);
 }

@@ -1,15 +1,16 @@
 import { h } from 'preact';
 import { default as htm } from 'htm';
-import { render } from './render.js';
+// import { render } from './render.js'; // No longer needed here
 
 const html = htm.bind(h);
 
 /**
- * 選択されたテンプレートの詳細（説明、プロンプト本体、変数入力欄）を表示します。
+ * 選択されたテンプレートの詳細（説明、プロンプト本体、変数入力欄）のVNodeを返します。
  * @param {import('../markdownParser.js').ParsedTemplate} template - 表示するテンプレートのデータ
- * @param {HTMLElement} container - 表示するコンテナ要素
+ * @param {import('../router.js').Router} router - ルーターインスタンス (for back navigation)
+ * @param {function} requestRender - Callback to request a re-render from parent (main.js)
  */
-export function renderTemplateDetail(template, container) {
+export function TemplateDetailView(template, router, requestRender) {
     let placeholderValues = {};
 
     const extractPlaceholders = (text) => {
@@ -33,9 +34,9 @@ export function renderTemplateDetail(template, container) {
 
     const updatePlaceholderValue = (placeholderName, value) => {
         placeholderValues[placeholderName] = value;
-        // Re-render might be too much here, but simplest for now.
-        // A more optimized way would be to just update the previewed text.
-        render(templateDetailContent(), container);
+        // Request a re-render from the main application logic
+        // This is a common pattern when state is managed outside the component
+        if (requestRender) requestRender();
     };
 
     const copyToClipboard = async (text, buttonElement) => {
@@ -111,16 +112,18 @@ export function renderTemplateDetail(template, container) {
             <footer>
                 <a href="/category/${encodeURIComponent(template.categoryName)}" 
                    onClick=${(e) => {
-                       e.preventDefault(); 
-                       // This requires access to the router instance from main.js
-                       // For now, using history API directly and dispatching event
-                       window.history.pushState({}, '', `/category/${encodeURIComponent(template.categoryName)}`);
-                       window.dispatchEvent(new PopStateEvent('popstate'));
+                       e.preventDefault();
+                       if (router) {
+                           router.navigateTo(`/category/${encodeURIComponent(template.categoryName)}`);
+                       } else {
+                           window.history.pushState({}, '', `/category/${encodeURIComponent(template.categoryName)}`);
+                           window.dispatchEvent(new PopStateEvent('popstate'));
+                       }
                    }}>
                    Back to ${template.categoryName}
                 </a>
             </footer>
         </article>
     `;
-    render(templateDetailContent(), container);
+    return templateDetailContent(); // Return the VNode
 }

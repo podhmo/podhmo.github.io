@@ -1,22 +1,20 @@
 import { h } from 'preact';
 import { default as htm } from 'htm';
-import { render } from './render.js';
+// import { render } from './render.js'; // No longer needed here
 
 const html = htm.bind(h);
 
 /**
- * 特定のカテゴリに属するテンプレートの一覧を表示します。
+ * 特定のカテゴリに属するテンプレートの一覧のVNodeを返します。
  * @param {import('../markdownParser.js').ParsedCategory} category - 表示するカテゴリのデータ
- * @param {HTMLElement} container - 表示するコンテナ要素
  * @param {import('../router.js').Router} router - ルーターインスタンス
  */
-export function renderTemplateList(category, container, router) {
+export function TemplateListView(category, router) {
     if (!category || !category.templates || category.templates.length === 0) {
-        render(html`<p>No templates found in this category.</p><a href="/" onClick=${(e) => { e.preventDefault(); router.navigateTo('/'); }}>Back to Categories</a>`, container);
-        return;
+        return html`<p>No templates found in this category.</p><a href="/" onClick=${(e) => { e.preventDefault(); router.navigateTo('/'); }}>Back to Categories</a>`;
     }
 
-    const templateList = html`
+    return html`
         <h2>Templates in ${category.categoryName}</h2>
         ${category.templates.map(template => html`
             <article>
@@ -31,5 +29,4 @@ export function renderTemplateList(category, container, router) {
         `)}
         <p><a href="/" onClick=${(e) => { e.preventDefault(); router.navigateTo('/'); }}>Back to Categories</a></p>
     `;
-    render(templateList, container);
 }

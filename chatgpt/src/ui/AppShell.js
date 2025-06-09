@@ -1,17 +1,28 @@
 import { h } from 'preact';
 import { default as htm } from 'htm';
-import { render } from './render.js';
+// import { render } from './render.js'; // No longer needed here
 
 const html = htm.bind(h);
 
 /**
- * アプリケーションシェルのパンくずリスト部分をレンダリングします。
+ * アプリケーションシェルのパンくずリスト部分のVNodeを返します。
  * @param {import('../appState.js').AppState} appState - アプリケーションの状態
- * @param {HTMLElement} breadcrumbsContainer - パンくずリストを描画するコンテナ要素
+ * @param {import('../router.js').Router} router - ルーターインスタンス (for navigation)
  */
-export function renderAppShell(appState, breadcrumbsContainer) {
+export function AppShell(appState, router) { // Renamed for clarity, pass router if needed or use global/event
     const breadcrumbs = appState.getBreadcrumbs();
-    const breadcrumbLinks = html`
+    const handleNav = (event, path) => { // Moved here or could be global/passed
+        event.preventDefault();
+        // If router is not passed, this relies on global router or dispatches event for main.js
+        if (router) {
+            router.navigateTo(path);
+        } else {
+            window.history.pushState({}, '', path);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+        }
+    };
+
+    return html`
         <nav aria-label="breadcrumb">
             <ul>
                 ${breadcrumbs.map((crumb, index) => html`
@@ -25,12 +36,8 @@ export function renderAppShell(appState, breadcrumbsContainer) {
             </ul>
         </nav>
     `;
-    render(breadcrumbLinks, breadcrumbsContainer);
 }
-
-// Separate navigation handling function to keep the template cleaner
-function handleNav(event, path) {
-    event.preventDefault();
-    window.history.pushState({}, '', path);
-    window.dispatchEvent(new PopStateEvent('popstate')); // routerに通知
-}
+// Original handleNav is now part of the component or passed, or global.
+// For this refactor, assuming it's fine as is if router is not passed,
+// or it will be adapted in main.js by passing the router.
+// For now, the internal handleNav uses window.history and dispatches event.

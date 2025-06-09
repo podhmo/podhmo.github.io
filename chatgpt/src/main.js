@@ -4,17 +4,18 @@ import { Router } from './router.js';
 import { parseMarkdown } from './markdownParser.js';
 import { fetchData, getSourceUrlFromQuery } from './dataProvider.js';
 import { AppState } from './appState.js';
-import { renderAppShell } from './ui/AppShell.js';
-import { renderCategoryList } from './ui/CategoryListView.js';
-import { renderTemplateList } from './ui/TemplateListView.js';
-import { renderTemplateDetail } from './ui/TemplateDetailView.js';
+import { AppShell } from './ui/AppShell.js';
+import { CategoryListView } from './ui/CategoryListView.js';
+import { TemplateListView } from './ui/TemplateListView.js';
+import { TemplateDetailView } from './ui/TemplateDetailView.js';
 import { render } from './ui/render.js';
+import { AppRootComponent } from './ui/AppRootComponent.js';
 
 const html = htm.bind(h);
-const contentArea = document.getElementById('content-area');
-const breadcrumbsArea = document.getElementById('breadcrumbs');
-const sourceUrlInput = document.getElementById('sourceUrlInput');
-const loadSourceUrlButton = document.getElementById('loadSourceUrlButton');
+// const contentArea = document.getElementById('content-area'); // Removed
+// const breadcrumbsArea = document.getElementById('breadcrumbs'); // Removed
+// const sourceUrlInput = document.getElementById('sourceUrlInput'); // Removed
+// const loadSourceUrlButton = document.getElementById('loadSourceUrlButton'); // Removed
 
 /**
  * @typedef {import('./markdownParser.js').ParsedCategory} ParsedCategory
@@ -27,29 +28,40 @@ const loadSourceUrlButton = document.getElementById('loadSourceUrlButton');
  */
 class App {
     /**
-     * @param {HTMLElement} contentEl - メインコンテンツを描画する要素
-     * @param {HTMLElement} breadcrumbsEl - パンくずリストを描画する要素
+     * @param {HTMLElement} appRootEl - The root element to render the application into.
      * @param {string} basePath - ルーティングのベースパス
      */
-    constructor(contentEl, breadcrumbsEl, basePath = '') {
-        this.contentEl = contentEl;
-        this.breadcrumbsEl = breadcrumbsEl;
+    constructor(appRootEl, basePath = '') {
+        this.appRootEl = appRootEl;
         this.appState = new AppState();
         this.router = new Router(basePath);
+        this.currentBreadcrumbsVNode = null;
+        this.currentMainContentVNode = html`<p>Initializing...</p>`; // Initial content
         this.setupRoutes();
-        this.setupEventListeners();
+        // setupEventListeners is effectively replaced by passing handleLoadSourceUrl to AppRootComponent
     }
 
-    setupEventListeners() {
-        loadSourceUrlButton.addEventListener('click', () => {
-            const url = sourceUrlInput.value.trim();
-            if (url) {
-                // URLをクエリパラメータに設定してリロード
-                const newUrl = new URL(globalThis.location.href);
-                newUrl.searchParams.set('source', url);
-                globalThis.location.href = newUrl.toString();
-            }
-        });
+    handleLoadSourceUrl(url) {
+        if (url) {
+            const newUrl = new URL(globalThis.location.href);
+            newUrl.searchParams.set('source', url);
+            globalThis.location.href = newUrl.toString();
+        }
+    }
+
+    renderUI() {
+        const currentSourceUrl = getSourceUrlFromQuery() || "https://raw.githubusercontent.com/podhmo/podhmo.github.io/refs/heads/master/chatgpt/Template.md";
+        render(
+            html`
+                <${AppRootComponent}
+                    breadcrumbsVNode=${this.currentBreadcrumbsVNode}
+                    mainContentView=${this.currentMainContentVNode}
+                    currentSourceUrl=${currentSourceUrl}
+                    onLoadSourceUrl=${this.handleLoadSourceUrl.bind(this)}
+                />
+            `,
+            this.appRootEl
+        );
     }
 
     /**
@@ -58,40 +70,62 @@ class App {
     setupRoutes() {
         this.router.addRoute('/', async () => {
             this.appState.setCurrentPath('/');
-            renderAppShell(this.appState, this.breadcrumbsEl); // パンくずを更新
-            render(html`<p>Loading categories...</p>`, this.contentEl);
+            this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
+            this.currentMainContentVNode = html`<p>Loading categories...</p>`;
+            this.renderUI(); // Initial render with loading message
+
             if (!this.appState.data) await this.loadData();
+
             if (this.appState.data) {
-                renderCategoryList(this.appState.data, this.contentEl, this.router);
+                this.currentMainContentVNode = CategoryListView(this.appState.data, this.router);
+            } else {
+                 // loadData will set error message if needed, or we can set a default one here
+                if (!this.currentMainContentVNode) { // check if loadData set an error
+                    this.currentMainContentVNode = html`<p>No categories loaded.</p>`;
+                }
             }
+            this.renderUI();
         });
 
         this.router.addRoute('/category/:categoryName', async (params) => {
+            const categoryName = decodeURIComponent(params.categoryName);
             this.appState.setCurrentPath(decodeURIComponent(location.pathname));
-            renderAppShell(this.appState, this.breadcrumbsEl);
-            render(html`<p>Loading templates for ${decodeURIComponent(params.categoryName)}...</p>`, this.contentEl);
+            this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
+            this.currentMainContentVNode = html`<p>Loading templates for ${categoryName}...</p>`;
+            this.renderUI();
+
             if (!this.appState.data) await this.loadData();
-            const category = this.appState.getCategoryByName(decodeURIComponent(params.categoryName));
+
+            const category = this.appState.getCategoryByName(categoryName);
             if (category) {
-                renderTemplateList(category, this.contentEl, this.router);
+                this.currentMainContentVNode = TemplateListView(category, this.router);
             } else {
-                render(html`<p>Category not found.</p>`, this.contentEl);
-                this.router.navigateTo('/');
+                this.currentMainContentVNode = html`<p>Category not found: ${categoryName}</p>`;
+                // Optional: this.router.navigateTo('/'); // or let user see the message
             }
+            this.renderUI();
         });
 
         this.router.addRoute('/category/:categoryName/template/:templateName', async (params) => {
+            const categoryName = decodeURIComponent(params.categoryName);
+            const templateName = decodeURIComponent(params.templateName);
             this.appState.setCurrentPath(decodeURIComponent(location.pathname));
-            renderAppShell(this.appState, this.breadcrumbsEl);
-            render(html`<p>Loading template ${decodeURIComponent(params.templateName)}...</p>`, this.contentEl);
+            this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
+            this.currentMainContentVNode = html`<p>Loading template ${templateName}...</p>`;
+            this.renderUI();
+
             if (!this.appState.data) await this.loadData();
-            const template = this.appState.getTemplateByName(decodeURIComponent(params.categoryName), decodeURIComponent(params.templateName));
+
+            const template = this.appState.getTemplateByName(categoryName, templateName);
             if (template) {
-                renderTemplateDetail(template, this.contentEl);
+                // TemplateDetailView needs a way to trigger re-render on placeholder input
+                // Passing this.renderUI.bind(this) as the requestRender callback
+                this.currentMainContentVNode = TemplateDetailView(template, this.router, this.renderUI.bind(this));
             } else {
-                render(html`<p>Template not found.</p>`, this.contentEl);
-                this.router.navigateTo('/');
+                this.currentMainContentVNode = html`<p>Template not found: ${templateName}</p>`;
+                // Optional: this.router.navigateTo('/');
             }
+            this.renderUI();
         });
     }
 
@@ -100,16 +134,31 @@ class App {
      */
     async loadData() {
         try {
-            const defaultUrl = "https://raw.githubusercontent.com/podhmo/podhmo.github.io/refs/heads/master/chatgpt/Template.md"
-            const currentSourceUrl = getSourceUrlFromQuery() || defaultUrl;
-            sourceUrlInput.value = currentSourceUrl; // 現在のソースURLを入力欄に表示
-            const markdownText = await fetchData(currentSourceUrl);
+            const defaultUrl = "https://raw.githubusercontent.com/podhmo/podhmo.github.io/refs/heads/master/chatgpt/Template.md";
+            // currentSourceUrl is now managed by AppRootComponent's prop for display,
+            // but getSourceUrlFromQuery is still the source of truth for loading.
+            const currentLoadingUrl = getSourceUrlFromQuery() || defaultUrl;
+            // sourceUrlInput.value = currentSourceUrl; // Removed: input is in AppRootComponent
+
+            // Set loading state for main content if not already set by router
+            if (!this.currentMainContentVNode || this.currentMainContentVNode.type === 'p') { // basic check if it's a loading msg
+                 this.currentMainContentVNode = html`<p>Fetching data from ${currentLoadingUrl}...</p>`;
+                 this.renderUI();
+            }
+
+            const markdownText = await fetchData(currentLoadingUrl);
             const parsedData = parseMarkdown(markdownText);
             this.appState.setData(parsedData);
+            if (parsedData.length === 0) {
+                 this.currentMainContentVNode = html`<p>No templates found in the loaded source. Try a different URL.</p>`;
+                 // this.renderUI() will be called by the route handler after loadData completes
+            }
+            // Data is set, route handler will call renderUI with new content
         } catch (error) {
             console.error('Error loading or parsing data:', error);
-            render(html`<p>Error loading data: ${error.message}. Please check the console and the Markdown source.</p>`, this.contentEl);
+            this.currentMainContentVNode = html`<p>Error loading data: ${error.message}. Please check the console and the Markdown source.</p>`;
             this.appState.setData([]); // エラー時は空データ
+            // this.renderUI() will be called by the route handler
         }
     }
 
@@ -117,12 +166,14 @@ class App {
      * アプリケーションを開始します。
      */
     async start() {
-        await this.router.handleLocationChange(); // 初期ルート処理
+        this.currentMainContentVNode = html`<p>Application starting...</p>`; // Initial message
+        this.renderUI(); // Render initial state of AppRootComponent
+        await this.router.handleLocationChange(); // 初期ルート処理, this will call renderUI again
     }
 }
 
 // アプリケーションインスタンスを作成して開始
-const currentBasePath = globalThis.location.pathname.replace(/\/[^/]*$/, ''); // ベースパスを現在のパスから取得
-console.log(`Current base path: ${currentBasePath}`); // デバッグ用ログ
-const app = new App(contentArea, breadcrumbsArea, currentBasePath);
+const currentBasePath = globalThis.location.pathname.replace(/\/[^/]*$/, '');
+console.log(`Current base path: ${currentBasePath}`);
+const app = new App(document.getElementById('app'), currentBasePath);
 app.start();
