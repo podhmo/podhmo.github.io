@@ -3,9 +3,13 @@
  * History APIを利用します。
  */
 export class Router {
-    constructor() {
+    /**
+     * @param {string} basePath - ルーティングのベースパス（例: '/chatgpt'）
+     */
+    constructor(basePath = '') {
+        this.basePath = basePath.replace(/\/$/, ''); // 末尾スラッシュ除去
         this.routes = [];
-        window.addEventListener('popstate', () => this.handleLocationChange());
+        globalThis.addEventListener('popstate', () => this.handleLocationChange());
     }
 
     /**
@@ -34,7 +38,11 @@ export class Router {
      * 現在のURLに基づいて適切なハンドラを実行します。
      */
     async handleLocationChange() {
-        const currentPath = window.location.pathname;
+        // basePathを除去したパスでマッチング
+        let currentPath = globalThis.location.pathname;
+        if (this.basePath && currentPath.startsWith(this.basePath)) {
+            currentPath = currentPath.slice(this.basePath.length) || '/';
+        }
         for (const route of this.routes) {
             const match = currentPath.match(route.regex);
             if (match) {
@@ -43,14 +51,11 @@ export class Router {
                     await route.handler(params);
                 } catch (error) {
                     console.error("Error in route handler:", error);
-                    // Optionally render an error view
                 }
                 return;
             }
         }
-        // No route matched, handle 404 or redirect
         console.warn(`No route found for ${currentPath}`);
-        // this.navigateTo('/'); // Example: redirect to home
     }
 
     /**
@@ -74,7 +79,9 @@ export class Router {
      * @param {string} path - ナビゲート先のパス
      */
     navigateTo(path) {
-        window.history.pushState({}, '', path);
+        // basePathを付与
+        const fullPath = this.basePath + (path.startsWith('/') ? path : '/' + path);
+        globalThis.history.pushState({}, '', fullPath);
         this.handleLocationChange();
     }
 }
