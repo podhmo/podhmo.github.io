@@ -1,5 +1,3 @@
-const DEFAULT_SOURCE_URL = './Template.md';
-
 /**
  * 指定されたURLからテキストデータを非同期で取得します。
  * @param {string} url - データを取得するURL
@@ -21,10 +19,11 @@ export async function fetchData(url) {
 
 /**
  * デフォルトのMarkdownソースURLを返します。
+ * @param {string} defaultUrl - デフォルトURL
  * @returns {string}
  */
-export function getDefaultSourceUrl() {
-    return DEFAULT_SOURCE_URL;
+export function getDefaultSourceUrl(defaultUrl) {
+    return defaultUrl;
 }
 
 /**

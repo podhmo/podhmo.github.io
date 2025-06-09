@@ -97,7 +97,7 @@ class App {
      */
     async loadData() {
         try {
-            const currentSourceUrl = getSourceUrlFromQuery() || getDefaultSourceUrl();
+            const currentSourceUrl = getSourceUrlFromQuery() || getDefaultSourceUrl('./Template.md');
             sourceUrlInput.value = currentSourceUrl; // 現在のソースURLを入力欄に表示
             const markdownText = await fetchData(currentSourceUrl);
             const parsedData = parseMarkdown(markdownText);
