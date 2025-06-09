@@ -1,7 +1,7 @@
 import { html } from 'lit-html';
 import { Router } from './router.js';
 import { parseMarkdown } from './markdownParser.js';
-import { fetchData, getDefaultSourceUrl, getSourceUrlFromQuery } from './dataProvider.js';
+import { fetchData, getSourceUrlFromQuery } from './dataProvider.js';
 import { AppState } from './appState.js';
 import { renderAppShell } from './ui/AppShell.js';
 import { renderCategoryList } from './ui/CategoryListView.js';
@@ -97,7 +97,8 @@ class App {
      */
     async loadData() {
         try {
-            const currentSourceUrl = getSourceUrlFromQuery() || getDefaultSourceUrl('./Template.md');
+            const defaultUrl = "https://raw.githubusercontent.com/podhmo/podhmo.github.io/refs/heads/master/chatgpt/Template.md"
+            const currentSourceUrl = getSourceUrlFromQuery() || defaultUrl;
             sourceUrlInput.value = currentSourceUrl; // 現在のソースURLを入力欄に表示
             const markdownText = await fetchData(currentSourceUrl);
             const parsedData = parseMarkdown(markdownText);
