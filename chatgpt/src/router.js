@@ -14,10 +14,20 @@ export class Router {
      * @param {Function} handler - パスにマッチしたときに実行される関数
      */
     addRoute(path, handler) {
-        const regex = typeof path === 'string'
-            ? new RegExp(`^${path.replace(/:\w+/g, '([^/]+)')}$`)
-            : path;
-        this.routes.push({ regex, handler });
+        let regex;
+        const paramNames = [];
+        if (typeof path === 'string') {
+            // パラメータ名を抽出
+            const paramRegex = /:(\w+)/g;
+            let match;
+            while ((match = paramRegex.exec(path)) !== null) {
+                paramNames.push(match[1]);
+            }
+            regex = new RegExp(`^${path.replace(/:\w+/g, '([^/]+)')}$`);
+        } else {
+            regex = path;
+        }
+        this.routes.push({ regex, handler, paramNames });
     }
 
     /**
@@ -28,7 +38,7 @@ export class Router {
         for (const route of this.routes) {
             const match = currentPath.match(route.regex);
             if (match) {
-                const params = this.extractParams(route.regex, currentPath);
+                const params = this.extractParams(route.regex, currentPath, route.paramNames || []);
                 try {
                     await route.handler(params);
                 } catch (error) {
@@ -49,22 +59,8 @@ export class Router {
      * @param {string} path - 現在のURLパス
      * @returns {object} - パラメータのキーと値のオブジェクト
      */
-    extractParams(regex, path) {
+    extractParams(regex, path, paramNames = []) {
         const values = path.match(regex).slice(1);
-        // We need to find the param names from the original path string if it was a string
-        // This is a simplified version. For robust param name extraction,
-        // you might need to store original path string and parse it.
-        // For now, assuming params are ordered or a more complex regex is used.
-        // A common approach is to convert path string like '/user/:id/post/:postId'
-        // into a regex and store param names ['id', 'postId']
-        const paramNames = [];
-        const originalPathString = regex.source.substring(1, regex.source.length -1) // remove ^ and $
-                                       .replace(/\\//g, '/'); // unescape slashes
-
-        originalPathString.replace(/:(\w+)/g, (_, name) => {
-            paramNames.push(name);
-        });
-        
         const params = {};
         paramNames.forEach((name, index) => {
             params[name] = values[index];
