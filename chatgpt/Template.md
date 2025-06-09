@@ -52,6 +52,8 @@ explain this post and its replies with emoji in x/twitter
 
 ## 投稿内容を抽出したい
 
+geminiなどにそのままx/twitterの投稿内容を渡したいときに使う。
+
 ````md
 以下の手順に基づき、指定されたX投稿とそのリプライツリーを分析し、結果をMarkdown形式で出力します。
 
@@ -86,6 +88,8 @@ explain this post and its replies with emoji in x/twitter
 gemini 2.5 proを主に利用
 
 ## AIへの指示：思考整理とタスク洗い出しサポート
+
+何か頭が働かなくなったときに使う。ずっと調整中。
 
 ```md
 あなたは、ユーザーの思考を整理し、頭の中に隠れているタスクやアイデアを洗い出すためのAIアシスタントです。
@@ -131,6 +135,8 @@ gemini 2.5 proを主に利用
 ```
 
 ## markdownのフォーマッター
+
+grokからテキストをコピペするとmarkdownの構造が失われてしまう。それをある程度読めるように復元するためのもの。
 
 ```md
 あなたは優秀な編集者であり、入力されたプレーンテキストを、その内容を一切変更することなく、Markdown記法と適切な段落分けを用いて最大限に見やすく整形する専門家です。
@@ -200,6 +206,8 @@ gemini 2.5 proを主に利用
 ````
 
 ## llmを使った簡易scaffold用
+
+[llm-scaffold](https://github.com/podhmo/podhmo.github.io/tree/master/chatgpt/tools)とセットで使うことが多いです。
 
 `````md
 【重要なお願い】
@@ -283,11 +291,8 @@ def greet(name):
 
 ## 特定の論文の概観を把握し他の研究との文脈を接続したい
 
-特定の論文の概観を把握し他の研究との文脈を接続したい（落合陽一式フォーマットベース）
-
 これらはAI StudioのURL context機能で論文のURLを指定して使用することを想定しています。
 🏗️ まだ調整ができていません。
-see: https://zenn.dev/link/comments/88f3d6e49e6610
 
 ```
 # 論文概観把握と文脈接続支援プロンプト
@@ -327,12 +332,8 @@ see: https://zenn.dev/link/comments/88f3d6e49e6610
 
 ## ある特定の論文の内容を詳細に理解したい
 
-
-ある特定の論文の内容を詳細に理解したい（矢谷流TAMMIC/KURRフレームワークベース）
-
 これらはAI StudioのURL context機能で論文のURLを指定して使用することを想定しています。
 🏗️ まだ調整ができていません。
-see: https://zenn.dev/link/comments/88f3d6e49e6610
 
 ```md
 # 論文詳細理解支援プロンプト (矢谷流TAMMIC/KURRベース)
