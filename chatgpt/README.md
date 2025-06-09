@@ -3,7 +3,6 @@
 いいかんじで選択してコピペしたい
 
 - https://podhmo.github.io/chatgpt/
-- https://github.com/podhmo/individual-sandbox/tree/master/daily/20250512/example_html 
 - [./Template.md](./Template.md)
 
 ## development
