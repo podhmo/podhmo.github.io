@@ -6,6 +6,21 @@
 - https://github.com/podhmo/individual-sandbox/tree/master/daily/20250512/example_html 
 - [./Template.md](./Template.md)
 
+## development
+
+serve
+
+```bash
+make serve
+```
+
+test
+
+```bash
+make test
+```
+
+
 
 ## ちょっとしたtips
 
