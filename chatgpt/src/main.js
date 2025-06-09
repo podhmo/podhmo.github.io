@@ -27,24 +27,25 @@ class App {
     /**
      * @param {HTMLElement} contentEl - メインコンテンツを描画する要素
      * @param {HTMLElement} breadcrumbsEl - パンくずリストを描画する要素
+     * @param {string} basePath - ルーティングのベースパス
      */
-    constructor(contentEl, breadcrumbsEl) {
+    constructor(contentEl, breadcrumbsEl, basePath = '') {
         this.contentEl = contentEl;
         this.breadcrumbsEl = breadcrumbsEl;
         this.appState = new AppState();
-        this.router = new Router();
+        this.router = new Router(basePath);
         this.setupRoutes();
         this.setupEventListeners();
     }
 
     setupEventListeners() {
-        loadSourceUrlButton.addEventListener('click', async () => {
+        loadSourceUrlButton.addEventListener('click', () => {
             const url = sourceUrlInput.value.trim();
             if (url) {
                 // URLをクエリパラメータに設定してリロード
-                const newUrl = new URL(window.location.href);
+                const newUrl = new URL(globalThis.location.href);
                 newUrl.searchParams.set('source', url);
-                window.location.href = newUrl.toString();
+                globalThis.location.href = newUrl.toString();
             }
         });
     }
@@ -119,5 +120,7 @@ class App {
 }
 
 // アプリケーションインスタンスを作成して開始
-const app = new App(contentArea, breadcrumbsArea);
+const currentBasePath = globalThis.location.pathname.replace(/\/[^/]*$/, ''); // ベースパスを現在のパスから取得
+console.log(`Current base path: ${currentBasePath}`); // デバッグ用ログ
+const app = new App(contentArea, breadcrumbsArea, currentBasePath);
 app.start();
