@@ -45,7 +45,8 @@ x/twitterに触れるので便利。最近はもっぱらこちらを使って�
 ```
 explain this post and its replies with emoji in x/twitter
 {{投稿のURL}}
-日本語で
+日本語で。
+推測した部分は括弧書きにして明示的に区別して
 ```
 
 📝 あと直近二ヶ月とかで検索もかけられる(deepsearchは英語でクエリーを組み立てることに注意。)
