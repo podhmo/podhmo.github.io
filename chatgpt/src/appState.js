@@ -1,7 +1,11 @@
+import { getSourceUrlFromQuery } from './dataProvider.js';
+
 /**
  * @typedef {import('./markdownParser.js').ParsedCategory} ParsedCategory
  * @typedef {import('./markdownParser.js').ParsedTemplate} ParsedTemplate
  */
+
+const DEFAULT_SOURCE_URL = "https://raw.githubusercontent.com/podhmo/podhmo.github.io/refs/heads/master/chatgpt/Template.md";
 
 /**
  * アプリケーションの状態を管理します。
@@ -12,6 +16,8 @@ export class AppState {
         this.data = null;
         /** @type {string} */
         this.currentPath = '/'; // 例: '/', '/category/ChatGPT', '/category/ChatGPT/template/Prompt1'
+        /** @type {string} */
+        this.currentSourceUrl = getSourceUrlFromQuery() || DEFAULT_SOURCE_URL;
     }
 
     /**
@@ -28,6 +34,19 @@ export class AppState {
      */
     setCurrentPath(path) {
         this.currentPath = path;
+    }
+
+    getCurrentSourceUrl() {
+        return this.currentSourceUrl;
+    }
+
+    setCurrentSourceUrl(url) {
+        if (url && typeof url === 'string') {
+            this.currentSourceUrl = url;
+        } else {
+            console.warn("Attempted to set invalid source URL:", url);
+            this.currentSourceUrl = DEFAULT_SOURCE_URL; // Fallback to default
+        }
     }
 
     /**
