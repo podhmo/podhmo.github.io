@@ -1,13 +1,16 @@
-import { html, nothing } from 'lit-html';
-import { unsafeHTML } from 'lit-html/directives/unsafe-html.js';
-import { render } from './render.js';
+import { h } from 'preact';
+import { default as htm } from 'htm';
+// import { render } from './render.js'; // No longer needed here
+
+const html = htm.bind(h);
 
 /**
- * 選択されたテンプレートの詳細（説明、プロンプト本体、変数入力欄）を表示します。
+ * 選択されたテンプレートの詳細（説明、プロンプト本体、変数入力欄）のVNodeを返します。
  * @param {import('../markdownParser.js').ParsedTemplate} template - 表示するテンプレートのデータ
- * @param {HTMLElement} container - 表示するコンテナ要素
+ * @param {import('../router.js').Router} router - ルーターインスタンス (for back navigation)
+ * @param {function} requestRender - Callback to request a re-render from parent (main.js)
  */
-export function renderTemplateDetail(template, container) {
+export function TemplateDetailView(template, router, requestRender) {
     let placeholderValues = {};
 
     const extractPlaceholders = (text) => {
@@ -31,9 +34,9 @@ export function renderTemplateDetail(template, container) {
 
     const updatePlaceholderValue = (placeholderName, value) => {
         placeholderValues[placeholderName] = value;
-        // Re-render might be too much here, but simplest for now.
-        // A more optimized way would be to just update the previewed text.
-        render(templateDetailContent(), container);
+        // Request a re-render from the main application logic
+        // This is a common pattern when state is managed outside the component
+        if (requestRender) requestRender();
     };
 
     const copyToClipboard = async (text, buttonElement) => {
@@ -70,7 +73,7 @@ export function renderTemplateDetail(template, container) {
             <header>
                 <h3>${template.templateName}</h3>
             </header>
-            ${template.description ? html`<section class="description">${unsafeHTML(template.description.replace(/\n/g, '<br>'))}</section>` : nothing}
+            ${template.description ? html`<section class="description" dangerouslySetInnerHTML=${{ __html: template.description.replace(/\n/g, '<br>') }}></section>` : null}
             
             ${uniquePlaceholders.length > 0 ? html`
                 <section class="placeholders">
@@ -81,8 +84,8 @@ export function renderTemplateDetail(template, container) {
                             <textarea
                                 id="ph-${ph}"
                                 name="${ph}"
-                                .value=${placeholderValues[ph]}
-                                @input=${(e) => updatePlaceholderValue(ph, e.target.value)}
+                                value=${placeholderValues[ph]}
+                                onInput=${(e) => updatePlaceholderValue(ph, e.target.value)}
                                 placeholder="Enter value for ${ph}"
                                 rows="3"
                                 style="width:100%"
@@ -90,35 +93,37 @@ export function renderTemplateDetail(template, container) {
                         </div>
                     `)}
                 </section>
-            ` : nothing}
+            ` : null}
 
             <h4>Prompt Template(s):</h4>
             ${template.prompts.map((prompt, index) => html`
                 <div class="template-body-container">
-                    ${prompt.language ? html`<small>Language: ${prompt.language}</small>` : nothing}
+                    ${prompt.language ? html`<small>Language: ${prompt.language}</small>` : null}
                     <button 
                         class="copy-button outline"
-                        @click=${(e) => copyToClipboard(getProcessedPromptBody(prompt.body), e.target)}>
+                        onClick=${(e) => copyToClipboard(getProcessedPromptBody(prompt.body), e.target)}>
                         Copy
                     </button>
                     <pre><code>${getProcessedPromptBody(prompt.body)}</code></pre>
                 </div>
-                ${index < template.prompts.length - 1 ? html`<hr>` : nothing}
+                ${index < template.prompts.length - 1 ? html`<hr />` : null}
             `)}
             
             <footer>
                 <a href="/category/${encodeURIComponent(template.categoryName)}" 
-                   @click=${(e) => { 
-                       e.preventDefault(); 
-                       // This requires access to the router instance from main.js
-                       // For now, using history API directly and dispatching event
-                       window.history.pushState({}, '', `/category/${encodeURIComponent(template.categoryName)}`);
-                       window.dispatchEvent(new PopStateEvent('popstate'));
+                   onClick=${(e) => {
+                       e.preventDefault();
+                       if (router) {
+                           router.navigateTo(`/category/${encodeURIComponent(template.categoryName)}`);
+                       } else {
+                           window.history.pushState({}, '', `/category/${encodeURIComponent(template.categoryName)}`);
+                           window.dispatchEvent(new PopStateEvent('popstate'));
+                       }
                    }}>
                    Back to ${template.categoryName}
                 </a>
             </footer>
         </article>
     `;
-    render(templateDetailContent(), container);
+    return templateDetailContent(); // Return the VNode
 }

@@ -22,7 +22,8 @@ This application allows users to:
 ## Tech Stack
 
 -   Vanilla JavaScript (ESM)
--   [lit-html](https://lit.dev/docs/v3/api/lit-html/) (via CDN) for templating.
+-   [Preact](https://preactjs.com/) (via CDN) for UI components and rendering.
+-   [htm](https://github.com/developit/htm) (via CDN) for JSX-like templating in JavaScript.
 -   [Pico.css v2](https://picocss.com/) (via CDN) for styling.
 -   Custom Markdown parser for template extraction.
 
@@ -80,12 +81,12 @@ Just a simple text prompt.
     -   `markdownParser.js`: Custom Markdown parser.
     -   `dataProvider.js`: Fetches Markdown data.
     -   `appState.js`: Manages application state.
-    -   `ui/`: Directory for UI components (lit-html based).
+    -   `ui/`: Directory for UI components (Preact and htm based).
         -   `AppShell.js`: Basic application layout (breadcrumbs).
         -   `CategoryListView.js`: Renders the list of categories.
         -   `TemplateListView.js`: Renders the list of templates in a category.
         -   `TemplateDetailView.js`: Renders the details of a single template.
-        -   `render.js`: Utility for lit-html rendering.
+        -   `render.js`: Utility for Preact rendering.
 -   `README.md`: This file.
 
 ## Notes on the Markdown Parser

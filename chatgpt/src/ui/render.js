@@ -1,11 +1,10 @@
-import { html } from 'lit-html';
-import { render as litRender } from 'lit-html';
+import { render as preactRender, h } from 'preact';
 
 /**
- * lit-htmlのrender関数をラップし、指定されたコンテナにUIを描画します。
- * @param {import('https://cdn.jsdelivr.net/npm/lit-html@3.1.3/lit-html.js').TemplateResult | undefined} templateResult - レンダリングするlit-htmlテンプレート
+ * Preactのrender関数をラップし、指定されたコンテナにUIを描画します。
+ * @param {import('preact').VNode | undefined} vnode - レンダリングするPreact VNode
  * @param {HTMLElement} container - 描画先のコンテナ要素
  */
-export function render(templateResult, container) {
-    litRender(templateResult, container);
+export function render(vnode, container) {
+    preactRender(vnode, container);
 }

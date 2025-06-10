@@ -1,41 +1,43 @@
-import { html } from 'lit-html';
-import { render } from './render.js';
+import { h } from 'preact';
+import { default as htm } from 'htm';
+// import { render } from './render.js'; // No longer needed here
+
+const html = htm.bind(h);
 
 /**
- * アプリケーションシェルのパンくずリスト部分をレンダリングします。
+ * アプリケーションシェルのパンくずリスト部分のVNodeを返します。
  * @param {import('../appState.js').AppState} appState - アプリケーションの状態
- * @param {HTMLElement} breadcrumbsContainer - パンくずリストを描画するコンテナ要素
+ * @param {import('../router.js').Router} router - ルーターインスタンス (for navigation)
  */
-export function renderAppShell(appState, breadcrumbsContainer) {
+export function AppShell(appState, router) { // Renamed for clarity, pass router if needed or use global/event
     const breadcrumbs = appState.getBreadcrumbs();
-    const breadcrumbLinks = html`
+    const handleNav = (event, path) => { // Moved here or could be global/passed
+        event.preventDefault();
+        // If router is not passed, this relies on global router or dispatches event for main.js
+        if (router) {
+            router.navigateTo(path);
+        } else {
+            window.history.pushState({}, '', path);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+        }
+    };
+
+    return html`
         <nav aria-label="breadcrumb">
             <ul>
                 ${breadcrumbs.map((crumb, index) => html`
                     <li>
                         ${index === breadcrumbs.length - 1
                             ? html`<span aria-current="page">${crumb.name}</span>`
-                            : html`<a href="${crumb.path}">${crumb.name}</a>`
+                            : html`<a href="${crumb.path}" onClick=${(e) => handleNav(e, crumb.path)}>${crumb.name}</a>`
                         }
                     </li>
                 `)}
             </ul>
         </nav>
     `;
-    render(breadcrumbLinks, breadcrumbsContainer);
-
-    // クリックイベントをコンテナに委任 (PicoCSSのbreadcrumbは<a>タグになる)
-    breadcrumbsContainer.querySelectorAll('a[href^="/"]').forEach(link => {
-        link.onclick = (event) => {
-            event.preventDefault();
-            // main.js の router インスタンスにアクセスする方法が必要。
-            // ここでは単純化のため window.history を直接使うか、
-            // もしくは router インスタンスを渡す必要がある。
-            // 今回は main.js で router を初期化しているので、グローバルな router インスタンスに依存するか、
-            // イベントを発行して main.js で処理するなどの方法がある。
-            // ここでは簡易的に history API を直接叩くが、実際のアプリでは router.navigateTo を呼び出すべき。
-            window.history.pushState({}, '', link.getAttribute('href'));
-            window.dispatchEvent(new PopStateEvent('popstate')); // routerに通知
-        };
-    });
 }
+// Original handleNav is now part of the component or passed, or global.
+// For this refactor, assuming it's fine as is if router is not passed,
+// or it will be adapted in main.js by passing the router.
+// For now, the internal handleNav uses window.history and dispatches event.
