@@ -186,6 +186,6 @@ class App {
 
 // アプリケーションインスタンスを作成して開始
 const currentBasePath = globalThis.location.pathname.replace(/\/[^/]*$/, '');
-// console.log(`Current base path: ${currentBasePath}`); // removed console.log
+console.log(`Current base path: ${currentBasePath}`);
 const app = new App(document.getElementById('app'), currentBasePath);
 app.start();
