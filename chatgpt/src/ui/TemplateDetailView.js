@@ -79,12 +79,11 @@ export function TemplateDetailView(template, router, requestRender) {
     
     // Testable version of getProcessedPromptBody
     // Note: This function is being exported for testing purposes.
-    export const processPromptBodyForTesting = (originalBody, uniquePlaceholders, placeholderValues) => {
+    const processPromptBodyForTesting = (originalBody, uniquePlaceholders, placeholderValues) => {
         let processedBody = originalBody;
         uniquePlaceholders.forEach(phObj => {
             const placeholderRegex = new RegExp(`\\{\\{${phObj.name}(?::[^}]+)?\\}\\}`, 'g');
             let valueToReplace = placeholderValues[phObj.name];
-
             if (valueToReplace === undefined) { // Should not happen if initialized correctly
                 valueToReplace = phObj.defaultValue !== null ? phObj.defaultValue : `{{${phObj.name}}}`;
             } else if (valueToReplace === '' && phObj.defaultValue !== null) {
@@ -164,6 +163,3 @@ export function TemplateDetailView(template, router, requestRender) {
     `;
     return templateDetailContent(); // Return the VNode
 }
-
-// Export extractPlaceholders for testing
-export { extractPlaceholders };
