@@ -14,23 +14,41 @@ export function TemplateDetailView(template, router, requestRender) {
     let placeholderValues = {};
 
     const extractPlaceholders = (text) => {
-        const regex = /\{\{([^}]+)\}\}/g;
+        const regex = /\{\{([^:}]+)(?::([^}]+))?\}\}/g; // Updated regex
         let match;
-        const placeholders = new Set();
+        const placeholders = [];
+        // Use a Map to ensure uniqueness by name, storing the first encountered defaultValue
+        const seenPlaceholders = new Map();
         while ((match = regex.exec(text)) !== null) {
-            placeholders.add(match[1].trim());
+            const name = match[1].trim();
+            const defaultValue = match[2] ? match[2].trim() : null;
+            if (!seenPlaceholders.has(name)) {
+                seenPlaceholders.set(name, { name, defaultValue });
+            }
         }
-        return Array.from(placeholders);
+        // Convert Map values to an array
+        return Array.from(seenPlaceholders.values());
     };
 
     // 全プロンプトボディからプレースホルダーを収集
-    const allPlaceholders = new Set();
-    template.prompts.forEach(prompt => {
-        extractPlaceholders(prompt.body).forEach(ph => allPlaceholders.add(ph));
-    });
-    const uniquePlaceholders = Array.from(allPlaceholders);
+    // Store placeholder objects (name, defaultValue)
+    const allPlaceholderObjects = [];
+    const seenPlaceholderNames = new Set(); // To ensure unique placeholder names across all prompts
 
-    uniquePlaceholders.forEach(ph => placeholderValues[ph] = '');
+    template.prompts.forEach(prompt => {
+        extractPlaceholders(prompt.body).forEach(phObj => {
+            if (!seenPlaceholderNames.has(phObj.name)) {
+                allPlaceholderObjects.push(phObj);
+                seenPlaceholderNames.add(phObj.name);
+            }
+        });
+    });
+    const uniquePlaceholders = allPlaceholderObjects; // This now holds objects
+
+    // Initialize placeholderValues using defaultValues if present
+    uniquePlaceholders.forEach(phObj => {
+        placeholderValues[phObj.name] = phObj.defaultValue !== null ? phObj.defaultValue : '';
+    });
 
     const updatePlaceholderValue = (placeholderName, value) => {
         placeholderValues[placeholderName] = value;
@@ -59,13 +77,31 @@ export function TemplateDetailView(template, router, requestRender) {
         }
     };
     
-    const getProcessedPromptBody = (originalBody) => {
+    // Testable version of getProcessedPromptBody
+    // Note: This function is being exported for testing purposes.
+    const processPromptBodyForTesting = (originalBody, uniquePlaceholders, placeholderValues) => {
         let processedBody = originalBody;
-        for (const ph in placeholderValues) {
-            const regex = new RegExp(`\\{\\{${ph}\\}\\}`, 'g');
-            processedBody = processedBody.replace(regex, placeholderValues[ph] || `{{${ph}}}`); // Keep placeholder if value is empty
-        }
+        uniquePlaceholders.forEach(phObj => {
+            const placeholderRegex = new RegExp(`\\{\\{${phObj.name}(?::[^}]+)?\\}\\}`, 'g');
+            let valueToReplace = placeholderValues[phObj.name];
+            if (valueToReplace === undefined) { // Should not happen if initialized correctly
+                valueToReplace = phObj.defaultValue !== null ? phObj.defaultValue : `{{${phObj.name}}}`;
+            } else if (valueToReplace === '' && phObj.defaultValue !== null) {
+                valueToReplace = phObj.defaultValue;
+            } else if (valueToReplace === '' && phObj.defaultValue === null) {
+                // Task: "Keep placeholder if value is empty" - this was in old code.
+                // For new logic: if value is empty and no default, it means user wants it empty, or it was empty initially.
+                // The prompt asks for {{name}} to be output if value is empty and no default.
+                 valueToReplace = `{{${phObj.name}}}`;
+            }
+            processedBody = processedBody.replace(placeholderRegex, valueToReplace);
+        });
         return processedBody;
+    };
+
+    const getProcessedPromptBody = (originalBody) => {
+        // Calls the testable function with component's current state
+        return processPromptBodyForTesting(originalBody, uniquePlaceholders, placeholderValues);
     };
 
     const templateDetailContent = () => html`
@@ -78,15 +114,15 @@ export function TemplateDetailView(template, router, requestRender) {
             ${uniquePlaceholders.length > 0 ? html`
                 <section class="placeholders">
                     <h4>Variables:</h4>
-                    ${uniquePlaceholders.map(ph => html`
+                    ${uniquePlaceholders.map(phObj => html`
                         <div class="placeholder-input">
-                            <label for="ph-${ph}">${ph}:</label>
+                            <label for="ph-${phObj.name}">${phObj.name}:</label>
                             <textarea
-                                id="ph-${ph}"
-                                name="${ph}"
-                                value=${placeholderValues[ph]}
-                                onInput=${(e) => updatePlaceholderValue(ph, e.target.value)}
-                                placeholder="Enter value for ${ph}"
+                                id="ph-${phObj.name}"
+                                name="${phObj.name}"
+                                value=${placeholderValues[phObj.name]}
+                                onInput=${(e) => updatePlaceholderValue(phObj.name, e.target.value)}
+                                placeholder=${phObj.defaultValue ? `Enter value for ${phObj.name} (default: ${phObj.defaultValue})` : `Enter value for ${phObj.name}`}
                                 rows="3"
                                 style="width:100%"
                             ></textarea>
