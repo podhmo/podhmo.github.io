@@ -501,6 +501,8 @@ def greet(name):
 
 ## コードを書く時(goat)
 
+⚠️古い。AGENTS.mdを使ってください。 https://jules.google/docs/#include-agentsmd-file
+
 ```
 {{作業内容}}
 
