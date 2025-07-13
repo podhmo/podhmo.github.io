@@ -177,12 +177,12 @@ ${instruction}
                 </div>
                 <div class="form-group">
                     <label for="prompt-target-text">Target Document</label>
-                    <textarea
+                    <input
                         id="prompt-target-text"
                         name="prompt-target-text"
-                        rows="8"
+                        type="text"
                         placeholder="Enter target text, a URL, or leave blank for chat history..."
-                    ></textarea>
+                    ></input>
                 </div>
             </section>
             
