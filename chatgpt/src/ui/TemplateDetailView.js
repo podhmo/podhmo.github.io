@@ -190,7 +190,7 @@ ${instruction}
                     <input type="text" id="prompt-title" name="prompt-title" placeholder="Enter a title for the final prompt..." />
                 </div>
                 <div class="form-group">
-                    <label for="prompt-target-text">対象テキスト</label>
+                    <label for="prompt-target-text">対象テキストまたはURL</label>
                     <textarea
                         id="prompt-target-text"
                         name="prompt-target-text"
