@@ -61,37 +61,38 @@ export function TemplateDetailView(template, router, requestRender) {
         const title = document.getElementById('prompt-title').value;
         const targetText = document.getElementById('prompt-target-text').value;
 
-        let document_content = '';
-        const urlPattern = /^https?:\/\//;
-        if (urlPattern.test(targetText)) {
-            try {
-                const response = await fetch(targetText);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                document_content = await response.text();
-            } catch (error) {
-                console.error("Failed to fetch URL:", error);
-                document_content = `Error: Could not fetch content from URL: ${targetText}\n\n${error.message}`;
-            }
-        } else if (targetText.trim() === '') {
-            document_content = '[Clipped Chat History]'; // Dummy text
-        } else {
-            document_content = targetText;
-        }
-
-        const safe_document_container = createSafeDocumentContainer(document_content);
-
-        const finalPrompt = `${title ? `# ${title}\n\n` : ''}<details>
+        // Base prompt structure
+        let finalPrompt = `${title ? `# ${title}\n\n` : ''}<details>
 <summary>プロンプト詳細（クリックで展開）</summary>
 
 **【指示】**
 ${instruction}
 
-</details>
+</details>`;
 
----
+        // Handle the target document section based on user input
+        if (targetText.trim() !== '') {
+            const urlPattern = /^https?:\/\//;
+            let documentHeader = '';
+            let documentContent = '';
 
-${safe_document_container}`;
+            if (urlPattern.test(targetText)) {
+                documentHeader = '入力テキストは以下のURLです。';
+                documentContent = targetText; // No fetch, just use the URL as text
+            } else {
+                documentHeader = '入力テキストは以下です。';
+                documentContent = targetText;
+            }
 
+            const safe_document_container = createSafeDocumentContainer(documentContent);
+            finalPrompt += `\n\n---\n\n${documentHeader}\n${safe_document_container}`;
+
+        } else {
+            // If targetText is empty, add a specific instruction.
+            finalPrompt += `\n\n---\n\n今までの会話を元に、上記のプロンプトを実行してください。`;
+        }
+
+        // Copy to clipboard
         try {
             await navigator.clipboard.writeText(finalPrompt);
             buttonElement.textContent = 'Copied!';
