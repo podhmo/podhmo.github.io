@@ -10,6 +10,8 @@ This application allows users to:
 
 ## Features
 
+-   **Categorized Templates**: Prompts are organized by `# Category` and `## Template Name` from a Markdown source.
+-   **Placeholder Support**: Templates can use `{{placeholder_name}}` syntax for dynamic input.
 -   **Structured Prompt Generation**: The application intelligently combines your chosen template with additional inputs to create a rich, structured prompt.
 -   **Template as Instruction**: The body of your template serves as the core "instruction" for the LLM. It can contain `{{placeholders}}` for dynamic values.
 -   **Target Document Input**: A dedicated text area allows you to provide the main content (text, a URL, or leave it blank to process chat history) that the instruction should apply to.
