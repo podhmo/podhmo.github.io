@@ -142,24 +142,19 @@ ${instruction}
     };
 
     const createTargetDocumentSection = (targetText) => {
-        if (targetText.trim() === '') {
+        const documentContent = targetText.trim();
+        if (documentContent === '') {
             return `\n\n---\n\n今までの会話を元に、上記のプロンプトを実行してください。`;
         }
 
         const urlPattern = /^https?:\/\//;
-        let documentHeader = '';
-        let documentContent = '';
-
         if (urlPattern.test(targetText)) {
-            documentHeader = '入力テキストは以下のURLです。\n';
-            documentContent = targetText;
+            const documentHeader = '入力テキストは以下のURLです。\n';
+            return `\n\n---\n\n${documentHeader}\n${documentContent}`;
         } else {
-            documentHeader = '入力テキストは以下です。\n';
-            documentContent = targetText;
+            const documentHeader = '入力テキストは以下です。\n';
+            return `\n\n---\n\n${documentHeader}\n${createSafeDocumentContainer(documentContent)}`;
         }
-
-        const safe_document_container = createSafeDocumentContainer(documentContent);
-        return `\n\n---\n\n${documentHeader}\n${safe_document_container}`;
     };
 
     const templateDetailContent = () => html`
