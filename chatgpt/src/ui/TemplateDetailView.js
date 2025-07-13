@@ -99,17 +99,18 @@ ${instruction}
         uniquePlaceholders.forEach(phObj => {
             const placeholderRegex = new RegExp(`\\{\\{${phObj.name}(?::[^}]+)?\\}\\}`, 'g');
             let valueToReplace = placeholderValues[phObj.name];
+            let replacementText;
+
             if (valueToReplace === undefined) { // Should not happen if initialized correctly
-                valueToReplace = phObj.defaultValue !== null ? phObj.defaultValue : `{{${phObj.name}}}`;
+                replacementText = phObj.defaultValue !== null ? `<mark>${phObj.defaultValue}</mark>` : `{{${phObj.name}}}`;
             } else if (valueToReplace === '' && phObj.defaultValue !== null) {
-                valueToReplace = phObj.defaultValue;
+                replacementText = `<mark>${phObj.defaultValue}</mark>`;
             } else if (valueToReplace === '' && phObj.defaultValue === null) {
-                // Task: "Keep placeholder if value is empty" - this was in old code.
-                // For new logic: if value is empty and no default, it means user wants it empty, or it was empty initially.
-                // The prompt asks for {{name}} to be output if value is empty and no default.
-                 valueToReplace = `{{${phObj.name}}}`;
+                replacementText = `{{${phObj.name}}}`;
+            } else {
+                replacementText = `<mark>${valueToReplace}</mark>`;
             }
-            processedBody = processedBody.replace(placeholderRegex, valueToReplace);
+            processedBody = processedBody.replace(placeholderRegex, replacementText);
         });
         return processedBody;
     };
@@ -207,7 +208,7 @@ ${instruction}
                         onClick=${(e) => copyToClipboard(getProcessedPromptBody(prompt.body), e.target)}>
                         Copy
                     </button>
-                    <pre><code>${getProcessedPromptBody(prompt.body)}</code></pre>
+                    <pre><code dangerouslySetInnerHTML=${{ __html: getProcessedPromptBody(prompt.body) }}></code></pre>
                 </div>
                 ${index < template.prompts.length - 1 ? html`<hr />` : null}
             `)}
