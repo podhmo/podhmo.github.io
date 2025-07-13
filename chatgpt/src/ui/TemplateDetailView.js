@@ -57,11 +57,27 @@ export function TemplateDetailView(template, router, requestRender) {
         if (requestRender) requestRender();
     };
 
-    const copyToClipboard = async (text, buttonElement) => {
+    const copyToClipboard = async (instruction, buttonElement) => {
+        const title = document.getElementById('prompt-title').value;
+        const targetText = document.getElementById('prompt-target-text').value;
+
+        // Base prompt structure
+        let finalPrompt = `${title ? `# ${title}\n\n` : ''}<details>
+<summary>プロンプト詳細（クリックで展開）</summary>
+
+**【指示】**
+${instruction}
+
+</details>`;
+
+        // Append the target document section using the helper function
+        finalPrompt += createTargetDocumentSection(targetText);
+
+        // Copy to clipboard
         try {
-            await navigator.clipboard.writeText(text);
+            await navigator.clipboard.writeText(finalPrompt);
             buttonElement.textContent = 'Copied!';
-            buttonElement.classList.add('secondary'); // PicoCSS success style
+            buttonElement.classList.add('secondary');
             setTimeout(() => {
                 buttonElement.textContent = 'Copy';
                 buttonElement.classList.remove('secondary');
@@ -69,7 +85,7 @@ export function TemplateDetailView(template, router, requestRender) {
         } catch (err) {
             console.error('Failed to copy: ', err);
             buttonElement.textContent = 'Failed!';
-            buttonElement.classList.add('contrast'); // PicoCSS error style
+            buttonElement.classList.add('contrast');
             setTimeout(() => {
                 buttonElement.textContent = 'Copy';
                 buttonElement.classList.remove('contrast');
@@ -104,12 +120,71 @@ export function TemplateDetailView(template, router, requestRender) {
         return processPromptBodyForTesting(originalBody, uniquePlaceholders, placeholderValues);
     };
 
+    /**
+     * Creates a Markdown code block that safely contains the given text,
+     * preventing it from breaking the parent prompt structure.
+     * It dynamically determines the number of backticks needed.
+     * @param {string} text The text content to wrap.
+     * @returns {string} The safely wrapped Markdown code block.
+     */
+    const createSafeDocumentContainer = (text) => {
+        // Find all occurrences of 3 or more backticks
+        const backtickSequences = text.match(/`{3,}/g) || [];
+
+        // Find the length of the longest sequence
+        const maxLength = backtickSequences.reduce((max, seq) => Math.max(max, seq.length), 0);
+
+        // The fence needs to be one longer than the longest sequence found, with a minimum of 3 backticks.
+        const fenceLength = Math.max(3, maxLength + 1);
+        const fence = '`'.repeat(fenceLength);
+
+        // Return the content wrapped in the dynamic fence
+        return `${fence}markdown\n${text}\n${fence}`;
+    };
+
+    const createTargetDocumentSection = (targetText) => {
+        if (targetText.trim() === '') {
+            return `\n\n---\n\n今までの会話を元に、上記のプロンプトを実行してください。`;
+        }
+
+        const urlPattern = /^https?:\/\//;
+        let documentHeader = '';
+        let documentContent = '';
+
+        if (urlPattern.test(targetText)) {
+            documentHeader = '入力テキストは以下のURLです。';
+            documentContent = targetText;
+        } else {
+            documentHeader = '入力テキストは以下です。';
+            documentContent = targetText;
+        }
+
+        const safe_document_container = createSafeDocumentContainer(documentContent);
+        return `\n\n---\n\n${documentHeader}\n${safe_document_container}`;
+    };
+
     const templateDetailContent = () => html`
         <article>
             <header>
                 <h3>${template.templateName}</h3>
             </header>
             ${template.description ? html`<section class="description" dangerouslySetInnerHTML=${{ __html: template.description.replace(/\n/g, '<br>') }}></section>` : null}
+
+            <section class="generation-controls">
+                <div class="form-group">
+                    <label for="prompt-title">Optional Title</label>
+                    <input type="text" id="prompt-title" name="prompt-title" placeholder="Enter a title for the final prompt..." />
+                </div>
+                <div class="form-group">
+                    <label for="prompt-target-text">Target Document</label>
+                    <textarea
+                        id="prompt-target-text"
+                        name="prompt-target-text"
+                        rows="8"
+                        placeholder="Enter target text, a URL, or leave blank for chat history..."
+                    ></textarea>
+                </div>
+            </section>
             
             ${uniquePlaceholders.length > 0 ? html`
                 <section class="placeholders">
@@ -122,9 +197,8 @@ export function TemplateDetailView(template, router, requestRender) {
                                 name="${phObj.name}"
                                 value=${placeholderValues[phObj.name]}
                                 onInput=${(e) => updatePlaceholderValue(phObj.name, e.target.value)}
-                                placeholder=${phObj.defaultValue ? `Enter value for ${phObj.name} (default: ${phObj.defaultValue})` : `Enter value for ${phObj.name}`}
-                                rows="3"
-                                style="width:100%"
+                                placeholder=${phObj.defaultValue ? `Default: ${phObj.defaultValue}` : `Enter value for ${phObj.name}`}
+                                rows="2"
                             ></textarea>
                         </div>
                     `)}
@@ -135,7 +209,7 @@ export function TemplateDetailView(template, router, requestRender) {
             ${template.prompts.map((prompt, index) => html`
                 <div class="template-body-container">
                     ${prompt.language ? html`<small>Language: ${prompt.language}</small>` : null}
-                    <button 
+                    <button
                         class="copy-button outline"
                         onClick=${(e) => copyToClipboard(getProcessedPromptBody(prompt.body), e.target)}>
                         Copy
