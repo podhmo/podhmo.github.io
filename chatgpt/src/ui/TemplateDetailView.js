@@ -70,27 +70,8 @@ ${instruction}
 
 </details>`;
 
-        // Handle the target document section based on user input
-        if (targetText.trim() !== '') {
-            const urlPattern = /^https?:\/\//;
-            let documentHeader = '';
-            let documentContent = '';
-
-            if (urlPattern.test(targetText)) {
-                documentHeader = '入力テキストは以下のURLです。';
-                documentContent = targetText; // No fetch, just use the URL as text
-            } else {
-                documentHeader = '入力テキストは以下です。';
-                documentContent = targetText;
-            }
-
-            const safe_document_container = createSafeDocumentContainer(documentContent);
-            finalPrompt += `\n\n---\n\n${documentHeader}\n${safe_document_container}`;
-
-        } else {
-            // If targetText is empty, add a specific instruction.
-            finalPrompt += `\n\n---\n\n今までの会話を元に、上記のプロンプトを実行してください。`;
-        }
+        // Append the target document section using the helper function
+        finalPrompt += createTargetDocumentSection(targetText);
 
         // Copy to clipboard
         try {
@@ -159,6 +140,27 @@ ${instruction}
 
         // Return the content wrapped in the dynamic fence
         return `${fence}markdown\n${text}\n${fence}`;
+    };
+
+    const createTargetDocumentSection = (targetText) => {
+        if (targetText.trim() === '') {
+            return `\n\n---\n\n今までの会話を元に、上記のプロンプトを実行してください。`;
+        }
+
+        const urlPattern = /^https?:\/\//;
+        let documentHeader = '';
+        let documentContent = '';
+
+        if (urlPattern.test(targetText)) {
+            documentHeader = '入力テキストは以下のURLです。';
+            documentContent = targetText;
+        } else {
+            documentHeader = '入力テキストは以下です。';
+            documentContent = targetText;
+        }
+
+        const safe_document_container = createSafeDocumentContainer(documentContent);
+        return `\n\n---\n\n${documentHeader}\n${safe_document_container}`;
     };
 
     const templateDetailContent = () => html`
