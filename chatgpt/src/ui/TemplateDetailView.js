@@ -163,22 +163,6 @@ ${instruction}
                 <h3>${template.templateName}</h3>
             </header>
             ${template.description ? html`<section class="description" dangerouslySetInnerHTML=${{ __html: template.description.replace(/\n/g, '<br>') }}></section>` : null}
-
-            <section class="generation-controls">
-                <div class="form-group">
-                    <label for="prompt-title">Optional Title</label>
-                    <input type="text" id="prompt-title" name="prompt-title" placeholder="Enter a title for the final prompt..." />
-                </div>
-                <div class="form-group">
-                    <label for="prompt-target-text">Target Document</label>
-                    <input
-                        id="prompt-target-text"
-                        name="prompt-target-text"
-                        type="text"
-                        placeholder="Enter target text, a URL, or leave blank for chat history..."
-                    ></input>
-                </div>
-            </section>
             
             ${uniquePlaceholders.length > 0 ? html`
                 <section class="placeholders">
@@ -198,6 +182,21 @@ ${instruction}
                     `)}
                 </section>
             ` : null}
+
+            <section class="generation-controls">
+                <div class="form-group">
+                    <label for="prompt-title">タイトル</label>
+                    <input type="text" id="prompt-title" name="prompt-title" placeholder="Enter a title for the final prompt..." />
+                </div>
+                <div class="form-group">
+                    <label for="prompt-target-text">対象テキスト</label>
+                    <textarea
+                        id="prompt-target-text"
+                        name="prompt-target-text"
+                        placeholder="Enter target text, a URL, or leave blank for chat history..."
+                    ></textarea>
+                </div>
+            </section>
 
             <h4>Prompt Template(s):</h4>
             ${template.prompts.map((prompt, index) => html`
