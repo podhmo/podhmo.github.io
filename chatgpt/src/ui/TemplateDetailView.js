@@ -152,10 +152,10 @@ ${instruction}
         let documentContent = '';
 
         if (urlPattern.test(targetText)) {
-            documentHeader = '入力テキストは以下のURLです。';
+            documentHeader = '入力テキストは以下のURLです。\n';
             documentContent = targetText;
         } else {
-            documentHeader = '入力テキストは以下です。';
+            documentHeader = '入力テキストは以下です。\n';
             documentContent = targetText;
         }
 
