@@ -57,21 +57,55 @@ export function TemplateDetailView(template, router, requestRender) {
         if (requestRender) requestRender();
     };
 
-    const copyToClipboard = async (text, buttonElement, originalText = 'Copy') => {
+    const copyToClipboard = async (instruction, buttonElement) => {
+        const title = document.getElementById('prompt-title').value;
+        const targetText = document.getElementById('prompt-target-text').value;
+
+        let document_content = '';
+        const urlPattern = /^https?:\/\//;
+        if (urlPattern.test(targetText)) {
+            try {
+                const response = await fetch(targetText);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                document_content = await response.text();
+            } catch (error) {
+                console.error("Failed to fetch URL:", error);
+                document_content = `Error: Could not fetch content from URL: ${targetText}\n\n${error.message}`;
+            }
+        } else if (targetText.trim() === '') {
+            document_content = '[Clipped Chat History]'; // Dummy text
+        } else {
+            document_content = targetText;
+        }
+
+        const safe_document_container = createSafeDocumentContainer(document_content);
+
+        const finalPrompt = `${title ? `# ${title}\n\n` : ''}<details>
+<summary>プロンプト詳細（クリックで展開）</summary>
+
+**【指示】**
+${instruction}
+
+</details>
+
+---
+
+${safe_document_container}`;
+
         try {
-            await navigator.clipboard.writeText(text);
+            await navigator.clipboard.writeText(finalPrompt);
             buttonElement.textContent = 'Copied!';
-            buttonElement.classList.add('secondary'); // PicoCSS success style
+            buttonElement.classList.add('secondary');
             setTimeout(() => {
-                buttonElement.textContent = originalText;
+                buttonElement.textContent = 'Copy';
                 buttonElement.classList.remove('secondary');
             }, 2000);
         } catch (err) {
             console.error('Failed to copy: ', err);
             buttonElement.textContent = 'Failed!';
-            buttonElement.classList.add('contrast'); // PicoCSS error style
+            buttonElement.classList.add('contrast');
             setTimeout(() => {
-                buttonElement.textContent = originalText;
+                buttonElement.textContent = 'Copy';
                 buttonElement.classList.remove('contrast');
             }, 2000);
         }
@@ -126,60 +160,6 @@ export function TemplateDetailView(template, router, requestRender) {
         return `${fence}markdown\n${text}\n${fence}`;
     };
 
-
-    const handleGenerateAndCopy = async (e) => {
-        const buttonElement = e.target;
-        const title = document.getElementById('prompt-title').value;
-        const targetText = document.getElementById('prompt-target-text').value;
-
-        // 1. Get Instruction
-        // Assuming the first prompt body is the primary one for instruction.
-        // This could be enhanced to combine all prompt bodies if needed.
-        const instruction = getProcessedPromptBody(template.prompts[0]?.body || '');
-
-        // 2. Process Target Document
-        let document_content = '';
-        const urlPattern = /^https?:\/\//;
-        if (urlPattern.test(targetText)) {
-            try {
-                // Basic CORS check - this is a very simplified check.
-                // A real-world scenario might need a server-side proxy for arbitrary URLs.
-                const response = await fetch(targetText);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                document_content = await response.text();
-            } catch (error) {
-                console.error("Failed to fetch URL:", error);
-                document_content = `Error: Could not fetch content from URL: ${targetText}\n\n${error.message}`;
-            }
-        } else if (targetText.trim() === '') {
-            document_content = '[Clipped Chat History]'; // Dummy text
-        } else {
-            document_content = targetText;
-        }
-
-        // 3. Create Safe Container
-        const safe_document_container = createSafeDocumentContainer(document_content);
-
-        // 4. Assemble Final Prompt
-        const finalPrompt = `${title ? `# ${title}\n\n` : ''}<details>
-<summary>プロンプト詳細（クリックで展開）</summary>
-
-**【指示】**
-${instruction}
-
-</details>
-
----
-
-${safe_document_container}`;
-
-        // 5. Copy to Clipboard
-        await copyToClipboard(finalPrompt, buttonElement, "Generate & Copy Prompt");
-    };
-
-
     const templateDetailContent = () => html`
         <article>
             <header>
@@ -188,35 +168,10 @@ ${safe_document_container}`;
             ${template.description ? html`<section class="description" dangerouslySetInnerHTML=${{ __html: template.description.replace(/\n/g, '<br>') }}></section>` : null}
 
             <section class="generation-controls">
-                <h4>Prompt Generation</h4>
-
-                {/* Title Input */}
                 <div class="form-group">
                     <label for="prompt-title">Optional Title</label>
                     <input type="text" id="prompt-title" name="prompt-title" placeholder="Enter a title for the final prompt..." />
                 </div>
-
-                {/* Placeholders Section */}
-                ${uniquePlaceholders.length > 0 ? html`
-                    <div class="placeholders">
-                        <h5>Variables:</h5>
-                        ${uniquePlaceholders.map(phObj => html`
-                            <div class="placeholder-input">
-                                <label for="ph-${phObj.name}">${phObj.name}:</label>
-                                <textarea
-                                    id="ph-${phObj.name}"
-                                    name="${phObj.name}"
-                                    value=${placeholderValues[phObj.name]}
-                                    onInput=${(e) => updatePlaceholderValue(phObj.name, e.target.value)}
-                                    placeholder=${phObj.defaultValue ? `Default: ${phObj.defaultValue}` : `Enter value for ${phObj.name}`}
-                                    rows="2"
-                                ></textarea>
-                            </div>
-                        `)}
-                    </div>
-                ` : ''}
-
-                {/* Target Text Input */}
                 <div class="form-group">
                     <label for="prompt-target-text">Target Document</label>
                     <textarea
@@ -226,22 +181,39 @@ ${safe_document_container}`;
                         placeholder="Enter target text, a URL, or leave blank for chat history..."
                     ></textarea>
                 </div>
-
-                {/* Generate Button */}
-                <button id="generate-prompt-btn" class="primary" onClick=${handleGenerateAndCopy}>
-                    Generate & Copy Prompt
-                </button>
             </section>
             
-            <hr />
+            ${uniquePlaceholders.length > 0 ? html`
+                <section class="placeholders">
+                    <h4>Variables:</h4>
+                    ${uniquePlaceholders.map(phObj => html`
+                        <div class="placeholder-input">
+                            <label for="ph-${phObj.name}">${phObj.name}:</label>
+                            <textarea
+                                id="ph-${phObj.name}"
+                                name="${phObj.name}"
+                                value=${placeholderValues[phObj.name]}
+                                onInput=${(e) => updatePlaceholderValue(phObj.name, e.target.value)}
+                                placeholder=${phObj.defaultValue ? `Default: ${phObj.defaultValue}` : `Enter value for ${phObj.name}`}
+                                rows="2"
+                            ></textarea>
+                        </div>
+                    `)}
+                </section>
+            ` : null}
 
-            <h4>Original Template(s):</h4>
+            <h4>Prompt Template(s):</h4>
             ${template.prompts.map((prompt, index) => html`
                 <div class="template-body-container">
-                    ${prompt.language ? html`<small>Language: ${prompt.language}</small>` : ''}
-                    <pre><code>${prompt.body}</code></pre>
+                    ${prompt.language ? html`<small>Language: ${prompt.language}</small>` : null}
+                    <button
+                        class="copy-button outline"
+                        onClick=${(e) => copyToClipboard(getProcessedPromptBody(prompt.body), e.target)}>
+                        Copy
+                    </button>
+                    <pre><code>${getProcessedPromptBody(prompt.body)}</code></pre>
                 </div>
-                ${index < template.prompts.length - 1 ? html`<hr />` : ''}
+                ${index < template.prompts.length - 1 ? html`<hr />` : null}
             `)}
             
             <footer>
