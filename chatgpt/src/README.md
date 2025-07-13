@@ -10,17 +10,16 @@ This application allows users to:
 
 ## Features
 
--   **Categorized Templates**: Prompts are organized by `# Category` and `## Template Name` from a Markdown source.
--   **Placeholder Support**: Templates can use `{{placeholder_name}}` syntax for dynamic input.
--   **Advanced Prompt Generation**: In addition to simple placeholders, you can use special variables to create sophisticated, robust prompts:
-    -   `{{title}}`: An optional title for the generated document.
-    -   `{{instruction}}`: The core instruction for the LLM. Can contain other `{{placeholders}}`.
-    -   `{{targetText}}`: A special field for the main text, URL, or chat history to be processed.
-    -   `{{safe_document_container}}`: A special variable used within the template to safely embed the `targetText` content, protecting it from prompt-breaking markdown.
+-   **Structured Prompt Generation**: The application intelligently combines your chosen template with additional inputs to create a rich, structured prompt.
+-   **Template as Instruction**: The body of your template serves as the core "instruction" for the LLM. It can contain `{{placeholders}}` for dynamic values.
+-   **Target Document Input**: A dedicated text area allows you to provide the main content (text, a URL, or leave it blank to process chat history) that the instruction should apply to.
+-   **Optional Title**: Add a title to your output, turning it into a well-formatted document.
+-   **Safe and Readable Output**:
+    -   The final prompt is wrapped in a user-friendly format with collapsible sections (`<details>`).
+    -   The target document is safely embedded in a Markdown code block to prevent formatting issues.
 -   **Clipboard Copy**: Easily copy the generated prompt.
 -   **History API Navigation**: Supports browser back/forward buttons.
 -   **Custom Markdown Source**: Load templates from any accessible Markdown URL via a query parameter (`?source=URL_TO_MARKDOWN`). Defaults to `./Template.md`.
--   **Markdown Subset UI**: The UI for descriptions and prompt bodies is rendered from a custom Markdown parser.
 -   **Dark Mode by Default**: Uses Pico.css with dark theme.
 -   **Mobile-First UI**: Designed to be responsive and usable on mobile devices.
 

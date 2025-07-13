@@ -1,6 +1,10 @@
-# Improvement Tasks
+# Improvement Tasks (Revised)
 
-This document outlines the tasks required to implement the new advanced prompt generation features.
+This document outlines the tasks required to implement the new structured prompt generation feature based on the corrected understanding.
+
+## Core Concept
+
+The core idea is to treat the existing prompt templates as the **"instruction"** part of a larger, structured prompt. The application will dynamically wrap this instruction with a title (optional) and a target document (from a new UI field) into a final, well-formatted Markdown string for the clipboard. The templates themselves will not contain any new special keywords.
 
 ## Task Breakdown
 
@@ -8,56 +12,47 @@ This document outlines the tasks required to implement the new advanced prompt g
 
 -   **Add new input fields:**
     -   In `TemplateDetailView.js`, add two new input fields to the UI.
-    -   Add a single-line `<input type="text">` for the optional `title`.
-    -   Add a multi-line `<textarea>` for the `targetText`.
+    -   Add a single-line `<input type="text" placeholder="Optional Title...">` for the `title`.
+    -   Add a multi-line `<textarea placeholder="Enter target text, a URL, or leave blank for chat history...">` for the `targetText`.
 -   **Arrange UI elements:**
     -   The recommended order of elements should be:
         1.  Optional Title Input
-        2.  Existing placeholder/variable inputs
+        2.  Existing placeholder/variable inputs (if any)
         3.  Target Text Textarea
--   **Repurpose existing UI:**
-    -   The existing `<pre><code>` block, which currently shows the simple template output, will be reused to display the final, fully-formed prompt.
+-   **Modify the "Copy" button:**
+    -   The existing "Copy" button's logic will be repurposed. Instead of just copying the processed template, it will now trigger the full structured prompt generation and copy the result. The button's text can be updated to "Generate & Copy Prompt".
 
-### 2. Extend Prompt Generation Logic
+### 2. Implement Structured Prompt Generation Logic
 
--   **Introduce special keywords:**
-    -   The system will now recognize two new special keywords within the prompt templates: `{{instruction}}` and `{{safe_document_container}}`.
--   **Define new template structure:**
-    -   Users can now create templates that utilize these keywords to define a structured prompt.
-    -   **Example Template:**
-        ```markdown
-        {{title_section}}
-        <details>
-        <summary>Prompt Details</summary>
+-   **Create a new generation function in `TemplateDetailView.js`:**
+    -   This function will be called when the "Generate & Copy Prompt" button is clicked.
+-   **Generation Steps:**
+    1.  **Get Instruction**: Process the current template body using the existing placeholder logic (`{{variable}}` replacement) to get the final `instruction` string.
+    2.  **Get UI Inputs**: Get the current values from the `title` and `targetText` input fields.
+    3.  **Process Target Document**:
+        -   Analyze the `targetText` input string.
+        -   **If it's a URL**: `fetch` the content. If the fetch fails, use the URL itself as the text, perhaps with a warning.
+        -   **If it's empty**: Use pre-defined dummy chat history, formatted as a readable Markdown document.
+        -   **If it's other text**: Use the text directly.
+        -   **Create Safe Container**: Take the resulting document text and wrap it in a "dynamic Markdown code block" (calculating the right number of backticks) to create the `safe_document_container` string.
+    4.  **Assemble the Final Prompt**: Combine the pieces using a fixed template string within the function.
 
-        **Instruction:**
-        {{instruction}}
+        ```javascript
+        // Inside the generation function
+        const finalPrompt = `${title ? `# ${title}\n\n` : ''}<details>
+<summary>プロンプト詳細（クリックで展開）</summary>
 
-        </details>
+**【指示】**
+${instruction}
 
-        ---
+</details>
 
-        {{safe_document_container}}
+---
+
+${safe_document_container}`;
         ```
--   **Implement the generation logic in `TemplateDetailView.js`:**
-    1.  **Resolve Instruction**: First, process the `{{instruction}}` part of the template, resolving any regular `{{placeholders}}` (e.g., `{{language}}`) within it.
-    2.  **Create Safe Container**:
-        -   Get the content from the `targetText` textarea.
-        -   Analyze the content to determine the required number of backticks for a safe code block (find the longest sequence of backticks and add one).
-        -   Wrap the content in a Markdown code block with the calculated number of backticks. This becomes the `safe_document_container`.
-    3.  **Handle Optional Title**: If the `title` input has a value, create a Markdown H1 heading (e.g., `# User's Title\n\n`). This is the `title_section`. If the input is empty, this section is an empty string.
-    4.  **Assemble Final Prompt**: Substitute the resolved `instruction`, the `safe_document_container`, and the `title_section` into the main template structure.
+    5.  **Copy to Clipboard**: Use the `navigator.clipboard.writeText()` API to copy the `finalPrompt` string.
 
-### 3. Implement Input-aware `targetText` Handling
+### 3. Clean up
 
--   **Add logic to analyze the `targetText` input:**
-    -   **If `targetText` is a URL:**
-        -   Use the `fetch()` API to retrieve the content from the URL.
-        -   Place the fetched text inside the `safe_document_container`.
-    -   **If `targetText` is empty:**
-        -   Use pre-defined dummy chat history.
-        -   Format the history into a readable Markdown document.
-        -   Place the formatted history inside the `safe_document_container`.
-    -   **If `targetText` is any other text:**
-        -   Use the text directly.
-        -   Place the text inside the `safe_document_container`.
+-   The old logic that directly displayed the processed template in the `<pre><code>` block can be removed or hidden, as the final output is now a combination of more elements and is directly sent to the clipboard. The `<pre><code>` block could optionally be used to preview the final generated prompt.
