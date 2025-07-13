@@ -102,13 +102,13 @@ ${instruction}
             let replacementText;
 
             if (valueToReplace === undefined) { // Should not happen if initialized correctly
-                replacementText = phObj.defaultValue !== null ? `<mark>${phObj.defaultValue}</mark>` : `{{${phObj.name}}}`;
+                replacementText = phObj.defaultValue !== null ? phObj.defaultValue : `{{${phObj.name}}}`;
             } else if (valueToReplace === '' && phObj.defaultValue !== null) {
-                replacementText = `<mark>${phObj.defaultValue}</mark>`;
+                replacementText = phObj.defaultValue;
             } else if (valueToReplace === '' && phObj.defaultValue === null) {
                 replacementText = `{{${phObj.name}}}`;
             } else {
-                replacementText = `<mark>${valueToReplace}</mark>`;
+                replacementText = valueToReplace;
             }
             processedBody = processedBody.replace(placeholderRegex, replacementText);
         });
