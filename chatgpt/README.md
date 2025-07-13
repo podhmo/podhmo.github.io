@@ -3,7 +3,7 @@
 いいかんじで選択してコピペしたい
 
 - https://podhmo.github.io/chatgpt/
-- [./Template.md](./Template.md)
+  
 
 ## tools
 
