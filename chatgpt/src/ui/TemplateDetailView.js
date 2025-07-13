@@ -134,8 +134,8 @@ ${instruction}
         // Find the length of the longest sequence
         const maxLength = backtickSequences.reduce((max, seq) => Math.max(max, seq.length), 0);
 
-        // The fence needs to be one longer than the longest sequence found, or 3 if none are found.
-        const fenceLength = maxLength + 1;
+        // The fence needs to be one longer than the longest sequence found, with a minimum of 3 backticks.
+        const fenceLength = Math.max(3, maxLength + 1);
         const fence = '`'.repeat(fenceLength);
 
         // Return the content wrapped in the dynamic fence
