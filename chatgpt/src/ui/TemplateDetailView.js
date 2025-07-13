@@ -62,7 +62,7 @@ export function TemplateDetailView(template, router, requestRender) {
 
         // Base prompt structure
         let finalPrompt = `${title ? `# ${title}\n\n` : ''}<details>
-<summary>プロンプト詳細（クリックで展開）</summary>
+<summary>${template.templateName} のプロンプト詳細</summary>
 
 **【指示】**
 ${instruction}
