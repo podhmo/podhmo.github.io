@@ -11,12 +11,11 @@ const html = htm.bind(h);
  * @param {function} requestRender - Callback to request a re-render from parent (main.js)
  */
 export function TemplateDetailView(template, router, requestRender) {
-    let placeholderValues = {};
+    const placeholderValues = {};
 
     const extractPlaceholders = (text) => {
         const regex = /\{\{([^:}]+)(?::([^}]+))?\}\}/g; // Updated regex
         let match;
-        const placeholders = [];
         // Use a Map to ensure uniqueness by name, storing the first encountered defaultValue
         const seenPlaceholders = new Map();
         while ((match = regex.exec(text)) !== null) {
