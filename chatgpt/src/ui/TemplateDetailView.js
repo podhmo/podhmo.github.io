@@ -204,7 +204,7 @@ ${instruction}
                 <div class="template-body-container">
                     ${prompt.language ? html`<small>Language: ${prompt.language}</small>` : null}
                     <button
-                        class="copy-button outline"
+                        class="copy-button"
                         onClick=${(e) => copyToClipboard(getProcessedPromptBody(prompt.body), e.target)}>
                         Copy
                     </button>
