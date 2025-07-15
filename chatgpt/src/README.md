@@ -12,13 +12,6 @@ This application allows users to:
 
 -   **Categorized Templates**: Prompts are organized by `# Category` and `## Template Name` from a Markdown source.
 -   **Placeholder Support**: Templates can use `{{placeholder_name}}` syntax for dynamic input.
--   **Structured Prompt Generation**: The application intelligently combines your chosen template with additional inputs to create a rich, structured prompt.
--   **Template as Instruction**: The body of your template serves as the core "instruction" for the LLM. It can contain `{{placeholders}}` for dynamic values.
--   **Target Document Input**: A dedicated text area allows you to provide the main content (text, a URL, or leave it blank to process chat history) that the instruction should apply to.
--   **Optional Title**: Add a title to your output, turning it into a well-formatted document.
--   **Safe and Readable Output**:
-    -   The final prompt is wrapped in a user-friendly format with collapsible sections (`<details>`).
-    -   The target document is safely embedded in a Markdown code block to prevent formatting issues.
 -   **Clipboard Copy**: Easily copy the generated prompt.
 -   **History API Navigation**: Supports browser back/forward buttons.
 -   **Custom Markdown Source**: Load templates from any accessible Markdown URL via a query parameter (`?source=URL_TO_MARKDOWN`). Defaults to `./Template.md`.
