@@ -13,10 +13,16 @@ This application allows users to:
 -   **Categorized Templates**: Prompts are organized by `# Category` and `## Template Name` from a Markdown source.
 -   **Placeholder Support**: Templates can use `{{placeholder_name}}` syntax for dynamic input.
 -   **Clipboard Copy**: Easily copy the generated prompt.
--   **History API Navigation**: Supports browser back/forward buttons.
 -   **Custom Markdown Source**: Load templates from any accessible Markdown URL via a query parameter (`?source=URL_TO_MARKDOWN`). Defaults to `./Template.md`.
+
+### style
+
+This is not a feature, but I'll include it as additional information.
+
 -   **Dark Mode by Default**: Uses Pico.css with dark theme.
 -   **Mobile-First UI**: Designed to be responsive and usable on mobile devices.
+-   **History API Navigation**: Supports browser back/forward buttons.
+
 
 ## Tech Stack
 
