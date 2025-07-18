@@ -611,6 +611,7 @@ grokからテキストをコピペするとmarkdownの構造が失われてし�
 - http routerは net/http のものを使ってください
 - テストコードのassertにはgo-cmpを使ってください
 - テストコードのassertでは変数名としてwant,gotのペアを使ってください
+- github.com/stretchr/testify は使わないでください
 - github actionsのciを追加してください（pull_request で types: [ opened, synchronize, reopened ]）
 ```
 
