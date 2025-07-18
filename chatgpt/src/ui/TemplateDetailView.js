@@ -56,25 +56,9 @@ export function TemplateDetailView(template, router, requestRender) {
         if (requestRender) requestRender();
     };
 
-    const copyToClipboard = async (instruction, buttonElement) => {
-        const title = document.getElementById('prompt-title').value;
-        const targetText = document.getElementById('prompt-target-text').value;
-
-        // Base prompt structure
-        let finalPrompt = `${title ? `# ${title}\n\n` : ''}<details>
-<summary>${template.templateName} のプロンプト詳細</summary>
-
-**【指示】**
-${instruction}
-
-</details>`;
-
-        // Append the target document section using the helper function
-        finalPrompt += createTargetDocumentSection(targetText);
-
-        // Copy to clipboard
+    const copyToClipboard = async (text, buttonElement) => {
         try {
-            await navigator.clipboard.writeText(finalPrompt);
+            await navigator.clipboard.writeText(text);
             buttonElement.textContent = 'Copied!';
             buttonElement.classList.add('secondary');
             setTimeout(() => {
@@ -90,6 +74,27 @@ ${instruction}
                 buttonElement.classList.remove('contrast');
             }, 2000);
         }
+    };
+
+    const handleCopy = async (instruction, isRaw, buttonElement) => {
+        const title = document.getElementById('prompt-title').value;
+        const targetText = document.getElementById('prompt-target-text').value;
+
+        let finalPrompt;
+        if (isRaw) {
+            finalPrompt = instruction;
+        } else {
+            finalPrompt = `${title ? `# ${title}\n\n` : ''}<details>
+<summary>${template.templateName} のプロンプト詳細</summary>
+
+**【指示】**
+${instruction}
+
+</details>`;
+            finalPrompt += createTargetDocumentSection(targetText);
+        }
+
+        await copyToClipboard(finalPrompt, buttonElement);
     };
     
     // Testable version of getProcessedPromptBody
@@ -200,18 +205,22 @@ ${instruction}
             </section>
 
             <h4>Prompt Template(s):</h4>
-            ${template.prompts.map((prompt, index) => html`
-                <div class="template-body-container">
-                    ${prompt.language ? html`<small>Language: ${prompt.language}</small>` : null}
-                    <button
-                        class="copy-button"
-                        onClick=${(e) => copyToClipboard(getProcessedPromptBody(prompt.body), e.target)}>
-                        Copy
-                    </button>
-                    <pre><code dangerouslySetInnerHTML=${{ __html: getProcessedPromptBody(prompt.body) }}></code></pre>
-                </div>
-                ${index < template.prompts.length - 1 ? html`<hr />` : null}
-            `)}
+            ${template.prompts.map((prompt, index) => {
+                const isRaw = prompt.language.toLowerCase() === 'raw';
+                const processedBody = getProcessedPromptBody(prompt.body);
+                return html`
+                    <div class="template-body-container">
+                        ${prompt.language ? html`<small>Language: ${prompt.language}</small>` : null}
+                        <button
+                            class="copy-button"
+                            onClick=${async (e) => await handleCopy(processedBody, isRaw, e.target)}>
+                            Copy
+                        </button>
+                        <pre><code>${processedBody}</code></pre>
+                    </div>
+                    ${index < template.prompts.length - 1 ? html`<hr />` : null}
+                `;
+            })}
             
             <footer>
                 <a href="/category/${encodeURIComponent(template.categoryName)}" 

@@ -612,3 +612,13 @@ grokからテキストをコピペするとmarkdownの構造が失われてし�
 - テストコードのassertにはgo-cmpを使ってください
 - テストコードのassertでは変数名としてwant,gotのペアを使ってください
 ```
+
+# Test Cases
+
+## Raw Text Template
+This is a template with a raw code block.
+```raw
+This is a raw text block.
+It should be copied without any extra formatting.
+{{some_variable}}
+```
