@@ -76,7 +76,7 @@ export function TemplateDetailView(template, router, requestRender) {
         }
     };
 
-    const handleCopy = (instruction, isRaw, buttonElement) => {
+    const handleCopy = async (instruction, isRaw, buttonElement) => {
         const title = document.getElementById('prompt-title').value;
         const targetText = document.getElementById('prompt-target-text').value;
 
@@ -94,7 +94,7 @@ ${instruction}
             finalPrompt += createTargetDocumentSection(targetText);
         }
 
-        copyToClipboard(finalPrompt, buttonElement);
+        await copyToClipboard(finalPrompt, buttonElement);
     };
     
     // Testable version of getProcessedPromptBody
@@ -213,7 +213,7 @@ ${instruction}
                         ${prompt.language ? html`<small>Language: ${prompt.language}</small>` : null}
                         <button
                             class="copy-button"
-                            onClick=${(e) => handleCopy(processedBody, isRaw, e.target)}>
+                            onClick=${async (e) => await handleCopy(processedBody, isRaw, e.target)}>
                             Copy
                         </button>
                         <pre><code>${processedBody}</code></pre>
