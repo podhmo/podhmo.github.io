@@ -601,3 +601,14 @@ grokからテキストをコピペするとmarkdownの構造が失われてし�
 
 必ず docs/ja/llm.md に従って作業をしてください
 ```
+
+## go
+
+```
+- go1.24を使ってください
+- ログにはlog/slogだけを使ってください
+- デバッグプリントはslogのDebugを使ってください
+- http routerは net/http のものを使ってください
+- テストコードのassertにはgo-cmpを使ってください
+- テストコードのassertでは変数名としてwant,gotのペアを使ってください
+```
