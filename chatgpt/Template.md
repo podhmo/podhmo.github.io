@@ -602,7 +602,7 @@ grokからテキストをコピペするとmarkdownの構造が失われてし�
 必ず docs/ja/llm.md に従って作業をしてください
 ```
 
-## go
+## go init
 
 ```raw
 - go1.24を使ってください
@@ -611,14 +611,13 @@ grokからテキストをコピペするとmarkdownの構造が失われてし�
 - http routerは net/http のものを使ってください
 - テストコードのassertにはgo-cmpを使ってください
 - テストコードのassertでは変数名としてwant,gotのペアを使ってください
+- github actionsのciを追加してください（pull_request で types: [ opened, synchronize, reopened ]）
 ```
 
-# Test Cases
+## go package
 
-## Raw Text Template
-This is a template with a raw code block.
 ```raw
-This is a raw text block.
-It should be copied without any extra formatting.
-{{some_variable}}
+TODO.mdから1つ読み実装してください。テストコードも追加してください。テストが成功するまでコードを修正し続けてください。
+
+必要ならサブのTODOタスクに分解してください。最後にTODO.mdを更新してください。
 ```
