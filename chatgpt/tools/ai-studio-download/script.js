@@ -458,7 +458,7 @@ function formatChatHistoryToMarkdown(
                         // currentAiBlockContent.push(""); // AIの返答の前に空行は不要かもしれない
                     }
                     currentAiBlockContent.push(
-                        `${aiName}:\n${chunk.text.trim()}`,
+                        `${aiName}:\n${chunk.text.trimEnd()}`,
                     );
                      if (chunk.finishReason) { // 返答の後にfinishReasonがある場合
                          currentAiBlockContent.push(`\n(返答終了理由: ${chunk.finishReason})`);
