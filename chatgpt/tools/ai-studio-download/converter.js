@@ -27,70 +27,38 @@ export function formatChatHistoryToMarkdown(
     } = options;
 
     let mainContent = "";
+    const chunks = chatHistory.chunkedPrompt.chunks.filter(c => c.text && c.text.trim());
 
     if (onlyUserInputs) {
-        const userChunks = chatHistory.chunkedPrompt.chunks
-            .filter(chunk => chunk.role === "user" && chunk.text && chunk.text.trim() !== "")
-            .map(chunk => `${userName}:\n${chunk.text.trim()}`);
-
-        mainContent = "## ユーザー入力履歴\n\n" + userChunks.join("\n\n---\n\n");
-        if (userChunks.length > 0) {
-            mainContent += "\n\n";
-        } else {
-            mainContent += "\n";
-        }
+        const userChunks = chunks.filter(chunk => chunk.role === "user");
+        mainContent = "## ユーザー入力履歴\n\n" + userChunks.map(c => `${userName}: ${c.text.trim()}`).join("\n\n---\n\n");
 
     } else {
-        const displayBlocks = [];
-        let currentAiBlockContent = [];
+        const conversationParts = [];
+        let currentModelParts = [];
 
-        for (const chunk of chatHistory.chunkedPrompt.chunks) {
-            if (chunk.role === "user") {
-                if (currentAiBlockContent.length > 0) {
-                    displayBlocks.push(currentAiBlockContent.join("\n"));
-                    currentAiBlockContent = [];
+        for (const chunk of chunks) {
+            if (chunk.role === 'user') {
+                if (currentModelParts.length > 0) {
+                    conversationParts.push(`${aiName}:\n${currentModelParts.join('\n')}`);
+                    currentModelParts = [];
                 }
-                if (chunk.text && chunk.text.trim() !== "") {
-                    displayBlocks.push(`${userName}:\n${chunk.text.trim()}`);
-                }
-            } else if (chunk.role === "model") {
+                conversationParts.push(`${userName}: ${chunk.text.trim()}`);
+            } else if (chunk.role === 'model') {
                 if (chunk.isThought) {
                     if (withThoughts) {
-                        let thoughtContent = "<details>\n<summary>AIの思考プロセス</summary>\n\n";
-                        thoughtContent += chunk.text.trim();
-                        thoughtContent += "\n</details>";
-                        if (chunk.finishReason) {
-                            thoughtContent += `\n(思考終了理由: ${chunk.finishReason})`;
-                        }
-                        currentAiBlockContent.push(thoughtContent);
+                        currentModelParts.push(`<details>\n<summary>AIの思考プロセス</summary>\n\n${chunk.text.trim()}\n</details>`);
                     }
                 } else {
-                    let content = chunk.text.trimEnd();
-                    if (content.endsWith('```') && !content.endsWith('\n```')) {
-                        content += '\n';
-                    }
-                    if (currentAiBlockContent.length === 0 || !currentAiBlockContent.at(-1)?.startsWith(`${aiName}:`)) {
-                        currentAiBlockContent.push(`${aiName}:`);
-                    }
-                    currentAiBlockContent.push(content);
-
-                    if (chunk.finishReason) {
-                        currentAiBlockContent.push(`\n(返答終了理由: ${chunk.finishReason})`);
-                    }
+                    let text = chunk.text.trimEnd();
+                    currentModelParts.push(text);
                 }
             }
         }
-
-        if (currentAiBlockContent.length > 0) {
-            displayBlocks.push(currentAiBlockContent.join("\n"));
+        if (currentModelParts.length > 0) {
+            conversationParts.push(`${aiName}:\n${currentModelParts.join('\n')}`);
         }
-
-        mainContent = "## 対話履歴\n\n" + displayBlocks.join("\n\n---\n\n");
-        if (displayBlocks.length > 0) {
-            mainContent += "\n\n";
-        } else {
-            mainContent += "\n";
-        }
+        mainContent = "## 対話履歴\n\n" + conversationParts.join("\n\n---\n\n");
     }
 
     // メタデータの追加
@@ -98,7 +66,7 @@ export function formatChatHistoryToMarkdown(
         runSettings: chatHistory.runSettings,
         systemInstruction: chatHistory.systemInstruction || null,
     };
-    const metadataString = "## メタデータ\n\n```json\n" + JSON.stringify(metadata, null, 2) + "\n```\n";
+    const metadataString = "\n\n## メタデータ\n\n```json\n" + JSON.stringify(metadata, null, 2) + "\n```\n";
 
-    return mainContent + metadataString;
+    return mainContent + "\n" + metadataString;
 }

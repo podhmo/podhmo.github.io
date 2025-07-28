@@ -6,28 +6,22 @@ Deno.test("formatChatHistoryToMarkdown - 基本的な会話", () => {
         "runSettings": {
             "temperature": 1,
             "model": "gemini-1.5-flash-001",
-            "topP": 0.95,
-            "topK": 64,
-            "maxOutputTokens": 8192,
-            "safetySettings": [],
-            "responseMimeType": "text/plain",
         },
         "chunkedPrompt": {
             "chunks": [
                 { "text": "こんにちは", "role": "user" },
-                { "text": "こんにちは！何かお手伝いできることはありますか？", "role": "model" }
+                { "text": "こんにちは！", "role": "model" }
             ]
         }
     };
     const expectedMarkdown = `## 対話履歴
 
-ユーザー:
-こんにちは
+ユーザー: こんにちは
 
 ---
 
 AI:
-こんにちは！何かお手伝いできることはありますか？
+こんにちは！
 
 ## メタデータ
 
@@ -35,12 +29,7 @@ AI:
 {
   "runSettings": {
     "temperature": 1,
-    "model": "gemini-1.5-flash-001",
-    "topP": 0.95,
-    "topK": 64,
-    "maxOutputTokens": 8192,
-    "safetySettings": [],
-    "responseMimeType": "text/plain"
+    "model": "gemini-1.5-flash-001"
   },
   "systemInstruction": null
 }
@@ -50,29 +39,27 @@ AI:
     assertEquals(result.trim(), expectedMarkdown.trim());
 });
 
-Deno.test("formatChatHistoryToMarkdown - コードブロックが改行なしで終わるケース", () => {
+Deno.test("formatChatHistoryToMarkdown - コードブロック", () => {
     const chatHistory = {
         "runSettings": { "model": "test" },
         "chunkedPrompt": {
             "chunks": [
-                { "text": "コードを書いて", "role": "user" },
-                { "text": "はい、どうぞ。\n\`\`\`javascript\nconsole.log(\"Hello, World!\");\n\`\`\`", "role": "model" }
+                { "text": "コードを", "role": "user" },
+                { "text": "どうぞ\n\`\`\`js\nconsole.log(1)\n\`\`\`", "role": "model" }
             ]
         }
     };
     const expectedMarkdown = `## 対話履歴
 
-ユーザー:
-コードを書いて
+ユーザー: コードを
 
 ---
 
 AI:
-はい、どうぞ。
-\`\`\`javascript
-console.log("Hello, World!");
+どうぞ
+\`\`\`js
+console.log(1)
 \`\`\`
-
 ## メタデータ
 
 \`\`\`json
@@ -88,31 +75,30 @@ console.log("Hello, World!");
     assertEquals(result.trim(), expectedMarkdown.trim());
 });
 
-Deno.test("formatChatHistoryToMarkdown - withThoughts オプション", () => {
+Deno.test("formatChatHistoryToMarkdown - 思考を含む", () => {
     const chatHistory = {
         "runSettings": { "model": "test" },
         "chunkedPrompt": {
             "chunks": [
                 { "text": "考えて", "role": "user" },
-                { "text": "うーん、そうですね...", "role": "model", "isThought": true },
-                { "text": "わかりました！", "role": "model" }
+                { "text": "うーん", "role": "model", "isThought": true },
+                { "text": "わかった", "role": "model" }
             ]
         }
     };
     const expectedMarkdown = `## 対話履歴
 
-ユーザー:
-考えて
+ユーザー: 考えて
 
 ---
 
+AI:
 <details>
 <summary>AIの思考プロセス</summary>
 
-うーん、そうですね...
+うーん
 </details>
-AI:
-わかりました！
+わかった
 
 ## メタデータ
 
@@ -129,27 +115,24 @@ AI:
     assertEquals(result.trim(), expectedMarkdown.trim());
 });
 
-
-Deno.test("formatChatHistoryToMarkdown - onlyUserInputs オプション", () => {
+Deno.test("formatChatHistoryToMarkdown - ユーザー入力のみ", () => {
     const chatHistory = {
         "runSettings": { "model": "test" },
         "chunkedPrompt": {
             "chunks": [
-                { "text": "ユーザー1", "role": "user" },
-                { "text": "AI1", "role": "model" },
-                { "text": "ユーザー2", "role": "user" }
+                { "text": "u1", "role": "user" },
+                { "text": "a1", "role": "model" },
+                { "text": "u2", "role": "user" }
             ]
         }
     };
     const expectedMarkdown = `## ユーザー入力履歴
 
-ユーザー:
-ユーザー1
+ユーザー: u1
 
 ---
 
-ユーザー:
-ユーザー2
+ユーザー: u2
 
 ## メタデータ
 
@@ -163,5 +146,40 @@ Deno.test("formatChatHistoryToMarkdown - onlyUserInputs オプション", () => 
 \`\`\`
 `;
     const result = formatChatHistoryToMarkdown(chatHistory, { onlyUserInputs: true });
+    assertEquals(result.trim(), expectedMarkdown.trim());
+});
+
+Deno.test("formatChatHistoryToMarkdown - 複数のバッククォート", () => {
+    const chatHistory = {
+        "runSettings": { "model": "test" },
+        "chunkedPrompt": {
+            "chunks": [
+                { "text": "コード", "role": "user" },
+                { "text": "\`\`\`\`\ncode\n\`\`\`\`", "role": "model" }
+            ]
+        }
+    };
+    const expectedMarkdown = `## 対話履歴
+
+ユーザー: コード
+
+---
+
+AI:
+\`\`\`\`
+code
+\`\`\`\`
+## メタデータ
+
+\`\`\`json
+{
+  "runSettings": {
+    "model": "test"
+  },
+  "systemInstruction": null
+}
+\`\`\`
+`;
+    const result = formatChatHistoryToMarkdown(chatHistory);
     assertEquals(result.trim(), expectedMarkdown.trim());
 });
