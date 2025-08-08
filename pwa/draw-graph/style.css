@@ -1,0 +1,79 @@
+/* 画面全体のレイアウト設定 */
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    flex-shrink: 0;
+}
+
+main.container-fluid {
+    flex-grow: 1;
+    display: grid;
+    grid-template-columns: 1fr; /* モバイルでは1列 */
+    grid-template-rows: auto 1fr;
+    gap: var(--pico-spacing);
+    min-height: 0; /* flex/gridの子要素でスクロールを有効にするためのハック */
+    padding-bottom: var(--pico-spacing);
+}
+
+/* デスクトップサイズでは2列表示 */
+@media (min-width: 768px) {
+    main.container-fluid {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr;
+    }
+}
+
+article {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* コンテナからはみ出さないように */
+    padding: var(--pico-spacing);
+}
+
+#editor-form {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+#source-input {
+    flex-grow: 1; /* 残りの高さいっぱいに広がる */
+    resize: vertical;
+    font-family: monospace;
+}
+
+#preview-pane, #preview-container {
+    height: 100%;
+    width: 100%;
+    overflow: auto; /* プレビューが大きければスクロール */
+}
+
+#preview-container svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* エラーメッセージ用のスタイル */
+#error-container {
+    background-color: var(--pico-card-background-color);
+    border: 1px solid var(--pico-form-invalid-border-color);
+    color: var(--pico-form-invalid-color);
+    padding: var(--pico-spacing);
+    margin-top: var(--pico-spacing);
+    white-space: pre-wrap; /* エラーメッセージを折り返す */
+    word-break: break-all;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+#error-container.hidden {
+    display: none;
+}

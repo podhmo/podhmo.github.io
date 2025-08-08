@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagram Previewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <link rel="stylesheet" href="style.css">
+
+    <script type="importmap">
+    {
+        "imports": {
+            "mermaid": "https://esm.sh/mermaid@10.9.0?bundle",
+            "d3-graphviz": "https://esm.sh/d3-graphviz@5.4.0?bundle&deps=@hpcc-js/wasm@2.16.1",
+            "@hpcc-js/wasm": "https://esm.sh/@hpcc-js/wasm@2.16.1?bundle"
+        }
+    }
+    </script>
+</head>
+<body>
+
+    <header class="container">
+        <nav>
+            <ul>
+                <li><strong>Diagram Previewer</strong></li>
+            </ul>
+            <ul>
+                <li><a href="#" id="theme-switcher">Switch Theme</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="container-fluid">
+        <article id="editor-pane">
+            <form id="editor-form">
+                <label for="engine-select">Engine</label>
+                <select id="engine-select" disabled>
+                    <option value="mermaid">Mermaid</option>
+                    <option value="graphviz-wasm">Graphviz (WASM)</option>
+                    <option value="d3-graphviz">Graphviz (d3-graphviz)</option>
+                </select>
+
+                <label for="source-input">Source Code</label>
+                <textarea id="source-input" name="source" rows="15" placeholder="Enter diagram source here..."></textarea>
+                
+                <button type="submit" id="preview-button" aria-busy="true" disabled>Loading Libraries...</button>
+            </form>
+        </article>
+
+        <article id="preview-pane">
+            <div id="preview-container" aria-live="polite">
+                <p>Submit your code to see a preview.</p>
+            </div>
+            <pre id="error-container" class="hidden" aria-live="assertive"><code></code></pre>
+        </article>
+    </main>
+
+    <script src="main.js" type="module"></script>
+</body>
+</html>
