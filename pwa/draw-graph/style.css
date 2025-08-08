@@ -7,37 +7,57 @@ html, body {
 body {
     display: flex;
     flex-direction: column;
+    height: 100vh; /* ビューポートの高さに固定 */
 }
 
 header {
     flex-shrink: 0;
 }
 
+/* ビュー切り替えのナビゲーションを少し調整 */
+#view-switcher ul {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--pico-spacing);
+    margin-bottom: 0;
+}
+#view-switcher a[role="button"] {
+    margin-bottom: 0;
+}
+/* アクティブなビューボタンのスタイル */
+#view-switcher a[aria-current="true"] {
+    background-color: var(--pico-primary-background);
+    color: var(--pico-primary-inverse);
+    font-weight: bold;
+}
+
+/* メインコンテンツエリア */
 main.container-fluid {
     flex-grow: 1;
-    display: grid;
-    grid-template-columns: 1fr; /* モバイルでは1列 */
-    grid-template-rows: auto 1fr;
-    gap: var(--pico-spacing);
-    min-height: 0; /* flex/gridの子要素でスクロールを有効にするためのハック */
-    padding-bottom: var(--pico-spacing);
-}
-
-/* デスクトップサイズでは2列表示 */
-@media (min-width: 768px) {
-    main.container-fluid {
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: 1fr;
-    }
-}
-
-article {
-    display: flex;
+    display: flex; /* 子要素(ビュー)をflexアイテムとして扱う */
     flex-direction: column;
-    overflow: hidden; /* コンテナからはみ出さないように */
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    overflow: hidden; /* メインエリアのスクロールを禁止 */
+}
+
+/* 各ビューの基本スタイル */
+.view {
+    display: none; /* デフォルトは非表示 */
+    width: 100%;
+    height: 100%;
+    overflow-y: auto; /* ビューごとにスクロールを許可 */
     padding: var(--pico-spacing);
 }
 
+/* アクティブなビューのみ表示 */
+.view.active {
+    display: flex;
+    flex-direction: column;
+}
+
+/* エディタービューの内部フォーム */
 #editor-form {
     display: flex;
     flex-direction: column;
@@ -46,19 +66,27 @@ article {
 
 #source-input {
     flex-grow: 1; /* 残りの高さいっぱいに広がる */
-    resize: vertical;
+    resize: none; /* リサイズを無効化 */
     font-family: monospace;
+    min-height: 200px;
 }
 
-#preview-pane, #preview-container {
-    height: 100%;
+/* プレビュービュー */
+#preview-view {
+    justify-content: center;
+    align-items: center;
+}
+
+#preview-container {
     width: 100%;
-    overflow: auto; /* プレビューが大きければスクロール */
+    height: 100%;
 }
 
 #preview-container svg {
     max-width: 100%;
     height: auto;
+    display: block; /* 中央揃えのため */
+    margin: auto;
 }
 
 /* エラーメッセージ用のスタイル */
@@ -68,10 +96,11 @@ article {
     color: var(--pico-form-invalid-color);
     padding: var(--pico-spacing);
     margin-top: var(--pico-spacing);
-    white-space: pre-wrap; /* エラーメッセージを折り返す */
+    white-space: pre-wrap;
     word-break: break-all;
-    max-height: 300px;
+    max-height: 250px; /* 高さを制限 */
     overflow-y: auto;
+    flex-shrink: 0; /* 高さが縮まないように */
 }
 
 #error-container.hidden {

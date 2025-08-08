@@ -5,10 +5,23 @@ const form = document.getElementById('editor-form');
 const engineSelect = document.getElementById('engine-select');
 const sourceInput = document.getElementById('source-input');
 const previewButton = document.getElementById('preview-button');
+const themeSwitcher = document.getElementById('theme-switcher');
+
+// View Switching Elements
+const viewSwitcher = document.getElementById('view-switcher');
+const viewButtons = viewSwitcher.querySelectorAll('a[role="button"]');
+const editorView = document.getElementById('editor-view');
+const previewView = document.getElementById('preview-view');
+
+// Panes and Containers
 const previewContainer = document.getElementById('preview-container');
 const errorContainer = document.getElementById('error-container');
 const errorCodeElement = errorContainer.querySelector('code');
-const themeSwitcher = document.getElementById('theme-switcher');
+
+const views = {
+    editor: editorView,
+    preview: previewView,
+};
 
 // --- Functions ---
 
@@ -35,6 +48,25 @@ function updatePreview(element) {
     previewContainer.appendChild(element);
 }
 
+function switchView(viewName) {
+    // Hide all views
+    Object.values(views).forEach(view => view.classList.remove('active'));
+    // Deactivate all buttons
+    viewButtons.forEach(button => button.removeAttribute('aria-current'));
+
+    // Show the selected view
+    const viewToShow = views[viewName];
+    if (viewToShow) {
+        viewToShow.classList.add('active');
+    }
+    
+    // Activate the corresponding button
+    const buttonToActivate = viewSwitcher.querySelector(`[data-view="${viewName}"]`);
+    if (buttonToActivate) {
+        buttonToActivate.setAttribute('aria-current', 'true');
+    }
+}
+
 // --- Event Handlers ---
 
 form.addEventListener('submit', async (event) => {
@@ -48,20 +80,22 @@ form.addEventListener('submit', async (event) => {
     if (!source.trim()) {
         previewContainer.innerHTML = '<p>Please enter some source code.</p>';
         showLoading(false);
+        switchView('preview');
         return;
     }
     
     previewContainer.innerHTML = '<p aria-busy="true">Generating preview...</p>';
+    switchView('preview'); // Switch to preview view immediately
 
     try {
         const resultElement = await render(engine, source, previewContainer);
-        if (resultElement) { // d3-graphvizは直接描画するため要素を返さない
+        if (resultElement) { // d3-graphviz returns null as it renders directly
             updatePreview(resultElement);
         }
     } catch (error) {
         console.error('Rendering failed:', error);
         showError(error.message);
-        previewContainer.innerHTML = '<p>An error occurred. See details below.</p>';
+        previewContainer.innerHTML = '<p>An error occurred. Please switch to the Editor view to see details.</p>';
     } finally {
         showLoading(false);
     }
@@ -74,13 +108,21 @@ themeSwitcher.addEventListener('click', (event) => {
     document.documentElement.setAttribute('data-theme', newTheme);
 });
 
+viewSwitcher.addEventListener('click', (event) => {
+    event.preventDefault();
+    const target = event.target.closest('a[data-view]');
+    if (target) {
+        const viewName = target.dataset.view;
+        switchView(viewName);
+    }
+});
+
 
 // --- Initialization ---
 
 async function main() {
     try {
         await initializeRenderers();
-        // ライブラリのロードが完了したらUIを有効化
         engineSelect.disabled = false;
         showLoading(false);
     } catch (error) {
@@ -88,6 +130,8 @@ async function main() {
         showError(`Failed to load a required library: ${error.message}`);
         previewButton.textContent = 'Initialization Failed';
     }
+    // Set initial view
+    switchView('editor'); 
 }
 
 main();

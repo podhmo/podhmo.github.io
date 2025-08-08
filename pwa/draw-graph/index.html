@@ -28,10 +28,17 @@
                 <li><a href="#" id="theme-switcher">Switch Theme</a></li>
             </ul>
         </nav>
+        <nav id="view-switcher" aria-label="View Switcher">
+            <ul>
+                <li><a href="#" class="secondary" role="button" data-view="editor">Editor</a></li>
+                <li><a href="#" class="secondary" role="button" data-view="preview">Preview</a></li>
+            </ul>
+        </nav>
     </header>
 
     <main class="container-fluid">
-        <article id="editor-pane">
+        <!-- Editor View -->
+        <section id="editor-view" class="view">
             <form id="editor-form">
                 <label for="engine-select">Engine</label>
                 <select id="engine-select" disabled>
@@ -45,14 +52,15 @@
                 
                 <button type="submit" id="preview-button" aria-busy="true" disabled>Loading Libraries...</button>
             </form>
-        </article>
+             <pre id="error-container" class="hidden" aria-live="assertive"><code></code></pre>
+        </section>
 
-        <article id="preview-pane">
+        <!-- Preview View -->
+        <section id="preview-view" class="view">
             <div id="preview-container" aria-live="polite">
                 <p>Submit your code to see a preview.</p>
             </div>
-            <pre id="error-container" class="hidden" aria-live="assertive"><code></code></pre>
-        </article>
+        </section>
     </main>
 
     <script src="main.js" type="module"></script>
