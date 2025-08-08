@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESM Import Finder</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <style>
+        body { padding-bottom: 5rem; }
+        main { max-width: 800px; margin: 0 auto; }
+        .log-item {
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            border-left: 4px solid;
+            border-radius: var(--pico-border-radius);
+            word-break: break-all;
+        }
+        .log-info { border-left-color: var(--pico-secondary); background-color: var(--pico-secondary-background); }
+        .log-success { border-left-color: var(--pico-success); background-color: var(--pico-success-background); }
+        .log-error { border-left-color: var(--pico-error); background-color: var(--pico-error-background); }
+        .log-code {
+            position: relative;
+            background-color: var(--pico-code-background);
+            padding: 1rem;
+            border-radius: var(--pico-border-radius);
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75em;
+            background-color: var(--pico-secondary-background);
+            border: 1px solid var(--pico-secondary);
+            color: var(--pico-secondary);
+            cursor: pointer;
+        }
+        .copy-btn:hover { background-color: var(--pico-secondary-hover-background); }
+        pre { white-space: pre-wrap; }
+        .hidden { display: none; }
+        .grid { grid-gap: 1rem; }
+        article { padding: 1rem; }
+        details ul { margin-bottom: 0; }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>ESM Import Finder</h1>
+            <p>CDN上のNPMパッケージからESMの<code>import</code>文、エクスポートシンボル、関連情報を探索します。</p>
+        </header>
+
+        <form id="finder-form">
+            <div class="grid">
+                <div>
+                    <label for="module-input">
+                        NPMパッケージ名
+                        <input type="text" id="module-input" name="module" placeholder="例: mermaid または react:useState" value="mermaid" required>
+                    </label>
+                </div>
+                <div>
+                    <label for="cdn-select">CDNプロバイダー</label>
+                    <select id="cdn-select" name="cdn">
+                        <option value="esm.sh">esm.sh</option>
+                        <option value="jsdelivr">jsDelivr</option>
+                        <option value="unpkg">unpkg</option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" id="submit-btn">探索を開始</button>
+        </form>
+
+        <div id="results-container" class="hidden">
+            <article>
+                <header>
+                    <h2 style="margin-bottom: 0;">探索ログ</h2>
+                </header>
+                <div id="logs"></div>
+            </article>
+
+            <article id="results-summary" class="hidden">
+                 <div id="related-links"></div>
+                 <div id="symbols-list"></div>
+                 <div id="final-code"></div>
+                 <div id="example-output"></div>
+            </article>
+        </div>
+    </main>
+
+    <script type="module">
+        const form = document.getElementById('finder-form');
+        const moduleInput = document.getElementById('module-input');
+        const cdnSelect = document.getElementById('cdn-select');
+        const submitBtn = document.getElementById('submit-btn');
+        // コンテナ
+        const resultsContainer = document.getElementById('results-container');
+        const resultsSummary = document.getElementById('results-summary');
+        const logsContainer = document.getElementById('logs');
+        const finalCodeContainer = document.getElementById('final-code');
+        const exampleOutputContainer = document.getElementById('example-output');
+        const symbolsListContainer = document.getElementById('symbols-list');
+        const relatedLinksContainer = document.getElementById('related-links');
+
+        const cdnConfig = {
+            'jsdelivr': { base: 'https://cdn.jsdelivr.net/npm/', files: 'https://cdn.jsdelivr.net/npm/' },
+            'unpkg': { base: 'https://unpkg.com/', files: 'https://unpkg.com/' },
+            'esm.sh': { base: 'https://esm.sh/', files: null } // esm.sh doesn't have a file browser
+        };
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const rawInput = moduleInput.value.trim();
+            if (!rawInput) return;
+
+            // UIリセット
+            submitBtn.setAttribute('aria-busy', 'true');
+            submitBtn.disabled = true;
+            resultsContainer.classList.remove('hidden');
+            resultsSummary.classList.add('hidden');
+            logsContainer.innerHTML = '';
+            finalCodeContainer.innerHTML = '';
+            exampleOutputContainer.innerHTML = '';
+            symbolsListContainer.innerHTML = '';
+            relatedLinksContainer.innerHTML = '';
+            
+            // 入力解析
+            const [pkgName, symbolName] = rawInput.includes(':') ? rawInput.split(':') : [rawInput, null];
+            const cdn = cdnSelect.value;
+            const baseUrl = cdnConfig[cdn].base + pkgName;
+            let pkgJsonData = null;
+
+            log(`<strong>${pkgName}</strong> を <strong>${cdn}</strong> で探索します...`, 'info');
+            if(symbolName) log(`指定シンボル: <code>${symbolName}</code>`, 'info');
+
+            try {
+                let moduleUrl = null;
+                let module = null;
+
+                // --- 探索開始 ---
+                log(`[ステップ1] 直接インポートを試行中...<br>URL: <code>${baseUrl}</code>`, 'info');
+                try {
+                    module = await import(baseUrl);
+                    moduleUrl = baseUrl;
+                    log('✅ 直接インポートに成功しました！', 'success');
+                } catch (err) {
+                    log(`❌ 直接インポートに失敗しました。次のステップに進みます。<br><small>${err.message}</small>`, 'error');
+                }
+
+                // --- ステップ2: package.jsonを解析 ---
+                if (!module && cdn !== 'esm.sh') {
+                    const pkgJsonUrl = `${cdnConfig[cdn].base}${pkgName}/package.json`;
+                    log(`[ステップ2] <code>package.json</code> の解析を試行中...<br>URL: <code>${pkgJsonUrl}</code>`, 'info');
+                    try {
+                        const response = await fetch(pkgJsonUrl);
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        
+                        // Content-Typeチェックを追加
+                        const contentType = response.headers.get('content-type');
+                        if (!contentType || !contentType.includes('application/json')) {
+                            throw new Error(`package.jsonとして有効なJSONレスポンスが返されませんでした。Content-Type: ${contentType || 'N/A'}`);
+                        }
+
+                        pkgJsonData = await response.json();
+                        
+                        const entryPoint = pkgJsonData.module || (pkgJsonData.exports && (pkgJsonData.exports['.']?.import || pkgJsonData.exports.import));
+                        if (entryPoint) {
+                            const entryPointUrl = new URL(entryPoint, `${baseUrl}/`).href;
+                            log(`✅ <code>package.json</code> からESMエントリポイントを発見: <code>${entryPoint}</code>`, 'success');
+                            log(`インポートを試行中...<br>URL: <code>${entryPointUrl}</code>`, 'info');
+
+                            module = await import(entryPointUrl);
+                            moduleUrl = entryPointUrl;
+                            log('✅ エントリポイントからのインポートに成功しました！', 'success');
+
+                        } else {
+                            throw new Error('package.jsonに "module" または "exports.import" が見つかりません。');
+                        }
+                    } catch (err2) {
+                         log(`❌ <code>package.json</code> の解析とインポートに失敗しました。<br><small>${err2.message}</small>`, 'error');
+                    }
+                } else if (!module) {
+                    log(`[ステップ2] esm.shではこのステップはスキップされます。`, 'info');
+                }
+
+                // --- 解析と結果表示 ---
+                if (module && moduleUrl) {
+                    resultsSummary.classList.remove('hidden');
+                    // package.jsonがまだ取得できていない場合(直接インポート成功時)は取得する
+                    if (!pkgJsonData && cdn !== 'esm.sh') {
+                        try {
+                            const pkgJsonUrl = `${cdnConfig[cdn].base}${pkgName}/package.json`;
+                            const res = await fetch(pkgJsonUrl);
+                            if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+                                pkgJsonData = await res.json();
+                            }
+                        } catch (e) { /* ignore */ }
+                    }
+
+                    renderRelatedLinks(pkgJsonData, pkgName, cdn);
+                    renderSymbols(module);
+                    renderImportStatements(module, moduleUrl, pkgName, symbolName);
+                    await runExample(module, pkgName);
+                } else {
+                    log('😭 探索失敗: 利用可能なESMモジュールを見つけられませんでした。', 'error');
+                }
+
+            } catch (finalError) {
+                log(`🔥 予期せぬエラーが発生しました: ${finalError.message}`, 'error');
+            } finally {
+                submitBtn.removeAttribute('aria-busy');
+                submitBtn.disabled = false;
+            }
+        });
+
+        function log(message, type = 'info') {
+            const logItem = document.createElement('div');
+            logItem.className = `log-item log-${type}`;
+            logItem.innerHTML = message;
+            logsContainer.appendChild(logItem);
+            logItem.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        function renderRelatedLinks(pkgJson, pkgName, cdn) {
+            let html = '<h3>関連情報</h3><ul>';
+            let hasLinks = false;
+            
+            if (pkgJson?.homepage) {
+                html += `<li><strong>ホームページ:</strong> <a href="${pkgJson.homepage}" target="_blank">${pkgJson.homepage}</a></li>`;
+                hasLinks = true;
+            }
+            if (pkgJson?.repository) {
+                let repoUrl = typeof pkgJson.repository === 'string' ? pkgJson.repository : pkgJson.repository.url;
+                repoUrl = repoUrl.replace(/^git\+/, '').replace(/\.git$/, '');
+                html += `<li><strong>リポジトリ:</strong> <a href="${repoUrl}" target="_blank">${repoUrl}</a></li>`;
+                hasLinks = true;
+            }
+            const fileBrowserUrl = cdnConfig[cdn].files;
+            if(fileBrowserUrl) {
+                html += `<li><strong>CDNファイルブラウザ:</strong> <a href="${fileBrowserUrl}${pkgName}/" target="_blank">${fileBrowserUrl}${pkgName}/</a></li>`;
+                hasLinks = true;
+            }
+
+            html += '</ul>';
+            if (hasLinks) {
+                relatedLinksContainer.innerHTML = html;
+            }
+        }
+
+        function renderSymbols(module) {
+            const hasDefault = 'default' in module;
+            const namedExports = Object.keys(module).filter(k => k !== 'default');
+            
+            let html = `
+                <details open>
+                    <summary><h3>エクスポートシンボル</h3></summary>
+                    <ul>`;
+            
+            if (hasDefault) {
+                html += `<li><code>default</code> (デフォルトエクスポート)</li>`;
+            }
+            if (namedExports.length > 0) {
+                namedExports.forEach(exp => {
+                    html += `<li><code>${exp}</code></li>`;
+                });
+            } else if (!hasDefault) {
+                 html += '<li>エクスポートが見つかりませんでした。</li>';
+            }
+            html += `</ul></details>`;
+            symbolsListContainer.innerHTML = html;
+        }
+
+
+        function renderImportStatements(module, url, pkgName, symbolName) {
+            const hasDefault = 'default' in module;
+            const namedExports = Object.keys(module).filter(k => k !== 'default');
+            const cleanPkgName = pkgName.split('@')[0].replace(/[^a-zA-Z0-9_$]/g, '_');
+
+            let finalHtml = '<h3>推奨されるImport文</h3>';
+            let generated = false;
+
+            if (symbolName) {
+                if (symbolName === 'default' && hasDefault) {
+                    finalHtml += generateCodeBlock(`import ${cleanPkgName} from '${url}';`);
+                    generated = true;
+                } else if (namedExports.includes(symbolName)) {
+                    finalHtml += generateCodeBlock(`import { ${symbolName} } from '${url}';`);
+                    generated = true;
+                } else {
+                     log(`指定されたシンボル <code>${symbolName}</code> はエクスポートされていませんでした。`, 'error');
+                }
+            }
+            
+            if (hasDefault) {
+                finalHtml += generateCodeBlock(`import ${cleanPkgName} from '${url}';`);
+                generated = true;
+            }
+            if (namedExports.length > 0) {
+                const exportsToShow = namedExports.slice(0, 5).join(', ');
+                const ellipsis = namedExports.length > 5 ? ', ...' : '';
+                finalHtml += generateCodeBlock(`import { ${exportsToShow}${ellipsis} } from '${url}';`);
+                generated = true;
+            }
+            if (namedExports.length > 0 || hasDefault) {
+                 finalHtml += generateCodeBlock(`import * as ${cleanPkgName} from '${url}';`);
+                 generated = true;
+            }
+
+            if (!generated) {
+                finalHtml += '<p>適切なimport文を生成できませんでした。</p>';
+            }
+            
+            finalCodeContainer.innerHTML = finalHtml;
+            document.querySelectorAll('.copy-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const code = btn.previousElementSibling.textContent;
+                    navigator.clipboard.writeText(code).then(() => {
+                        btn.textContent = 'Copied!';
+                        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+                    });
+                });
+            });
+        }
+        
+        function generateCodeBlock(code) {
+            return `
+                <div class="log-code">
+                    <pre><code>${code}</code></pre>
+                    <button class="copy-btn">Copy</button>
+                </div>
+            `;
+        }
+        
+        async function runExample(module, pkgName) {
+            if (pkgName.startsWith('mermaid')) {
+                log('Mermaidの実行サンプルをレンダリングします...', 'info');
+                try {
+                    const mermaid = module.default;
+                    const container = document.createElement('div');
+                    container.className = 'mermaid';
+                    container.textContent = 'graph TD;\n  A[Start] --> B{Is it...};\n  B --> C[Easy?];\n  B --> D[Complex?];';
+                    exampleOutputContainer.innerHTML = '<h3>実行サンプル (Mermaid)</h3>';
+                    exampleOutputContainer.appendChild(container);
+                    mermaid.initialize({ startOnLoad: false, theme: document.documentElement.dataset.theme });
+                    await mermaid.run({ nodes: [container] });
+                    log('✅ Mermaidサンプルのレンダリングに成功しました。', 'success');
+                } catch(e) {
+                    log(`❌ サンプルの実行中にエラーが発生しました: ${e.message}`, 'error');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
