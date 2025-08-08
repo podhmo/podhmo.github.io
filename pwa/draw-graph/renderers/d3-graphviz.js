@@ -14,12 +14,11 @@ function initializeInstance(container) {
 
 export async function renderD3Graphviz(source, container) {
     container.innerHTML = ''; // 描画前にコンテナをクリア
-
     return new Promise((resolve, reject) => {
         try {
             const instance = initializeInstance(container);
             instance
-                .on('error', (err) => {
+                .onerror((err) => {
                     // d3-graphvizはエラーをイベントで発火させる
                     reject(new Error(err));
                 })
