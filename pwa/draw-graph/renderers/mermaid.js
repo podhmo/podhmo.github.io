@@ -5,7 +5,7 @@ let isInitialized = false;
 function stringToElement(svgString) {
     const div = document.createElement('div');
     div.innerHTML = svgString;
-    return div.firstChild;
+    return div.firstElementChild;
 }
 
 export async function initialize() {
