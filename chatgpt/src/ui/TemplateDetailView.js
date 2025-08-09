@@ -150,7 +150,7 @@ ${instruction}
     const createTargetDocumentSection = (targetText) => {
         const documentContent = targetText.trim();
         if (documentContent === '') {
-            return `\n\n---\n\n今までの会話を元に、上記のプロンプトを実行してください。`;
+            return `\n\n---\n\n今までの会話最初から最後までを元に、上記のプロンプトを実行してください。`;
         }
 
         const urlPattern = /^https?:\/\//;
