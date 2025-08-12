@@ -18,6 +18,17 @@ export class AppState {
         this.currentPath = '/'; // 例: '/', '/category/ChatGPT', '/category/ChatGPT/template/Prompt1'
         /** @type {string} */
         this.currentSourceUrl = getSourceUrlFromQuery() || DEFAULT_SOURCE_URL;
+        /** @type {Object<string, string>} */
+        this.templateVariableValues = {};
+    }
+    setVariableValue(name, value) {
+        this.templateVariableValues[name] = value;
+    }
+    getVariableValues() {
+        return this.templateVariableValues;
+    }
+    clearVariableValues() {
+        this.templateVariableValues = {};
     }
 
     /**

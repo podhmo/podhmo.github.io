@@ -8,15 +8,13 @@ const html = htm.bind(h);
  * 選択されたテンプレートの詳細（説明、プロンプト本体、変数入力欄）のVNodeを返します。
  * @param {import('../markdownParser.js').ParsedTemplate} template - 表示するテンプレートのデータ
  * @param {import('../router.js').Router} router - ルーターインスタンス (for back navigation)
+ * @param {import('../appState.js').AppState} appState - The application state.
  * @param {function} requestRender - Callback to request a re-render from parent (main.js)
  */
-export function TemplateDetailView(template, router, requestRender) {
-    const placeholderValues = {};
-
+export function TemplateDetailView(template, router, appState, requestRender) {
     const extractPlaceholders = (text) => {
-        const regex = /\{\{([^:}]+)(?::([^}]+))?\}\}/g; // Updated regex
+        const regex = /\{\{([^:}]+)(?::([^}]+))?\}\}/g;
         let match;
-        // Use a Map to ensure uniqueness by name, storing the first encountered defaultValue
         const seenPlaceholders = new Map();
         while ((match = regex.exec(text)) !== null) {
             const name = match[1].trim();
@@ -25,14 +23,11 @@ export function TemplateDetailView(template, router, requestRender) {
                 seenPlaceholders.set(name, { name, defaultValue });
             }
         }
-        // Convert Map values to an array
         return Array.from(seenPlaceholders.values());
     };
 
-    // 全プロンプトボディからプレースホルダーを収集
-    // Store placeholder objects (name, defaultValue)
     const allPlaceholderObjects = [];
-    const seenPlaceholderNames = new Set(); // To ensure unique placeholder names across all prompts
+    const seenPlaceholderNames = new Set();
 
     template.prompts.forEach(prompt => {
         extractPlaceholders(prompt.body).forEach(phObj => {
@@ -42,17 +37,18 @@ export function TemplateDetailView(template, router, requestRender) {
             }
         });
     });
-    const uniquePlaceholders = allPlaceholderObjects; // This now holds objects
+    const uniquePlaceholders = allPlaceholderObjects;
+    const placeholderValues = appState.getVariableValues();
 
-    // Initialize placeholderValues using defaultValues if present
     uniquePlaceholders.forEach(phObj => {
-        placeholderValues[phObj.name] = phObj.defaultValue !== null ? phObj.defaultValue : '';
+        if (placeholderValues[phObj.name] === undefined) {
+            const initialValue = phObj.defaultValue !== null ? phObj.defaultValue : '';
+            appState.setVariableValue(phObj.name, initialValue);
+        }
     });
 
     const updatePlaceholderValue = (placeholderName, value) => {
-        placeholderValues[placeholderName] = value;
-        // Request a re-render from the main application logic
-        // This is a common pattern when state is managed outside the component
+        appState.setVariableValue(placeholderName, value);
         if (requestRender) requestRender();
     };
 
@@ -99,14 +95,14 @@ ${instruction}
     
     // Testable version of getProcessedPromptBody
     // Note: This function is being exported for testing purposes.
-    const processPromptBodyForTesting = (originalBody, uniquePlaceholders, placeholderValues) => {
+    const processPromptBodyForTesting = (originalBody, uniquePlaceholders, currentPlaceholderValues) => {
         let processedBody = originalBody;
         uniquePlaceholders.forEach(phObj => {
             const placeholderRegex = new RegExp(`\\{\\{${phObj.name}(?::[^}]+)?\\}\\}`, 'g');
-            let valueToReplace = placeholderValues[phObj.name];
+            let valueToReplace = currentPlaceholderValues[phObj.name];
             let replacementText;
 
-            if (valueToReplace === undefined) { // Should not happen if initialized correctly
+            if (valueToReplace === undefined) {
                 replacementText = phObj.defaultValue !== null ? phObj.defaultValue : `{{${phObj.name}}}`;
             } else if (valueToReplace === '' && phObj.defaultValue !== null) {
                 replacementText = phObj.defaultValue;
@@ -121,8 +117,8 @@ ${instruction}
     };
 
     const getProcessedPromptBody = (originalBody) => {
-        // Calls the testable function with component's current state
-        return processPromptBodyForTesting(originalBody, uniquePlaceholders, placeholderValues);
+        // Calls the testable function with component's current state from appState
+        return processPromptBodyForTesting(originalBody, uniquePlaceholders, appState.getVariableValues());
     };
 
     /**
@@ -179,7 +175,7 @@ ${instruction}
                             <textarea
                                 id="ph-${phObj.name}"
                                 name="${phObj.name}"
-                                value=${placeholderValues[phObj.name]}
+                                value=${appState.getVariableValues()[phObj.name]}
                                 onInput=${(e) => updatePlaceholderValue(phObj.name, e.target.value)}
                                 placeholder=${phObj.defaultValue ? `Default: ${phObj.defaultValue}` : `Enter value for ${phObj.name}`}
                                 rows="2"
