@@ -124,7 +124,10 @@ class App {
         this.router.addRoute('/category/:categoryName/template/:templateName', async (params) => {
             const categoryName = decodeURIComponent(params.categoryName);
             const templateName = decodeURIComponent(params.templateName);
+
             this.appState.setCurrentPath(decodeURIComponent(location.pathname));
+            this.appState.clearVariableValues();
+
             this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
             this.currentMainContentVNode = html`<p>Loading template ${templateName}...</p>`;
             this.renderUI();
@@ -133,21 +136,26 @@ class App {
                 await this.loadData();
             }
 
-            if (this.appState.data) { // Check if data is available
+            const renderTemplateView = () => {
+                if (!this.appState.data) {
+                    this.currentMainContentVNode = html`<p>Data not loaded. Cannot render template.</p>`;
+                    this.renderUI();
+                    return;
+                }
                 const template = this.appState.getTemplateByName(categoryName, templateName);
                 if (template) {
-                    this.currentMainContentVNode = TemplateDetailView(template, this.router, this.renderUI.bind(this));
+                    this.currentMainContentVNode = TemplateDetailView(template, this.router, this.appState, renderTemplateView);
                 } else {
-                     // Similar to category route, only set if data loaded correctly but template not found.
                     if (this.appState.data.sourceUrl === this.appState.getCurrentSourceUrl() && this.appState.data.length > 0) {
                         this.currentMainContentVNode = html`<p>Template not found: ${templateName}</p>`;
                     } else if (this.appState.data.length === 0 && this.appState.data.sourceUrl === this.appState.getCurrentSourceUrl()){
                         this.currentMainContentVNode = html`<p>No data loaded from ${this.appState.getCurrentSourceUrl()}, so cannot find template ${templateName}.</p>`;
                     }
-                    // If loadData set an error, that message will persist.
                 }
-            }
-            this.renderUI();
+                this.renderUI();
+            };
+
+            renderTemplateView();
         });
     }
 
