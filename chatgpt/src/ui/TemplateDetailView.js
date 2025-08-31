@@ -79,6 +79,9 @@ export function TemplateDetailView(template, router, appState, requestRender) {
         let finalPrompt;
         if (isRaw) {
             finalPrompt = instruction;
+            if (targetText.trim() !== '') {
+                finalPrompt += createTargetDocumentSection(targetText);
+            }
         } else {
             finalPrompt = `${title ? `# ${title}\n\n` : ''}<details>
 <summary>${template.templateName} のプロンプト詳細</summary>
