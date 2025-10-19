@@ -28,9 +28,9 @@ async function main() {
     const bytes = await Deno.readAll(Deno.stdin);
     input = new TextDecoder().decode(bytes);
   } else {
-    // Read from file (first argument)
-    const filePath = Deno.args[0];
-    input = await Deno.readTextFile(filePath);
+    // Read from all files specified in command-line arguments
+    const fileContents = await Promise.all(Deno.args.map((filePath) => Deno.readTextFile(filePath)));
+    input = fileContents.join('\n');
   }
 
   // Get home directory (cross-platform)
