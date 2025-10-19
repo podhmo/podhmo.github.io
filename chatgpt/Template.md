@@ -972,7 +972,7 @@ grokからテキストをコピペするとmarkdownの構造が失われてし�
 - https://deno.land/x のimportは絶対にしないでください
 - jsr:@std/*  のimportを利用してください
 - 可能な限りjsrのみでimportするようにして無理なら `npm:` のimportをしてください
-- 1ファイルだけという指定の場合はdeno.jsonを作らずimport時に直接バージョンを指定してください
+- 出力が1ファイルだけの場合はdeno.jsonを作らずimport時に直接バージョンを指定してください
 ```
 
 ## 進捗報告
