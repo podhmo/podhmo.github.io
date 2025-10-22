@@ -53,9 +53,7 @@ async function main() {
 
   // Replace home directory with ~
   if (home) {
-    // Simple escape for regex (self-implemented to avoid imports)
-    const escapeRegex = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const homeRegex = new RegExp(escapeRegex(home), 'g');
+    const homeRegex = new RegExp(RegExp.escape(home), 'g');
     output = output.replace(homeRegex, '~');
   }
 
