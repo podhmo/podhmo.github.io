@@ -29,6 +29,78 @@ interface CopilotChatHistory {
     chatMessages: ChatMessage[];
 }
 
+// JSONL形式のイベント型
+interface JSONLEvent {
+    type: string;
+    data: Record<string, unknown>;
+    id: string;
+    timestamp: string;
+    parentId: string | null;
+}
+
+// JSONL形式からCopilotChatHistory形式に変換
+function convertJSONLToChatHistory(events: JSONLEvent[]): CopilotChatHistory {
+    const sessionStart = events.find(e => e.type === "session.start");
+    const userMessages = events.filter(e => e.type === "user.message");
+    const assistantMessages = events.filter(e => e.type === "assistant.message");
+    
+    const chatMessages: ChatMessage[] = [];
+    
+    // メッセージをタイムスタンプ順にソート
+    const allMessages = [...userMessages, ...assistantMessages].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+    
+    for (const event of allMessages) {
+        if (event.type === "user.message") {
+            const data = event.data as { content?: string; attachments?: unknown[] };
+            chatMessages.push({
+                id: event.id,
+                timestamp: event.timestamp,
+                type: event.type,
+                role: "user",
+                text: data.content || "",
+                content: data.content || "",
+            });
+        } else if (event.type === "assistant.message") {
+            const data = event.data as {
+                messageId?: string;
+                content?: string;
+                toolRequests?: Array<{
+                    toolCallId: string;
+                    name: string;
+                    arguments: Record<string, unknown>;
+                }>;
+            };
+            
+            const toolCalls: ToolCall[] = (data.toolRequests || []).map(tr => ({
+                id: tr.toolCallId,
+                type: "function",
+                function: {
+                    name: tr.name,
+                    arguments: JSON.stringify(tr.arguments),
+                },
+            }));
+            
+            chatMessages.push({
+                id: event.id,
+                timestamp: event.timestamp,
+                type: event.type,
+                role: "assistant",
+                text: data.content || "",
+                content: data.content || "",
+                tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+            });
+        }
+    }
+    
+    return {
+        sessionId: sessionStart?.id || "unknown",
+        startTime: sessionStart?.timestamp || new Date().toISOString(),
+        chatMessages,
+    };
+}
+
 interface DisplayBlock {
     type: "user" | "assistant";
     content: string[]; // 各行の文字列の配列
@@ -185,7 +257,7 @@ async function main() {
             "エラー: JSONファイルへのパスを引数として指定してください。",
         );
         console.error(
-            "使用法: deno run --allow-read --allow-env <script.ts> <file.json> [options]",
+            "使用法: deno run --allow-read --allow-env <script.ts> <file.json|file.jsonl> [options]",
         );
         console.error("オプション:");
         console.error(
@@ -209,16 +281,37 @@ async function main() {
     const assistantName = flags["assistant-name"];
     const onlyUserInputs = flags["only-user-inputs"];
 
-    let jsonString: string;
+    let fileContent: string;
 
     try {
-        jsonString = await Deno.readTextFile(filePath);
+        fileContent = await Deno.readTextFile(filePath);
     } catch (error) {
         console.error(`ファイル読み込みエラー ${filePath}:`, error);
         Deno.exit(1);
     }
 
     try {
+        let jsonString: string;
+        
+        // JSONL形式かどうかを判定（複数行で各行が{で始まる）
+        const lines = fileContent.trim().split("\n");
+        const isJSONL = lines.length > 1 && lines.every(line => {
+            const trimmed = line.trim();
+            return trimmed === "" || trimmed.startsWith("{");
+        });
+        
+        if (isJSONL) {
+            // JSONL形式の場合、パースして変換
+            const events: JSONLEvent[] = lines
+                .filter(line => line.trim() !== "")
+                .map(line => JSON.parse(line));
+            const chatHistory = convertJSONLToChatHistory(events);
+            jsonString = JSON.stringify(chatHistory);
+        } else {
+            // 既存のJSON形式
+            jsonString = fileContent;
+        }
+        
         const markdownResult = formatChatHistoryToMarkdown(
             jsonString,
             withToolCalls && !onlyUserInputs, // onlyUserInputs が true なら withToolCalls は無効
