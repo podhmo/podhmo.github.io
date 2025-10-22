@@ -25,7 +25,20 @@ async function main() {
 
   if (Deno.args.length === 0) {
     // Read from stdin
-    const bytes = await Deno.readAll(Deno.stdin);
+    const reader = Deno.stdin.readable.getReader();
+    const chunks: Uint8Array[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+    const bytes = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.length;
+    }
     input = new TextDecoder().decode(bytes);
   } else {
     // Read from all files specified in command-line arguments
