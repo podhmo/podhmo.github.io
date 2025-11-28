@@ -14,6 +14,19 @@ const CLIENT_ID = Deno.env.get("GITHUB_CLIENT_ID");
 const CLIENT_SECRET = Deno.env.get("GITHUB_CLIENT_SECRET");
 const BASE_URL = Deno.env.get("BASE_URL") || "http://localhost:3333";
 
+// BASE_URLからport番号を抽出
+const getPortFromBaseUrl = (baseUrl: string): number => {
+  try {
+    const url = new URL(baseUrl);
+    return url.port ? parseInt(url.port, 10) : (url.protocol === 'https:' ? 443 : 80);
+  } catch {
+    // URLのパースに失敗した場合は3333をデフォルトとする
+    return 3333;
+  }
+};
+
+const PORT = getPortFromBaseUrl(BASE_URL);
+
 // 型定義
 interface GitHubUser {
   login: string;
@@ -235,4 +248,4 @@ app.get("/auth/logout", (c) => {
   return c.redirect("/");
 });
 
-Deno.serve({ port: 3333 }, app.fetch);
+Deno.serve({ port: PORT }, app.fetch);
