@@ -68,7 +68,8 @@ const Layout: FC<PropsWithChildren> = (props) => {
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
           }
         `}</style>
-        <script>{`
+        <script dangerouslySetInnerHTML={{
+          __html: `
           // モバイルファースト ファイルアップロード機能
           document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.getElementById('file-input');
@@ -82,7 +83,9 @@ const Layout: FC<PropsWithChildren> = (props) => {
             let selectedFiles = [];
             
             // ファイル選択イベント
-            fileInput && fileInput.addEventListener('change', handleFileSelect, false);
+            if (fileInput) {
+              fileInput.addEventListener('change', handleFileSelect, false);
+            }
             
             function handleFileSelect(e) {
               const files = e.target.files;
@@ -128,15 +131,18 @@ const Layout: FC<PropsWithChildren> = (props) => {
             }
             
             // クリアボタン
-            clearBtn && clearBtn.addEventListener('click', function() {
-              selectedFiles = [];
-              fileInput.value = '';
-              filePreview.style.display = 'none';
-              uploadResult.style.display = 'none';
-            });
+            if (clearBtn) {
+              clearBtn.addEventListener('click', function() {
+                selectedFiles = [];
+                fileInput.value = '';
+                filePreview.style.display = 'none';
+                uploadResult.style.display = 'none';
+              });
+            }
             
             // アップロードボタン
-            uploadBtn && uploadBtn.addEventListener('click', async function() {
+            if (uploadBtn) {
+              uploadBtn.addEventListener('click', async function() {
               if (selectedFiles.length === 0) return;
               
               const formData = new FormData();
@@ -164,7 +170,7 @@ const Layout: FC<PropsWithChildren> = (props) => {
                       <header>✅ Gistの作成が完了しました！</header>
                       <p><a href="\${result.gist_url}" target="_blank">\${result.gist_url}</a></p>
                       <footer>
-                        <button onclick="navigator.clipboard && navigator.clipboard.writeText('\${result.gist_url}')" class="outline">URLをコピー</button>
+                        <button onclick="if(navigator.clipboard){navigator.clipboard.writeText('\${result.gist_url}')}" class="outline">URLをコピー</button>
                       </footer>
                     </article>
                   \`;
@@ -186,9 +192,11 @@ const Layout: FC<PropsWithChildren> = (props) => {
                   </article>
                 \`;
               }
-            });
+              });
+            }
           });
-        `}</script>
+          `
+        }}></script>
       </head>
       <body>
         <header class="container">
