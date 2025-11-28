@@ -45,7 +45,7 @@ const Layout: FC<PropsWithChildren> = (props) => {
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Hono GitHub Login</title>
+        <title>Gist Uploader</title>
         {/* Pico CSS v2 */}
         <link
           rel="stylesheet"
@@ -149,10 +149,14 @@ const Layout: FC<PropsWithChildren> = (props) => {
               uploadBtn.addEventListener('click', async function() {
               if (selectedFiles.length === 0) return;
               
+              // Gistの可視性設定を取得
+              const isPublic = document.querySelector('input[name="gist-visibility"]:checked').value === 'public';
+              
               const formData = new FormData();
               selectedFiles.forEach(file => {
                 formData.append('files', file);
               });
+              formData.append('public', isPublic.toString());
               
               try {
                 uploadProgress.style.display = 'block';
@@ -284,6 +288,32 @@ const FileUploadForm: FC = () => (
     <div id="file-preview" style={{ display: "none" }}>
       <h3>選択されたファイル</h3>
       <div id="file-list"></div>
+      
+      <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
+        <fieldset>
+          <legend>📊 Gistの公開設定</legend>
+          <label>
+            <input
+              type="radio"
+              id="gist-public"
+              name="gist-visibility"
+              value="public"
+              checked
+            />
+            🌍 Public（誰でも閲覧可能）
+          </label>
+          <label>
+            <input
+              type="radio"
+              id="gist-secret"
+              name="gist-visibility"
+              value="secret"
+            />
+            🔒 Secret（URLを知っている人のみ）
+          </label>
+        </fieldset>
+      </div>
+      
       <div class="grid" style={{ marginTop: "1rem" }}>
         <button
           id="upload-btn"
@@ -529,10 +559,14 @@ app.post("/api/gist/create", async (c) => {
     // multipart/form-dataからファイルを取得
     const body = await c.req.parseBody();
     const files = body.files;
+    const publicParam = body.public;
 
     if (!files) {
       return c.json({ success: false, error: "ファイルが見つかりません" }, 400);
     }
+
+    // 可視性設定（デフォルト: public）
+    const isPublic = publicParam === 'true';
 
     // ファイル配列に変換
     const fileArray = Array.isArray(files) ? files : [files];
@@ -564,7 +598,7 @@ app.post("/api/gist/create", async (c) => {
     // GitHub APIでGistを作成
     const gistData = {
       description: `Uploaded via Gist Uploader - ${new Date().toISOString()}`,
-      public: false,
+      public: isPublic,
       files: gistFiles,
     };
 
