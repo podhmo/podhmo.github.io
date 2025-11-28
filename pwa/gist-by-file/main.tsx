@@ -86,6 +86,17 @@ const Layout: FC<PropsWithChildren> = (props) => {
             
             let selectedFiles = [];
             
+            // Gist URLからIDを抽出する関数
+            function extractGistId(url) {
+              if (!url || url.trim() === '') return null;
+              
+              // URLからGist IDを抽出
+              // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7
+              // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7#file-c2pa-md
+              const match = url.match(/gist\\.github\\.com\\/[^\\/]+\\/([a-f0-9]+)/);
+              return match ? match[1] : null;
+            }
+            
             // Gist URL入力の監視
             const gistUrlInput = document.getElementById('gist-url-input');
             if (gistUrlInput && uploadBtn) {
@@ -155,17 +166,6 @@ const Layout: FC<PropsWithChildren> = (props) => {
                 filePreview.style.display = 'none';
                 uploadResult.style.display = 'none';
               });
-            }
-            
-            // Gist URLからIDを抽出する関数
-            function extractGistId(url) {
-              if (!url || url.trim() === '') return null;
-              
-              // URLからGist IDを抽出
-              // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7
-              // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7#file-c2pa-md
-              const match = url.match(/gist\\.github\\.com\\/[^\\/]+\\/([a-f0-9]+)/);
-              return match ? match[1] : null;
             }
             
             // アップロードボタン
