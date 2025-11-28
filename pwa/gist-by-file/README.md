@@ -30,7 +30,7 @@ UIフレームワークに **Pico CSS v2** を採用し、**Hono JSX** でレン
 deno task dev
 ```
 
-ブラウザで `http://localhost:8000` にアクセスしてください。
+ブラウザで `http://localhost:3333` にアクセスしてください。
 
 ## 構成について
 

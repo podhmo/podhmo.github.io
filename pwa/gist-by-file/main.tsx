@@ -12,7 +12,7 @@ const app = new Hono();
 // 環境変数
 const CLIENT_ID = Deno.env.get("GITHUB_CLIENT_ID");
 const CLIENT_SECRET = Deno.env.get("GITHUB_CLIENT_SECRET");
-const BASE_URL = Deno.env.get("BASE_URL") || "http://localhost:8000";
+const BASE_URL = Deno.env.get("BASE_URL") || "http://localhost:3333";
 
 // 型定義
 interface GitHubUser {
@@ -106,11 +106,19 @@ const ProfileScreen: FC<{ user: GitHubUser }> = ({ user }) => (
   </Layout>
 );
 
-const ErrorScreen: FC<{ message: string }> = ({ message }) => (
+const ErrorScreen: FC<{ message: string; detail?: string }> = ({ message, detail }) => (
   <Layout>
     <article style={{ borderColor: "var(--pico-del-color)" }}>
-      <header>エラーが発生しました</header>
-      <p>{message}</p>
+      <header>⚠️ エラーが発生しました</header>
+      <p><strong>{message}</strong></p>
+      {detail && (
+        <details>
+          <summary>詳細情報</summary>
+          <pre style={{ fontSize: "0.8em", background: "var(--pico-card-background-color)", padding: "1rem", borderRadius: "0.25rem" }}>
+            {detail}
+          </pre>
+        </details>
+      )}
       <footer>
         <a href="/" role="button" class="secondary">トップへ戻る</a>
       </footer>
@@ -136,7 +144,7 @@ app.get("/", (c) => {
 });
 
 app.get("/auth/login", (c) => {
-  if (!CLIENT_ID) return c.text("GITHUB_CLIENT_ID is not set", 500);
+  if (!CLIENT_ID) return c.html(<ErrorScreen message="GITHUB_CLIENT_ID is not set" />, 500);
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -149,8 +157,18 @@ app.get("/auth/login", (c) => {
 
 app.get("/auth/callback", async (c) => {
   const code = c.req.query("code");
+  const error = c.req.query("error");
+  const errorDescription = c.req.query("error_description");
+  
+  if (error) {
+    return c.html(<ErrorScreen 
+      message={`GitHub認証エラー: ${error}`}
+      detail={errorDescription || "詳細なエラー情報は提供されていません"}
+    />);
+  }
+  
   if (!code) return c.html(<ErrorScreen message="認証コードが見つかりませんでした" />);
-  if (!CLIENT_ID || !CLIENT_SECRET) return c.text("Server config error", 500);
+  if (!CLIENT_ID || !CLIENT_SECRET) return c.html(<ErrorScreen message="Server configuration error: GitHub OAuth credentials not set" />, 500);
 
   try {
     // 1. Access Tokenの取得
@@ -204,8 +222,11 @@ app.get("/auth/callback", async (c) => {
     return c.redirect("/");
 
   } catch (e: any) {
-    console.error(e);
-    return c.html(<ErrorScreen message={e.message || "認証中にエラーが発生しました"} />);
+    console.error("OAuth callback error:", e);
+    return c.html(<ErrorScreen 
+      message="GitHub認証中にエラーが発生しました" 
+      detail={`Error: ${e.message}\nStack: ${e.stack || "No stack trace available"}`}
+    />);
   }
 });
 
@@ -214,4 +235,4 @@ app.get("/auth/logout", (c) => {
   return c.redirect("/");
 });
 
-Deno.serve(app.fetch);
+Deno.serve({ port: 3333 }, app.fetch);
