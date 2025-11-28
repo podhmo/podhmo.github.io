@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from "hono";
-import { getCookie, setCookie, deleteCookie } from "hono/cookie";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { load } from "@std/dotenv";
 import type { FC, PropsWithChildren } from "hono/jsx";
 
@@ -18,7 +18,9 @@ const BASE_URL = Deno.env.get("BASE_URL") || "http://localhost:3333";
 const getPortFromBaseUrl = (baseUrl: string): number => {
   try {
     const url = new URL(baseUrl);
-    return url.port ? parseInt(url.port, 10) : (url.protocol === 'https:' ? 443 : 80);
+    return url.port
+      ? parseInt(url.port, 10)
+      : (url.protocol === "https:" ? 443 : 80);
   } catch {
     // URLのパースに失敗した場合は3333をデフォルトとする
     return 3333;
@@ -49,7 +51,8 @@ const Layout: FC<PropsWithChildren> = (props) => {
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
         />
-        <style>{`
+        <style>
+          {`
           /* モバイルファースト調整 */
           header {
             padding: 1rem 0;
@@ -67,9 +70,11 @@ const Layout: FC<PropsWithChildren> = (props) => {
             margin-bottom: 1rem;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
           }
-        `}</style>
-        <script dangerouslySetInnerHTML={{
-          __html: `
+        `}
+        </style>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
           // モバイルファースト ファイルアップロード機能
           document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.getElementById('file-input');
@@ -195,14 +200,18 @@ const Layout: FC<PropsWithChildren> = (props) => {
               });
             }
           });
-          `
-        }}></script>
+          `,
+          }}
+        >
+        </script>
       </head>
       <body>
         <header class="container">
           <nav>
             <ul>
-              <li><strong>GitHub Auth App</strong></li>
+              <li>
+                <strong>GitHub Auth App</strong>
+              </li>
             </ul>
           </nav>
         </header>
@@ -245,7 +254,7 @@ const ProfileScreen: FC<{ user: GitHubUser }> = ({ user }) => (
         </a>
       </div>
     </article>
-    
+
     <FileUploadForm />
   </Layout>
 );
@@ -253,95 +262,117 @@ const ProfileScreen: FC<{ user: GitHubUser }> = ({ user }) => (
 const FileUploadForm: FC = () => (
   <article>
     <header>📁 Gistにファイルをアップロード</header>
-    
+
     <div style={{ textAlign: "center", marginBottom: "1rem" }}>
-      <input 
-        type="file" 
-        id="file-input" 
-        multiple 
-        style={{ display: "none" }} 
+      <input
+        type="file"
+        id="file-input"
+        multiple
+        style={{ display: "none" }}
       />
-      <button 
-        type="button" 
-        onclick="document.getElementById('file-input').click()" 
+      <button
+        type="button"
+        onclick="document.getElementById('file-input').click()"
         class="contrast"
-        style={{ 
-          minHeight: "44px", 
-          fontSize: "1.1rem", 
-          padding: "0.75rem 1.5rem" 
+        style={{
+          minHeight: "44px",
+          fontSize: "1.1rem",
+          padding: "0.75rem 1.5rem",
         }}
       >
         📎 ファイルを選択（複数可）
       </button>
     </div>
-    
+
     <div id="file-preview" style={{ display: "none" }}>
       <h3>選択されたファイル</h3>
       <div id="file-list"></div>
       <div class="grid" style={{ marginTop: "1rem" }}>
-        <button 
-          id="upload-btn" 
-          type="button" 
+        <button
+          id="upload-btn"
+          type="button"
           class="contrast"
-          style={{ 
-            minHeight: "44px", 
-            fontSize: "1.1rem" 
+          style={{
+            minHeight: "44px",
+            fontSize: "1.1rem",
           }}
         >
           🚀 Gistを作成
         </button>
-        <button 
-          id="clear-btn" 
-          type="button" 
+        <button
+          id="clear-btn"
+          type="button"
           class="secondary outline"
-          style={{ 
-            minHeight: "44px", 
-            fontSize: "1rem" 
+          style={{
+            minHeight: "44px",
+            fontSize: "1rem",
           }}
         >
           🗑️ クリア
         </button>
       </div>
     </div>
-    
+
     <div id="upload-progress" style={{ display: "none" }}>
       <p>🚀 Gistを作成中...</p>
       <progress></progress>
     </div>
-    
+
     <div id="upload-result" style={{ display: "none" }}></div>
   </article>
 );
 
-const FilePreview: FC<{ fileName: string; size: number; content?: string }> = ({ fileName, size, content }) => (
-  <details style={{ marginBottom: "0.5rem", padding: "0.5rem", border: "1px solid var(--pico-muted-border-color)", borderRadius: "0.25rem" }}>
+const FilePreview: FC<{ fileName: string; size: number; content?: string }> = (
+  { fileName, size, content },
+) => (
+  <details
+    style={{
+      marginBottom: "0.5rem",
+      padding: "0.5rem",
+      border: "1px solid var(--pico-muted-border-color)",
+      borderRadius: "0.25rem",
+    }}
+  >
     <summary>
       <strong>{fileName}</strong> ({(size / 1024).toFixed(1)} KB)
     </summary>
     {content && (
-      <pre style={{ 
-        fontSize: "0.8em", 
-        background: "var(--pico-card-background-color)", 
-        padding: "0.5rem", 
-        borderRadius: "0.25rem", 
-        maxHeight: "200px", 
-        overflow: "auto" 
-      }}>
+      <pre
+        style={{
+          fontSize: "0.8em",
+          background: "var(--pico-card-background-color)",
+          padding: "0.5rem",
+          borderRadius: "0.25rem",
+          maxHeight: "200px",
+          overflow: "auto",
+        }}
+      >
         {content.length > 1000 ? content.substring(0, 1000) + "..." : content}
       </pre>
     )}
   </details>
 );
 
-const ErrorScreen: FC<{ message: string; detail?: string }> = ({ message, detail }) => (
+const ErrorScreen: FC<{ message: string; detail?: string }> = (
+  { message, detail },
+) => (
   <Layout>
     <article style={{ borderColor: "var(--pico-del-color)" }}>
       <header>⚠️ エラーが発生しました</header>
-      <p><strong>{message}</strong></p>
+      <p>
+        <strong>{message}</strong>
+      </p>
       {detail && (
         <details>
           <summary>詳細情報</summary>
-          <pre style={{ fontSize: "0.8em", background: "var(--pico-card-background-color)", padding: "1rem", borderRadius: "0.25rem" }}>
+          <pre
+            style={{
+              fontSize: "0.8em",
+              background: "var(--pico-card-background-color)",
+              padding: "1rem",
+              borderRadius: "0.25rem",
+            }}
+          >
             {detail}
           </pre>
         </details>
@@ -357,7 +388,7 @@ const ErrorScreen: FC<{ message: string; detail?: string }> = ({ message, detail
 
 app.get("/", (c) => {
   const userCookie = getCookie(c, "user_session");
-  
+
   if (userCookie) {
     try {
       const user = JSON.parse(userCookie) as GitHubUser;
@@ -371,7 +402,9 @@ app.get("/", (c) => {
 });
 
 app.get("/auth/login", (c) => {
-  if (!CLIENT_ID) return c.html(<ErrorScreen message="GITHUB_CLIENT_ID is not set" />, 500);
+  if (!CLIENT_ID) {
+    return c.html(<ErrorScreen message="GITHUB_CLIENT_ID is not set" />, 500);
+  }
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -379,39 +412,53 @@ app.get("/auth/login", (c) => {
     redirect_uri: `${BASE_URL}/auth/callback`,
   });
 
-  return c.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
+  return c.redirect(
+    `https://github.com/login/oauth/authorize?${params.toString()}`,
+  );
 });
 
 app.get("/auth/callback", async (c) => {
   const code = c.req.query("code");
   const error = c.req.query("error");
   const errorDescription = c.req.query("error_description");
-  
+
   if (error) {
-    return c.html(<ErrorScreen 
-      message={`GitHub認証エラー: ${error}`}
-      detail={errorDescription || "詳細なエラー情報は提供されていません"}
-    />);
+    return c.html(
+      <ErrorScreen
+        message={`GitHub認証エラー: ${error}`}
+        detail={errorDescription || "詳細なエラー情報は提供されていません"}
+      />,
+    );
   }
-  
-  if (!code) return c.html(<ErrorScreen message="認証コードが見つかりませんでした" />);
-  if (!CLIENT_ID || !CLIENT_SECRET) return c.html(<ErrorScreen message="Server configuration error: GitHub OAuth credentials not set" />, 500);
+
+  if (!code) {
+    return c.html(<ErrorScreen message="認証コードが見つかりませんでした" />);
+  }
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    return c.html(
+      <ErrorScreen message="Server configuration error: GitHub OAuth credentials not set" />,
+      500,
+    );
+  }
 
   try {
     // 1. Access Tokenの取得
-    const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
+    const tokenRes = await fetch(
+      "https://github.com/login/oauth/access_token",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          client_id: CLIENT_ID,
+          client_secret: CLIENT_SECRET,
+          code,
+        }),
       },
-      body: JSON.stringify({
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        code,
-      }),
-    });
-    
+    );
+
     const tokenData = await tokenRes.json();
     if (tokenData.error) throw new Error(tokenData.error_description);
 
@@ -429,7 +476,7 @@ app.get("/auth/callback", async (c) => {
     if (!userRes.ok) throw new Error("Failed to fetch user data");
 
     const userData = await userRes.json();
-    
+
     // 必要な情報だけ抽出（アクセストークンも含める）
     const user: GitHubUser & { access_token: string } = {
       login: userData.login,
@@ -448,13 +495,16 @@ app.get("/auth/callback", async (c) => {
     });
 
     return c.redirect("/");
-
   } catch (e: any) {
     console.error("OAuth callback error:", e);
-    return c.html(<ErrorScreen 
-      message="GitHub認証中にエラーが発生しました" 
-      detail={`Error: ${e.message}\nStack: ${e.stack || "No stack trace available"}`}
-    />);
+    return c.html(
+      <ErrorScreen
+        message="GitHub認証中にエラーが発生しました"
+        detail={`Error: ${e.message}\nStack: ${
+          e.stack || "No stack trace available"
+        }`}
+      />,
+    );
   }
 });
 
@@ -482,21 +532,24 @@ app.post("/api/gist/create", async (c) => {
     // multipart/form-dataからファイルを取得
     const body = await c.req.parseBody();
     const files = body.files;
-    
+
     if (!files) {
       return c.json({ success: false, error: "ファイルが見つかりません" }, 400);
     }
 
     // ファイル配列に変換
     const fileArray = Array.isArray(files) ? files : [files];
-    
+
     if (fileArray.length === 0) {
-      return c.json({ success: false, error: "ファイルが選択されていません" }, 400);
+      return c.json(
+        { success: false, error: "ファイルが選択されていません" },
+        400,
+      );
     }
 
     // Gist用のファイルオブジェクトを作成
     const gistFiles: Record<string, { content: string }> = {};
-    
+
     for (const file of fileArray) {
       if (file instanceof File) {
         const content = await file.text();
@@ -505,14 +558,17 @@ app.post("/api/gist/create", async (c) => {
     }
 
     if (Object.keys(gistFiles).length === 0) {
-      return c.json({ success: false, error: "有効なファイルが見つかりません" }, 400);
+      return c.json(
+        { success: false, error: "有効なファイルが見つかりません" },
+        400,
+      );
     }
 
     // GitHub APIでGistを作成
     const gistData = {
       description: `Uploaded via Gist Uploader - ${new Date().toISOString()}`,
       public: false,
-      files: gistFiles
+      files: gistFiles,
     };
 
     const gistResponse = await fetch("https://api.github.com/gists", {
@@ -521,39 +577,40 @@ app.post("/api/gist/create", async (c) => {
         "Authorization": `Bearer ${getAccessTokenFromUser(user as any)}`,
         "Accept": "application/vnd.github.v3+json",
         "Content-Type": "application/json",
-        "User-Agent": "Gist-Uploader"
+        "User-Agent": "Gist-Uploader",
       },
-      body: JSON.stringify(gistData)
+      body: JSON.stringify(gistData),
     });
 
     if (!gistResponse.ok) {
       const error = await gistResponse.text();
       console.error("GitHub API error:", error);
-      return c.json({ 
-        success: false, 
-        error: `GitHub API エラー (HTTP ${gistResponse.status})` 
+      return c.json({
+        success: false,
+        error: `GitHub API エラー (HTTP ${gistResponse.status})`,
       }, 500);
     }
 
     const gistResult = await gistResponse.json();
-    
+
     return c.json({
       success: true,
       gist_url: gistResult.html_url,
-      gist_id: gistResult.id
+      gist_id: gistResult.id,
     });
-
   } catch (error: any) {
     console.error("Gist creation error:", error);
     return c.json({
       success: false,
-      error: error.message || "Gist作成中にエラーが発生しました"
+      error: error.message || "Gist作成中にエラーが発生しました",
     }, 500);
   }
 });
 
 // アクセストークンを取得する関数
-function getAccessTokenFromUser(userWithToken: GitHubUser & { access_token?: string }): string {
+function getAccessTokenFromUser(
+  userWithToken: GitHubUser & { access_token?: string },
+): string {
   if (!userWithToken.access_token) {
     throw new Error("Access token not found in user session");
   }

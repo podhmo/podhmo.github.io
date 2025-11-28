@@ -26,7 +26,7 @@ Deno.test("File upload form - multiple files handling", () => {
   const testFiles = [
     new MockFile("test1.txt", "Hello World"),
     new MockFile("test2.js", "console.log('test');"),
-    new MockFile("README.md", "# Test Project\n\nThis is a test.")
+    new MockFile("README.md", "# Test Project\n\nThis is a test."),
   ];
 
   // ファイル名が正しく取得できることを確認
@@ -58,12 +58,16 @@ Deno.test("File content processing", async () => {
     }
   }
 
-  const testFile = new MockFile("sample.json", '{"name": "test", "value": 123}', "application/json");
-  
+  const testFile = new MockFile(
+    "sample.json",
+    '{"name": "test", "value": 123}',
+    "application/json",
+  );
+
   // ファイル内容が正しく読み取れることを確認
   const content = await testFile.text();
   assertEquals(content, '{"name": "test", "value": 123}');
-  
+
   // JSONとしてパースできることを確認
   const parsed = JSON.parse(content);
   assertEquals(parsed.name, "test");
@@ -75,26 +79,26 @@ Deno.test("Gist API payload structure", () => {
   const mockFiles = {
     "test1.txt": { content: "Hello World" },
     "script.js": { content: "console.log('Hello');" },
-    "README.md": { content: "# Test\nThis is a test file." }
+    "README.md": { content: "# Test\nThis is a test file." },
   };
 
   const gistPayload = {
     description: "Test gist created via uploader",
     public: false,
-    files: mockFiles
+    files: mockFiles,
   };
 
   // ペイロード構造が正しいことを確認
   assertExists(gistPayload.description);
   assertEquals(gistPayload.public, false);
   assertExists(gistPayload.files);
-  
+
   // ファイル構造が正しいことを確認
   assertEquals(Object.keys(gistPayload.files).length, 3);
   assertExists(gistPayload.files["test1.txt"]);
   assertExists(gistPayload.files["script.js"]);
   assertExists(gistPayload.files["README.md"]);
-  
+
   assertEquals(gistPayload.files["test1.txt"].content, "Hello World");
 });
 
@@ -120,9 +124,11 @@ Deno.test("File type validation", () => {
 
   testCases.forEach(({ filename, expectedText }) => {
     assertEquals(
-      isTextFile(filename), 
-      expectedText, 
-      `File ${filename} should ${expectedText ? 'be' : 'not be'} treated as text`
+      isTextFile(filename),
+      expectedText,
+      `File ${filename} should ${
+        expectedText ? "be" : "not be"
+      } treated as text`,
     );
   });
 });
@@ -143,9 +149,9 @@ Deno.test("Error handling for API responses", () => {
   const successResponse = {
     success: true,
     gist_url: "https://gist.github.com/user/123456",
-    gist_id: "123456"
+    gist_id: "123456",
   };
-  
+
   assertEquals(successResponse.success, true);
   assertExists(successResponse.gist_url);
   assertExists(successResponse.gist_id);
@@ -153,9 +159,9 @@ Deno.test("Error handling for API responses", () => {
   // エラーレスポンス
   const errorResponse = {
     success: false,
-    error: "認証が必要です"
+    error: "認証が必要です",
   };
-  
+
   assertEquals(errorResponse.success, false);
   assertExists(errorResponse.error);
   assertEquals(errorResponse.error, "認証が必要です");
