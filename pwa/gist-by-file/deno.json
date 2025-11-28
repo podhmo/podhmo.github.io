@@ -5,7 +5,8 @@
   },
   "tasks": {
     "dev": "deno run -A --watch main.tsx",
-    "start": "deno run -A main.tsx"
+    "start": "deno run -A main.tsx",
+    "test": "deno test -A test.ts"
   },
   "compilerOptions": {
     "jsx": "precompile",

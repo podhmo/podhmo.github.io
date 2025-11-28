@@ -68,6 +68,127 @@ const Layout: FC<PropsWithChildren> = (props) => {
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
           }
         `}</style>
+        <script>{`
+          // モバイルファースト ファイルアップロード機能
+          document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('file-input');
+            const filePreview = document.getElementById('file-preview');
+            const fileList = document.getElementById('file-list');
+            const uploadBtn = document.getElementById('upload-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const uploadProgress = document.getElementById('upload-progress');
+            const uploadResult = document.getElementById('upload-result');
+            
+            let selectedFiles = [];
+            
+            // ファイル選択イベント
+            fileInput && fileInput.addEventListener('change', handleFileSelect, false);
+            
+            function handleFileSelect(e) {
+              const files = e.target.files;
+              handleFiles(files);
+            }
+            
+            async function handleFiles(files) {
+              selectedFiles = Array.from(files);
+              await displayFiles();
+            }
+            
+            async function displayFiles() {
+              if (selectedFiles.length === 0) {
+                filePreview.style.display = 'none';
+                return;
+              }
+              
+              fileList.innerHTML = '';
+              
+              for (const file of selectedFiles) {
+                const fileDiv = document.createElement('div');
+                let content = '';
+                
+                // テキストファイルの場合は内容を読み取り
+                if (file.type.startsWith('text/') || file.name.match(/\\.(js|ts|jsx|tsx|py|md|txt|json|html|css)$/i)) {
+                  try {
+                    content = await file.text();
+                  } catch (e) {
+                    content = '[ファイルを読み取れませんでした]';
+                  }
+                }
+                
+                fileDiv.innerHTML = \`
+                  <details style="margin-bottom: 0.5rem; padding: 0.5rem; border: 1px solid var(--pico-muted-border-color); border-radius: 0.25rem;">
+                    <summary><strong>\${file.name}</strong> (\${(file.size / 1024).toFixed(1)} KB)</summary>
+                    \${content ? '<pre style="font-size: 0.8em; background: var(--pico-card-background-color); padding: 0.5rem; border-radius: 0.25rem; max-height: 200px; overflow: auto;">' + (content.length > 1000 ? content.substring(0, 1000) + '...' : content) + '</pre>' : '<p>バイナリファイル</p>'}
+                  </details>
+                \`;
+                fileList.appendChild(fileDiv);
+              }
+              
+              filePreview.style.display = 'block';
+            }
+            
+            // クリアボタン
+            clearBtn && clearBtn.addEventListener('click', function() {
+              selectedFiles = [];
+              fileInput.value = '';
+              filePreview.style.display = 'none';
+              uploadResult.style.display = 'none';
+            });
+            
+            // アップロードボタン
+            uploadBtn && uploadBtn.addEventListener('click', async function() {
+              if (selectedFiles.length === 0) return;
+              
+              const formData = new FormData();
+              selectedFiles.forEach(file => {
+                formData.append('files', file);
+              });
+              
+              try {
+                uploadProgress.style.display = 'block';
+                uploadResult.style.display = 'none';
+                
+                const response = await fetch('/api/gist/create', {
+                  method: 'POST',
+                  body: formData
+                });
+                
+                const result = await response.json();
+                
+                uploadProgress.style.display = 'none';
+                uploadResult.style.display = 'block';
+                
+                if (result.success) {
+                  uploadResult.innerHTML = \`
+                    <article style="border-color: var(--pico-ins-color);">
+                      <header>✅ Gistの作成が完了しました！</header>
+                      <p><a href="\${result.gist_url}" target="_blank">\${result.gist_url}</a></p>
+                      <footer>
+                        <button onclick="navigator.clipboard && navigator.clipboard.writeText('\${result.gist_url}')" class="outline">URLをコピー</button>
+                      </footer>
+                    </article>
+                  \`;
+                } else {
+                  uploadResult.innerHTML = \`
+                    <article style="border-color: var(--pico-del-color);">
+                      <header>❌ エラーが発生しました</header>
+                      <p>\${result.error || 'Gistの作成に失敗しました'}</p>
+                    </article>
+                  \`;
+                }
+              } catch (error) {
+                uploadProgress.style.display = 'none';
+                uploadResult.style.display = 'block';
+                uploadResult.innerHTML = \`
+                  <article style="border-color: var(--pico-del-color);">
+                    <header>❌ ネットワークエラー</header>
+                    <p>\${error.message}</p>
+                  </article>
+                \`;
+              }
+            });
+          });
+        `}</script>
       </head>
       <body>
         <header class="container">
@@ -116,7 +237,92 @@ const ProfileScreen: FC<{ user: GitHubUser }> = ({ user }) => (
         </a>
       </div>
     </article>
+    
+    <FileUploadForm />
   </Layout>
+);
+
+const FileUploadForm: FC = () => (
+  <article>
+    <header>📁 Gistにファイルをアップロード</header>
+    
+    <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+      <input 
+        type="file" 
+        id="file-input" 
+        multiple 
+        style={{ display: "none" }} 
+      />
+      <button 
+        type="button" 
+        onclick="document.getElementById('file-input').click()" 
+        class="contrast"
+        style={{ 
+          minHeight: "44px", 
+          fontSize: "1.1rem", 
+          padding: "0.75rem 1.5rem" 
+        }}
+      >
+        📎 ファイルを選択（複数可）
+      </button>
+    </div>
+    
+    <div id="file-preview" style={{ display: "none" }}>
+      <h3>選択されたファイル</h3>
+      <div id="file-list"></div>
+      <div class="grid" style={{ marginTop: "1rem" }}>
+        <button 
+          id="upload-btn" 
+          type="button" 
+          class="contrast"
+          style={{ 
+            minHeight: "44px", 
+            fontSize: "1.1rem" 
+          }}
+        >
+          🚀 Gistを作成
+        </button>
+        <button 
+          id="clear-btn" 
+          type="button" 
+          class="secondary outline"
+          style={{ 
+            minHeight: "44px", 
+            fontSize: "1rem" 
+          }}
+        >
+          🗑️ クリア
+        </button>
+      </div>
+    </div>
+    
+    <div id="upload-progress" style={{ display: "none" }}>
+      <p>🚀 Gistを作成中...</p>
+      <progress></progress>
+    </div>
+    
+    <div id="upload-result" style={{ display: "none" }}></div>
+  </article>
+);
+
+const FilePreview: FC<{ fileName: string; size: number; content?: string }> = ({ fileName, size, content }) => (
+  <details style={{ marginBottom: "0.5rem", padding: "0.5rem", border: "1px solid var(--pico-muted-border-color)", borderRadius: "0.25rem" }}>
+    <summary>
+      <strong>{fileName}</strong> ({(size / 1024).toFixed(1)} KB)
+    </summary>
+    {content && (
+      <pre style={{ 
+        fontSize: "0.8em", 
+        background: "var(--pico-card-background-color)", 
+        padding: "0.5rem", 
+        borderRadius: "0.25rem", 
+        maxHeight: "200px", 
+        overflow: "auto" 
+      }}>
+        {content.length > 1000 ? content.substring(0, 1000) + "..." : content}
+      </pre>
+    )}
+  </details>
 );
 
 const ErrorScreen: FC<{ message: string; detail?: string }> = ({ message, detail }) => (
@@ -161,7 +367,7 @@ app.get("/auth/login", (c) => {
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
-    scope: "read:user",
+    scope: "read:user,gist",
     redirect_uri: `${BASE_URL}/auth/callback`,
   });
 
@@ -216,12 +422,13 @@ app.get("/auth/callback", async (c) => {
 
     const userData = await userRes.json();
     
-    // 必要な情報だけ抽出
-    const user: GitHubUser = {
+    // 必要な情報だけ抽出（アクセストークンも含める）
+    const user: GitHubUser & { access_token: string } = {
       login: userData.login,
       avatar_url: userData.avatar_url,
       name: userData.name,
       html_url: userData.html_url,
+      access_token: accessToken,
     };
 
     // 3. Cookieに保存 (本番ではセッションIDのみを保存し、データはDB/KVに入れることを推奨)
@@ -247,5 +454,102 @@ app.get("/auth/logout", (c) => {
   deleteCookie(c, "user_session");
   return c.redirect("/");
 });
+
+// Gist作成API
+app.post("/api/gist/create", async (c) => {
+  // ユーザー認証確認
+  const userCookie = getCookie(c, "user_session");
+  if (!userCookie) {
+    return c.json({ success: false, error: "認証が必要です" }, 401);
+  }
+
+  let user: GitHubUser;
+  try {
+    user = JSON.parse(userCookie);
+  } catch {
+    return c.json({ success: false, error: "認証情報が不正です" }, 401);
+  }
+
+  try {
+    // multipart/form-dataからファイルを取得
+    const body = await c.req.parseBody();
+    const files = body.files;
+    
+    if (!files) {
+      return c.json({ success: false, error: "ファイルが見つかりません" }, 400);
+    }
+
+    // ファイル配列に変換
+    const fileArray = Array.isArray(files) ? files : [files];
+    
+    if (fileArray.length === 0) {
+      return c.json({ success: false, error: "ファイルが選択されていません" }, 400);
+    }
+
+    // Gist用のファイルオブジェクトを作成
+    const gistFiles: Record<string, { content: string }> = {};
+    
+    for (const file of fileArray) {
+      if (file instanceof File) {
+        const content = await file.text();
+        gistFiles[file.name] = { content };
+      }
+    }
+
+    if (Object.keys(gistFiles).length === 0) {
+      return c.json({ success: false, error: "有効なファイルが見つかりません" }, 400);
+    }
+
+    // GitHub APIでGistを作成
+    const gistData = {
+      description: `Uploaded via Gist Uploader - ${new Date().toISOString()}`,
+      public: false,
+      files: gistFiles
+    };
+
+    const gistResponse = await fetch("https://api.github.com/gists", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${getAccessTokenFromUser(user as any)}`,
+        "Accept": "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+        "User-Agent": "Gist-Uploader"
+      },
+      body: JSON.stringify(gistData)
+    });
+
+    if (!gistResponse.ok) {
+      const error = await gistResponse.text();
+      console.error("GitHub API error:", error);
+      return c.json({ 
+        success: false, 
+        error: `GitHub API エラー (HTTP ${gistResponse.status})` 
+      }, 500);
+    }
+
+    const gistResult = await gistResponse.json();
+    
+    return c.json({
+      success: true,
+      gist_url: gistResult.html_url,
+      gist_id: gistResult.id
+    });
+
+  } catch (error: any) {
+    console.error("Gist creation error:", error);
+    return c.json({
+      success: false,
+      error: error.message || "Gist作成中にエラーが発生しました"
+    }, 500);
+  }
+});
+
+// アクセストークンを取得する関数
+function getAccessTokenFromUser(userWithToken: GitHubUser & { access_token?: string }): string {
+  if (!userWithToken.access_token) {
+    throw new Error("Access token not found in user session");
+  }
+  return userWithToken.access_token;
+}
 
 Deno.serve({ port: PORT }, app.fetch);

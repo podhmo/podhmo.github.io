@@ -32,6 +32,40 @@ deno task dev
 
 ブラウザで `http://localhost:3333` にアクセスしてください。
 
+## 開発状況
+
+プロジェクトの進行状況と今後のタスクについては [TODO.md](./TODO.md) を参照してください。
+
+## 開発ガイドライン
+
+### 依存関係管理ルール
+
+**重要**: 以下の優先順位に従って依存関係を管理してください：
+
+1. **JSR標準ライブラリを優先**: `jsr:@std/*` からのimportを最優先
+2. **JSRレジストリを活用**: 可能な限り `jsr:@namespace/package` を使用
+3. **npm fallback**: JSRで見つからない場合のみ `npm:package-name` を使用
+4. **禁止事項**: `https://deno.land/x/` からの直接importは**絶対に禁止**
+
+### プロジェクト構成ルール
+
+- **複数ファイルプロジェクト**: `deno.json` で依存関係を管理（現在の構成）
+- **単一ファイルプロジェクト**: `deno.json` を作らず、import時に直接バージョン指定
+
+```typescript
+// ✅ 推奨: JSR標準ライブラリ
+import { load } from "jsr:@std/dotenv@^0.220.0";
+
+// ✅ 推奨: JSRパッケージ
+import { Hono } from "jsr:@hono/hono@^4.1.0";
+
+// ⚠️ 許可: JSRで見つからない場合のみ
+import { somePackage } from "npm:package-name@^1.0.0";
+
+// ❌ 禁止: deno.land/x からの直接import
+import { someLib } from "https://deno.land/x/somelib@v1.0.0/mod.ts";
+```
+
 ## 構成について
 
 - **deno.json**: 依存関係管理（JSR使用）とタスクランナー設定。

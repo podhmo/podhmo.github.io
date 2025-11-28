@@ -1,0 +1,11 @@
+Hello from Gist Uploader!
+
+This is a test file to demonstrate the file upload functionality.
+
+Features tested:
+- Multiple file upload
+- File content preview  
+- Gist creation via GitHub API
+- Mobile-first UI
+
+Created at: 2025-11-28
