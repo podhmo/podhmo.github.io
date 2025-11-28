@@ -72,9 +72,8 @@ const Layout: FC<PropsWithChildren> = (props) => {
           }
         `}
         </style>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
+        <script dangerouslySetInnerHTML={{
+          __html: `
           // モバイルファースト ファイルアップロード機能
           document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.getElementById('file-input');
@@ -200,10 +199,8 @@ const Layout: FC<PropsWithChildren> = (props) => {
               });
             }
           });
-          `,
-          }}
-        >
-        </script>
+          `
+        }} />
       </head>
       <body>
         <header class="container">
@@ -617,4 +614,10 @@ function getAccessTokenFromUser(
   return userWithToken.access_token;
 }
 
-Deno.serve({ port: PORT }, app.fetch);
+// アプリケーションをexport（Deno Deploy用）
+export { app };
+
+// 直接実行時のみサーバー起動（ローカル開発用）
+if (import.meta.main) {
+  Deno.serve({ port: PORT }, app.fetch);
+}

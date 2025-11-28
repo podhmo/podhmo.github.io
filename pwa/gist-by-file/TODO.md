@@ -44,10 +44,25 @@
   - [ ] エラーケースのテスト
   - [ ] 複数ファイル同時アップロードテスト
 
-## 未着手 📋
+## 完了 ✅
+
+### Deno Deploy 移行（plan-deno-deploy.md参照）
+- [x] Phase 1: 現在の問題修正（15分予定）
+  - [x] JSXエラー修正（dangerouslySetInnerHTML競合解決）
+  - [x] 環境変数確認
+- [x] Phase 2: Deno Deploy対応（20分予定）
+  - [x] deployctl セットアップ
+  - [x] デプロイ設定ファイル作成（deploy.ts）
+  - [x] ローカルテスト完了
+- [x] Phase 3: デプロイとテスト（15分予定）
+  - [x] 環境変数設定（Deno Deploy Dashboard）
+  - [x] 実際のデプロイ実行
+  - [x] 公開URLでの動作確認（基本アクセス）
+  - [x] BASE_URL設定の最終調整
+
+## 完了 ✅
 
 ### 必要な変更・準備
-
 - [x] GitHub OAuth scopeを`read:user,gist`に変更
 - [x] 複数ファイル対応のGist作成機能
 - [x] プログレス表示機能

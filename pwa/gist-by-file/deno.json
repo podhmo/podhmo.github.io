@@ -6,10 +6,16 @@
   "tasks": {
     "dev": "deno run -A --watch main.tsx",
     "start": "deno run -A main.tsx",
-    "test": "deno test -A test.ts"
+    "test": "deno test -A test.ts",
+    "deploy:test": "deno run -A deploy.ts",
+    "deploy": "deployctl deploy --project=podhmo-gist-uploader deploy.ts"
   },
   "compilerOptions": {
     "jsx": "precompile",
     "jsxImportSource": "hono/jsx"
+  },
+  "deploy": {
+    "org": "podhmo",
+    "app": "healthy-ape-14"
   }
 }

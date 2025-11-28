@@ -1,8 +1,25 @@
-# Hono GitHub OAuth Login (Deno)
+# Gist File Uploader
 
-GitHubアカウントを使用してログインし、プロフィールを表示するシンプルなアプリケーションです。
-UIフレームワークに **Pico CSS v2** を採用し、**Hono JSX**
-でレンダリングしています。
+**スマホのクリップボード制限を回避してGistにファイルアップロードするWebアプリケーション**
+
+GitHubアカウントでログインし、複数ファイルを選択してGistに直接アップロードできます。
+モバイルファースト設計で、スマートフォンからも快適に利用できます。
+
+## 主な機能
+
+- 🔐 **GitHub OAuth認証**: GitHubアカウントでログイン
+- 📁 **複数ファイル対応**: 一度に複数のファイルをアップロード
+- 📱 **モバイルファースト**: スマートフォン最適化UI
+- ⚡ **即座にGist作成**: 選択したファイルから自動でGist生成
+- 🔗 **URL自動コピー**: 作成されたGist URLをワンクリックでコピー
+- 💻 **プレビュー機能**: テキストファイルの内容を事前確認
+
+## 技術スタック
+
+- **ランタイム**: Deno
+- **フレームワーク**: Hono + JSX
+- **UI**: Pico CSS v2（モバイルファースト）
+- **デプロイ**: Deno Deploy（世界中のエッジで配信）
 
 ## 必要要件
 
@@ -12,19 +29,22 @@ UIフレームワークに **Pico CSS v2** を採用し、**Hono JSX**
 
 1. **GitHub OAuth App の作成**
    - GitHub Developer Settings から OAuth App を作成します。
-   - **Authorization callback URL** に `http://localhost:8000/auth/callback`
-     を設定します。
+   - **Authorization callback URL** に `http://localhost:3333/auth/callback` を設定します。
 
-2. **環境変数の設定** プロジェクトルートに `.env`
-   ファイルを作成し、以下の情報を記述します。
+2. **環境変数の設定**
+   プロジェクトルートに `.env` ファイルを作成し、以下の情報を記述します。
 
    ```env
    GITHUB_CLIENT_ID=your_client_id
    GITHUB_CLIENT_SECRET=your_client_secret
-   BASE_URL=http://localhost:8000
+   BASE_URL=http://localhost:3333
    ```
 
+   **必要なGitHub OAuth scopes**: `read:user,gist`
+
 ## 実行方法
+
+### ローカル開発
 
 以下のコマンドで開発サーバーを起動します。
 
@@ -33,6 +53,20 @@ deno task dev
 ```
 
 ブラウザで `http://localhost:3333` にアクセスしてください。
+
+## 使い方
+
+1. **ログイン**: GitHubアカウントでログイン
+2. **ファイル選択**: 「ファイルを選択」ボタンから複数ファイルを選択
+3. **プレビュー**: 選択されたファイルの内容を確認
+4. **Gist作成**: 「Gistを作成」ボタンでアップロード
+5. **URL取得**: 作成されたGist URLをコピーして共有
+
+## 対応ファイル形式
+
+- **テキストファイル**: `.js`, `.ts`, `.jsx`, `.tsx`, `.py`, `.md`, `.txt`, `.json`, `.html`, `.css` など
+- **バイナリファイル**: 画像や実行ファイルなども対応
+- **複数ファイル**: 一度に複数のファイルを選択可能
 
 ## 開発状況
 
