@@ -93,6 +93,7 @@ const Layout: FC<PropsWithChildren> = (props) => {
               // URLからGist IDを抽出
               // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7
               // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7#file-c2pa-md
+              // 注意: このパターンはサーバー側のバリデーション(line 649)と一致させる必要があります
               const match = url.match(/gist\\.github\\.com\\/[^\\/]+\\/([a-fA-F0-9]+)/);
               return match ? match[1] : null;
             }
@@ -191,6 +192,13 @@ const Layout: FC<PropsWithChildren> = (props) => {
               }
               
               try {
+                // プログレステキストを更新
+                const action = gistId ? '更新' : '作成';
+                const progressText = document.getElementById('upload-progress-text');
+                if (progressText) {
+                  progressText.textContent = \`🚀 Gistを\${action}中...\`;
+                }
+                
                 uploadProgress.style.display = 'block';
                 uploadResult.style.display = 'none';
                 
@@ -205,7 +213,6 @@ const Layout: FC<PropsWithChildren> = (props) => {
                 uploadResult.style.display = 'block';
                 
                 if (result.success) {
-                  const action = gistId ? '更新' : '作成';
                   uploadResult.innerHTML = \`
                     <article style="border-color: var(--pico-ins-color);">
                       <header>✅ Gistの\${action}が完了しました！</header>
@@ -648,7 +655,8 @@ app.post("/api/gist/create", async (c) => {
     // Gist IDがある場合は更新、ない場合は作成
     const isUpdate = gistId && gistId.trim() !== '';
     
-    // Gist IDの検証（英数字のみ許可）
+    // Gist IDの検証（16進数文字のみ許可）
+    // 注意: このパターンはクライアント側の extractGistId (line 96) と一致させる必要があります
     if (isUpdate && !/^[a-fA-F0-9]+$/.test(gistId!)) {
       return c.json(
         { success: false, error: "無効なGist IDです" },
