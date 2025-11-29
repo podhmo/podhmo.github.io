@@ -355,6 +355,22 @@ function showError(message) {
 
 
 /**
+ * テキストがバッククォートで始まる場合に適切なフォーマットを適用する
+ * @param {string} text - フォーマットする元のテキスト
+ * @param {string} prefix - テキストの前に付けるプレフィックス (例: "ユーザー:", "AI:")
+ * @returns {string} - フォーマット済みのテキスト
+ */
+function formatTextWithBacktickHandling(text, prefix) {
+    const trimmedText = text.trim();
+    // バッククォートで始まる場合は先頭に追加の改行を入れる
+    const needsLeadingNewline = trimmedText.startsWith('`');
+    if (needsLeadingNewline) {
+        return `${prefix}\n\n${trimmedText}`;
+    }
+    return `${prefix}\n${trimmedText}`;
+}
+
+/**
  * チャット履歴をMarkdown形式にフォーマットする関数
  * @param {object} chatHistory - チャット履歴オブジェクト
  * @param {MarkdownConversionOptions} options - Markdown変換オプション
@@ -384,13 +400,7 @@ function formatChatHistoryToMarkdown(
                 // ユーザーの入力が空の場合はスキップ
                 return;
             }
-            // バッククォートで始まる場合は先頭に改行を追加
-            const trimmedUserText = chunk.text.trim();
-            const userNeedsLeadingNewline = trimmedUserText.startsWith('`');
-            const userTextFormatted = userNeedsLeadingNewline 
-                ? `\n${trimmedUserText}` 
-                : trimmedUserText;
-            outputParts.push(`${userName}:${userTextFormatted}`);
+            outputParts.push(formatTextWithBacktickHandling(chunk.text, `${userName}:`));
             if (index < userChunks.length - 1) {
                 outputParts.push("\n\n---\n\n");
             } else {
@@ -424,15 +434,9 @@ function formatChatHistoryToMarkdown(
                 }
 
                 // Userブロックを追加
-                // バッククォートで始まる場合は先頭に改行を追加
-                const trimmedUserText = chunk.text.trim();
-                const userNeedsLeadingNewline = trimmedUserText.startsWith('`');
-                const userTextFormatted = userNeedsLeadingNewline 
-                    ? `\n${trimmedUserText}` 
-                    : trimmedUserText;
                 displayBlocks.push({
                     type: "user",
-                    content: [`${userName}:${userTextFormatted}`],
+                    content: [formatTextWithBacktickHandling(chunk.text, `${userName}:`)],
                 });
             } else if (chunk.role === "model") {
                 if (chunk.isThought) {
@@ -469,14 +473,8 @@ function formatChatHistoryToMarkdown(
                     ) {
                         // currentAiBlockContent.push(""); // AIの返答の前に空行は不要かもしれない
                     }
-                    // バッククォートで始まる場合は先頭に改行を追加
-                    const trimmedText = chunk.text.trimEnd();
-                    const needsLeadingNewline = trimmedText.startsWith('`');
-                    const textWithProperFormatting = needsLeadingNewline 
-                        ? `\n${trimmedText}` 
-                        : trimmedText;
                     currentAiBlockContent.push(
-                        `${aiName}:${textWithProperFormatting}`,
+                        formatTextWithBacktickHandling(chunk.text, `${aiName}:`),
                     );
                      if (chunk.finishReason) { // 返答の後にfinishReasonがある場合
                          currentAiBlockContent.push(`\n(返答終了理由: ${chunk.finishReason})`);
