@@ -384,7 +384,13 @@ function formatChatHistoryToMarkdown(
                 // ユーザーの入力が空の場合はスキップ
                 return;
             }
-            outputParts.push(`${userName}:\n${chunk.text.trim()}`);
+            // バッククォートで始まる場合は先頭に改行を追加
+            const trimmedUserText = chunk.text.trim();
+            const userNeedsLeadingNewline = trimmedUserText.startsWith('`');
+            const userTextFormatted = userNeedsLeadingNewline 
+                ? `\n${trimmedUserText}` 
+                : trimmedUserText;
+            outputParts.push(`${userName}:${userTextFormatted}`);
             if (index < userChunks.length - 1) {
                 outputParts.push("\n\n---\n\n");
             } else {
@@ -418,9 +424,15 @@ function formatChatHistoryToMarkdown(
                 }
 
                 // Userブロックを追加
+                // バッククォートで始まる場合は先頭に改行を追加
+                const trimmedUserText = chunk.text.trim();
+                const userNeedsLeadingNewline = trimmedUserText.startsWith('`');
+                const userTextFormatted = userNeedsLeadingNewline 
+                    ? `\n${trimmedUserText}` 
+                    : trimmedUserText;
                 displayBlocks.push({
                     type: "user",
-                    content: [`${userName}:\n${chunk.text.trim()}`],
+                    content: [`${userName}:${userTextFormatted}`],
                 });
             } else if (chunk.role === "model") {
                 if (chunk.isThought) {
@@ -457,8 +469,14 @@ function formatChatHistoryToMarkdown(
                     ) {
                         // currentAiBlockContent.push(""); // AIの返答の前に空行は不要かもしれない
                     }
+                    // バッククォートで始まる場合は先頭に改行を追加
+                    const trimmedText = chunk.text.trimEnd();
+                    const needsLeadingNewline = trimmedText.startsWith('`');
+                    const textWithProperFormatting = needsLeadingNewline 
+                        ? `\n${trimmedText}` 
+                        : trimmedText;
                     currentAiBlockContent.push(
-                        `${aiName}:\n${chunk.text.trimEnd()}`,
+                        `${aiName}:${textWithProperFormatting}`,
                     );
                      if (chunk.finishReason) { // 返答の後にfinishReasonがある場合
                          currentAiBlockContent.push(`\n(返答終了理由: ${chunk.finishReason})`);
