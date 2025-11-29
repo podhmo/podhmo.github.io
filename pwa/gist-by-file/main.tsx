@@ -93,7 +93,7 @@ const Layout: FC<PropsWithChildren> = (props) => {
               // URLからGist IDを抽出
               // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7
               // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7#file-c2pa-md
-              const match = url.match(/gist\\.github\\.com\\/[^\\/]+\\/([a-f0-9]+)/);
+              const match = url.match(/gist\\.github\\.com\\/[^\\/]+\\/([a-fA-F0-9]+)/);
               return match ? match[1] : null;
             }
             
@@ -298,7 +298,7 @@ const FileUploadForm: FC = () => (
     <header>📁 Gistにファイルをアップロード</header>
 
     <div style={{ marginBottom: "1rem" }}>
-      <label for="gist-url-input">
+      <label htmlFor="gist-url-input">
         🔗 Gist URL（更新する場合のみ入力）
         <input
           type="text"
@@ -647,6 +647,15 @@ app.post("/api/gist/create", async (c) => {
 
     // Gist IDがある場合は更新、ない場合は作成
     const isUpdate = gistId && gistId.trim() !== '';
+    
+    // Gist IDの検証（英数字のみ許可）
+    if (isUpdate && !/^[a-fA-F0-9]+$/.test(gistId!)) {
+      return c.json(
+        { success: false, error: "無効なGist IDです" },
+        400,
+      );
+    }
+    
     const apiUrl = isUpdate 
       ? `https://api.github.com/gists/${gistId}`
       : "https://api.github.com/gists";
