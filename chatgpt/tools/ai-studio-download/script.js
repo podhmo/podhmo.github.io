@@ -476,9 +476,9 @@ function formatChatHistoryToMarkdown(
                     currentAiBlockContent.push(
                         formatTextWithBacktickHandling(chunk.text, `${aiName}:`),
                     );
-                     if (chunk.finishReason) { // 返答の後にfinishReasonがある場合
-                         currentAiBlockContent.push(`\n(返答終了理由: ${chunk.finishReason})`);
-                     }
+                    if (chunk.finishReason) { // 返答の後にfinishReasonがある場合
+                        currentAiBlockContent.push(`\n(返答終了理由: ${chunk.finishReason})`);
+                    }
                 }
             }
         }
