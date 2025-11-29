@@ -355,6 +355,22 @@ function showError(message) {
 
 
 /**
+ * テキストがバッククォートで始まる場合に適切なフォーマットを適用する
+ * @param {string} text - フォーマットする元のテキスト
+ * @param {string} prefix - テキストの前に付けるプレフィックス (例: "ユーザー:", "AI:")
+ * @returns {string} - フォーマット済みのテキスト
+ */
+function formatTextWithBacktickHandling(text, prefix) {
+    const trimmedText = text.trim();
+    // バッククォートで始まる場合は先頭に追加の改行を入れる
+    const needsLeadingNewline = trimmedText.startsWith('`');
+    if (needsLeadingNewline) {
+        return `${prefix}\n\n${trimmedText}`;
+    }
+    return `${prefix}\n${trimmedText}`;
+}
+
+/**
  * チャット履歴をMarkdown形式にフォーマットする関数
  * @param {object} chatHistory - チャット履歴オブジェクト
  * @param {MarkdownConversionOptions} options - Markdown変換オプション
@@ -384,7 +400,7 @@ function formatChatHistoryToMarkdown(
                 // ユーザーの入力が空の場合はスキップ
                 return;
             }
-            outputParts.push(`${userName}:\n${chunk.text.trim()}`);
+            outputParts.push(formatTextWithBacktickHandling(chunk.text, `${userName}:`));
             if (index < userChunks.length - 1) {
                 outputParts.push("\n\n---\n\n");
             } else {
@@ -420,7 +436,7 @@ function formatChatHistoryToMarkdown(
                 // Userブロックを追加
                 displayBlocks.push({
                     type: "user",
-                    content: [`${userName}:\n${chunk.text.trim()}`],
+                    content: [formatTextWithBacktickHandling(chunk.text, `${userName}:`)],
                 });
             } else if (chunk.role === "model") {
                 if (chunk.isThought) {
@@ -458,11 +474,11 @@ function formatChatHistoryToMarkdown(
                         // currentAiBlockContent.push(""); // AIの返答の前に空行は不要かもしれない
                     }
                     currentAiBlockContent.push(
-                        `${aiName}:\n${chunk.text.trimEnd()}`,
+                        formatTextWithBacktickHandling(chunk.text, `${aiName}:`),
                     );
-                     if (chunk.finishReason) { // 返答の後にfinishReasonがある場合
-                         currentAiBlockContent.push(`\n(返答終了理由: ${chunk.finishReason})`);
-                     }
+                    if (chunk.finishReason) { // 返答の後にfinishReasonがある場合
+                        currentAiBlockContent.push(`\n(返答終了理由: ${chunk.finishReason})`);
+                    }
                 }
             }
         }
