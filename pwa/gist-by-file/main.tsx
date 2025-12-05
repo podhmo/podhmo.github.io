@@ -569,7 +569,7 @@ app.post("/api/gist/create", async (c) => {
     // 可視性設定（デフォルト: public）
     // all: true の場合、単一の値でも配列になる可能性があるため配列から取得
     const publicValue = Array.isArray(publicParam) ? publicParam[0] : publicParam;
-    const isPublic = publicValue === 'true' || publicValue === true;
+    const isPublic = publicValue === 'true';
 
     // ファイル配列に変換
     const fileArray = Array.isArray(files) ? files : [files];

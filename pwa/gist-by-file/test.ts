@@ -2,25 +2,26 @@ import { assertEquals, assertExists } from "jsr:@std/assert@^1.0.0";
 
 // ファイルアップロード機能のテスト
 
-Deno.test("File upload form - multiple files handling", () => {
-  // MockFile クラスを作成
-  class MockFile {
-    name: string;
-    size: number;
-    type: string;
-    content: string;
+// 共通のMockFileクラス
+class MockFile {
+  name: string;
+  size: number;
+  type: string;
+  private content: string;
 
-    constructor(name: string, content: string, type: string = "text/plain") {
-      this.name = name;
-      this.content = content;
-      this.type = type;
-      this.size = new TextEncoder().encode(content).length;
-    }
-
-    async text(): Promise<string> {
-      return this.content;
-    }
+  constructor(name: string, content: string, type: string = "text/plain") {
+    this.name = name;
+    this.content = content;
+    this.type = type;
+    this.size = new TextEncoder().encode(content).length;
   }
+
+  async text(): Promise<string> {
+    return this.content;
+  }
+}
+
+Deno.test("File upload form - multiple files handling", () => {
 
   // テスト用ファイル
   const testFiles = [
@@ -40,24 +41,6 @@ Deno.test("File upload form - multiple files handling", () => {
 });
 
 Deno.test("File content processing", async () => {
-  class MockFile {
-    name: string;
-    size: number;
-    type: string;
-    private content: string;
-
-    constructor(name: string, content: string, type: string = "text/plain") {
-      this.name = name;
-      this.content = content;
-      this.type = type;
-      this.size = new TextEncoder().encode(content).length;
-    }
-
-    async text(): Promise<string> {
-      return this.content;
-    }
-  }
-
   const testFile = new MockFile(
     "sample.json",
     '{"name": "test", "value": 123}',
@@ -168,25 +151,6 @@ Deno.test("Error handling for API responses", () => {
 });
 
 Deno.test("Multiple files processing into Gist payload", async () => {
-  // Mock File class
-  class MockFile {
-    name: string;
-    size: number;
-    type: string;
-    private content: string;
-
-    constructor(name: string, content: string, type: string = "text/plain") {
-      this.name = name;
-      this.content = content;
-      this.type = type;
-      this.size = new TextEncoder().encode(content).length;
-    }
-
-    async text(): Promise<string> {
-      return this.content;
-    }
-  }
-
   // Simulate multiple files from client
   const files = [
     new MockFile("file1.txt", "This is file 1"),
@@ -198,10 +162,8 @@ Deno.test("Multiple files processing into Gist payload", async () => {
   const gistFiles: Record<string, { content: string }> = {};
   
   for (const file of files) {
-    if (file instanceof MockFile) {
-      const content = await file.text();
-      gistFiles[file.name] = { content };
-    }
+    const content = await file.text();
+    gistFiles[file.name] = { content };
   }
 
   // Verify all three files are processed
