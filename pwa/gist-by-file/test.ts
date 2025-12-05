@@ -2,25 +2,26 @@ import { assertEquals, assertExists } from "jsr:@std/assert@^1.0.0";
 
 // ファイルアップロード機能のテスト
 
-Deno.test("File upload form - multiple files handling", () => {
-  // MockFile クラスを作成
-  class MockFile {
-    name: string;
-    size: number;
-    type: string;
-    content: string;
+// 共通のMockFileクラス
+class MockFile {
+  name: string;
+  size: number;
+  type: string;
+  private content: string;
 
-    constructor(name: string, content: string, type: string = "text/plain") {
-      this.name = name;
-      this.content = content;
-      this.type = type;
-      this.size = new TextEncoder().encode(content).length;
-    }
-
-    async text(): Promise<string> {
-      return this.content;
-    }
+  constructor(name: string, content: string, type: string = "text/plain") {
+    this.name = name;
+    this.content = content;
+    this.type = type;
+    this.size = new TextEncoder().encode(content).length;
   }
+
+  async text(): Promise<string> {
+    return this.content;
+  }
+}
+
+Deno.test("File upload form - multiple files handling", () => {
 
   // テスト用ファイル
   const testFiles = [
@@ -40,24 +41,6 @@ Deno.test("File upload form - multiple files handling", () => {
 });
 
 Deno.test("File content processing", async () => {
-  class MockFile {
-    name: string;
-    size: number;
-    type: string;
-    private content: string;
-
-    constructor(name: string, content: string, type: string = "text/plain") {
-      this.name = name;
-      this.content = content;
-      this.type = type;
-      this.size = new TextEncoder().encode(content).length;
-    }
-
-    async text(): Promise<string> {
-      return this.content;
-    }
-  }
-
   const testFile = new MockFile(
     "sample.json",
     '{"name": "test", "value": 123}',
@@ -165,4 +148,51 @@ Deno.test("Error handling for API responses", () => {
   assertEquals(errorResponse.success, false);
   assertExists(errorResponse.error);
   assertEquals(errorResponse.error, "認証が必要です");
+});
+
+Deno.test("Multiple files processing into Gist payload", async () => {
+  // Simulate multiple files from client
+  const files = [
+    new MockFile("file1.txt", "This is file 1"),
+    new MockFile("file2.js", "console.log('file2');"),
+    new MockFile("file3.md", "# File 3\n\nMarkdown content"),
+  ];
+
+  // Simulate server-side processing (from main.tsx lines 584-589)
+  const gistFiles: Record<string, { content: string }> = {};
+  
+  for (const file of files) {
+    const content = await file.text();
+    gistFiles[file.name] = { content };
+  }
+
+  // Verify all three files are processed
+  assertEquals(Object.keys(gistFiles).length, 3);
+  
+  // Verify each file has correct content
+  assertEquals(gistFiles["file1.txt"].content, "This is file 1");
+  assertEquals(gistFiles["file2.js"].content, "console.log('file2');");
+  assertEquals(gistFiles["file3.md"].content, "# File 3\n\nMarkdown content");
+});
+
+Deno.test("parseBody all:true behavior simulation", () => {
+  // Simulate what Hono's parseBody({ all: true }) returns
+  // When multiple files are uploaded with the same key 'files'
+  const mockBodyWithMultipleFiles = {
+    files: [
+      { name: "file1.txt", text: () => Promise.resolve("content1") },
+      { name: "file2.txt", text: () => Promise.resolve("content2") },
+      { name: "file3.txt", text: () => Promise.resolve("content3") },
+    ],
+    public: ["true"], // With all:true, single values may also become arrays
+  };
+
+  // Verify files is an array
+  assertEquals(Array.isArray(mockBodyWithMultipleFiles.files), true);
+  assertEquals(mockBodyWithMultipleFiles.files.length, 3);
+
+  // Verify public param handling (from main.tsx lines 570-572)
+  const publicParam = mockBodyWithMultipleFiles.public;
+  const publicValue = Array.isArray(publicParam) ? publicParam[0] : publicParam;
+  assertEquals(publicValue, "true");
 });
