@@ -86,6 +86,31 @@ const Layout: FC<PropsWithChildren> = (props) => {
             
             let selectedFiles = [];
             
+            // Gist URLからIDを抽出する関数
+            function extractGistId(url) {
+              if (!url || url.trim() === '') return null;
+              
+              // URLからGist IDを抽出
+              // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7
+              // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7#file-c2pa-md
+              // 注意: このパターンはサーバー側のバリデーション(line 649)と一致させる必要があります
+              const match = url.match(/gist\\.github\\.com\\/[^\\/]+\\/([a-fA-F0-9]+)/);
+              return match ? match[1] : null;
+            }
+            
+            // Gist URL入力の監視
+            const gistUrlInput = document.getElementById('gist-url-input');
+            if (gistUrlInput && uploadBtn) {
+              gistUrlInput.addEventListener('input', function() {
+                const gistId = extractGistId(gistUrlInput.value);
+                if (gistId) {
+                  uploadBtn.textContent = '🔄 Gistを更新';
+                } else {
+                  uploadBtn.textContent = '🚀 Gistを作成';
+                }
+              });
+            }
+            
             // ファイル選択イベント
             if (fileInput) {
               fileInput.addEventListener('change', handleFileSelect, false);
@@ -152,13 +177,28 @@ const Layout: FC<PropsWithChildren> = (props) => {
               // Gistの可視性設定を取得
               const isPublic = document.querySelector('input[name="gist-visibility"]:checked').value === 'public';
               
+              // Gist URLを取得
+              const gistUrlInput = document.getElementById('gist-url-input');
+              const gistUrl = gistUrlInput ? gistUrlInput.value.trim() : '';
+              const gistId = extractGistId(gistUrl);
+              
               const formData = new FormData();
               selectedFiles.forEach(file => {
                 formData.append('files', file);
               });
               formData.append('public', isPublic.toString());
+              if (gistId) {
+                formData.append('gist_id', gistId);
+              }
               
               try {
+                // プログレステキストを更新
+                const action = gistId ? '更新' : '作成';
+                const progressText = document.getElementById('upload-progress-text');
+                if (progressText) {
+                  progressText.textContent = \`🚀 Gistを\${action}中...\`;
+                }
+                
                 uploadProgress.style.display = 'block';
                 uploadResult.style.display = 'none';
                 
@@ -175,7 +215,7 @@ const Layout: FC<PropsWithChildren> = (props) => {
                 if (result.success) {
                   uploadResult.innerHTML = \`
                     <article style="border-color: var(--pico-ins-color);">
-                      <header>✅ Gistの作成が完了しました！</header>
+                      <header>✅ Gistの\${action}が完了しました！</header>
                       <p><a href="\${result.gist_url}" target="_blank">\${result.gist_url}</a></p>
                       <footer>
                         <button onclick="if(navigator.clipboard){navigator.clipboard.writeText('\${result.gist_url}')}" class="outline">URLをコピー</button>
@@ -264,6 +304,19 @@ const FileUploadForm: FC = () => (
   <article>
     <header>📁 Gistにファイルをアップロード</header>
 
+    <div style={{ marginBottom: "1rem" }}>
+      <label htmlFor="gist-url-input">
+        🔗 Gist URL（更新する場合のみ入力）
+        <input
+          type="text"
+          id="gist-url-input"
+          placeholder="https://gist.github.com/username/gist_id"
+          style={{ marginTop: "0.25rem" }}
+        />
+      </label>
+      <small>空の場合は新規Gistを作成します</small>
+    </div>
+
     <div style={{ textAlign: "center", marginBottom: "1rem" }}>
       <input
         type="file"
@@ -341,7 +394,7 @@ const FileUploadForm: FC = () => (
     </div>
 
     <div id="upload-progress" style={{ display: "none" }}>
-      <p>🚀 Gistを作成中...</p>
+      <p id="upload-progress-text">🚀 Gistを処理中...</p>
       <progress></progress>
     </div>
 
@@ -540,7 +593,7 @@ app.get("/auth/logout", (c) => {
   return c.redirect("/");
 });
 
-// Gist作成API
+// Gist作成/更新API
 app.post("/api/gist/create", async (c) => {
   // ユーザー認証確認
   const userCookie = getCookie(c, "user_session");
@@ -561,6 +614,7 @@ app.post("/api/gist/create", async (c) => {
     const body = await c.req.parseBody({ all: true });
     const files = body.files;
     const publicParam = body.public;
+    const gistId = body.gist_id as string | undefined;
 
     if (!files) {
       return c.json({ success: false, error: "ファイルが見つかりません" }, 400);
@@ -598,15 +652,32 @@ app.post("/api/gist/create", async (c) => {
       );
     }
 
-    // GitHub APIでGistを作成
+    // Gist IDがある場合は更新、ない場合は作成
+    const isUpdate = gistId && gistId.trim() !== '';
+    
+    // Gist IDの検証（16進数文字のみ許可）
+    // 注意: このパターンはクライアント側の extractGistId (line 96) と一致させる必要があります
+    if (isUpdate && !/^[a-fA-F0-9]+$/.test(gistId!)) {
+      return c.json(
+        { success: false, error: "無効なGist IDです" },
+        400,
+      );
+    }
+    
+    const apiUrl = isUpdate 
+      ? `https://api.github.com/gists/${gistId}`
+      : "https://api.github.com/gists";
+    const method = isUpdate ? "PATCH" : "POST";
+
+    // GitHub APIでGistを作成または更新
     const gistData = {
-      description: `Uploaded via Gist Uploader - ${new Date().toISOString()}`,
+      description: `${isUpdate ? 'Updated' : 'Uploaded'} via Gist Uploader - ${new Date().toISOString()}`,
       public: isPublic,
       files: gistFiles,
     };
 
-    const gistResponse = await fetch("https://api.github.com/gists", {
-      method: "POST",
+    const gistResponse = await fetch(apiUrl, {
+      method: method,
       headers: {
         "Authorization": `Bearer ${getAccessTokenFromUser(user as any)}`,
         "Accept": "application/vnd.github.v3+json",
@@ -633,10 +704,10 @@ app.post("/api/gist/create", async (c) => {
       gist_id: gistResult.id,
     });
   } catch (error: any) {
-    console.error("Gist creation error:", error);
+    console.error("Gist creation/update error:", error);
     return c.json({
       success: false,
-      error: error.message || "Gist作成中にエラーが発生しました",
+      error: error.message || "Gist作成/更新中にエラーが発生しました",
     }, 500);
   }
 });
