@@ -557,7 +557,8 @@ app.post("/api/gist/create", async (c) => {
 
   try {
     // multipart/form-dataからファイルを取得
-    const body = await c.req.parseBody();
+    // all: true オプションで同じキーの複数の値を配列として取得
+    const body = await c.req.parseBody({ all: true });
     const files = body.files;
     const publicParam = body.public;
 
@@ -566,7 +567,9 @@ app.post("/api/gist/create", async (c) => {
     }
 
     // 可視性設定（デフォルト: public）
-    const isPublic = publicParam === 'true';
+    // all: true の場合、単一の値でも配列になる可能性があるため配列から取得
+    const publicValue = Array.isArray(publicParam) ? publicParam[0] : publicParam;
+    const isPublic = publicValue === 'true';
 
     // ファイル配列に変換
     const fileArray = Array.isArray(files) ? files : [files];
