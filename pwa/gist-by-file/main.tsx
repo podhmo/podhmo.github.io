@@ -199,9 +199,9 @@ const Layout: FC<PropsWithChildren> = (props) => {
               
               // 各ファイルの変更後のファイル名を取得
               const filenameInputs = document.querySelectorAll('.filename-input');
-              const filenameMap = {};
+              const filenameMap: Record<number, string> = {};
               filenameInputs.forEach((input, index) => {
-                filenameMap[index] = input.value.trim() || selectedFiles[index].name;
+                filenameMap[index] = (input as HTMLInputElement).value.trim() || selectedFiles[index].name;
               });
               
               const formData = new FormData();
@@ -677,8 +677,8 @@ app.post("/api/gist/create", async (c) => {
     }
 
     // カスタムファイル名の配列を取得
-    const filenameArray = customFilenames 
-      ? (Array.isArray(customFilenames) ? customFilenames : [customFilenames])
+    const filenameArray: string[] = customFilenames 
+      ? (Array.isArray(customFilenames) ? customFilenames.map(String) : [String(customFilenames)])
       : [];
 
     // Gist用のファイルオブジェクトを作成
@@ -689,7 +689,7 @@ app.post("/api/gist/create", async (c) => {
       if (file instanceof File) {
         const content = await file.text();
         // カスタムファイル名がある場合はそれを使用、なければ元のファイル名
-        const filename = (filenameArray[i] as string)?.trim() || file.name;
+        const filename = filenameArray[i]?.trim() || file.name;
         gistFiles[filename] = { content };
       }
     }
