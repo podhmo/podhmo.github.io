@@ -134,7 +134,8 @@ const Layout: FC<PropsWithChildren> = (props) => {
               
               fileList.innerHTML = '';
               
-              for (const file of selectedFiles) {
+              for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
                 const fileDiv = document.createElement('div');
                 let content = '';
                 
@@ -149,7 +150,17 @@ const Layout: FC<PropsWithChildren> = (props) => {
                 
                 fileDiv.innerHTML = \`
                   <details style="margin-bottom: 0.5rem; padding: 0.5rem; border: 1px solid var(--pico-muted-border-color); border-radius: 0.25rem;">
-                    <summary><strong>\${file.name}</strong> (\${(file.size / 1024).toFixed(1)} KB)</summary>
+                    <summary>
+                      <input 
+                        type="text" 
+                        value="\${file.name}" 
+                        data-file-index="\${i}" 
+                        class="filename-input" 
+                        style="width: 70%; display: inline-block; margin-right: 0.5rem; font-size: 0.9em;" 
+                        onclick="event.stopPropagation();"
+                      />
+                      <small>(\${(file.size / 1024).toFixed(1)} KB)</small>
+                    </summary>
                     \${content ? '<pre style="font-size: 0.8em; background: var(--pico-card-background-color); padding: 0.5rem; border-radius: 0.25rem; max-height: 200px; overflow: auto;">' + (content.length > 1000 ? content.substring(0, 1000) + '...' : content) + '</pre>' : '<p>バイナリファイル</p>'}
                   </details>
                 \`;
@@ -182,13 +193,28 @@ const Layout: FC<PropsWithChildren> = (props) => {
               const gistUrl = gistUrlInput ? gistUrlInput.value.trim() : '';
               const gistId = extractGistId(gistUrl);
               
+              // Gist Descriptionを取得
+              const gistDescriptionInput = document.getElementById('gist-description-input');
+              const gistDescription = gistDescriptionInput ? gistDescriptionInput.value.trim() : '';
+              
+              // 各ファイルの変更後のファイル名を取得
+              const filenameInputs = document.querySelectorAll('.filename-input');
+              const filenameMap: Record<number, string> = {};
+              filenameInputs.forEach((input, index) => {
+                filenameMap[index] = (input as HTMLInputElement).value.trim() || selectedFiles[index].name;
+              });
+              
               const formData = new FormData();
-              selectedFiles.forEach(file => {
+              selectedFiles.forEach((file, index) => {
                 formData.append('files', file);
+                formData.append('filenames', filenameMap[index]);
               });
               formData.append('public', isPublic.toString());
               if (gistId) {
                 formData.append('gist_id', gistId);
+              }
+              if (gistDescription) {
+                formData.append('description', gistDescription);
               }
               
               try {
@@ -315,6 +341,19 @@ const FileUploadForm: FC = () => (
         />
       </label>
       <small>空の場合は新規Gistを作成します</small>
+    </div>
+
+    <div style={{ marginBottom: "1rem" }}>
+      <label htmlFor="gist-description-input">
+        📝 Gist Description
+        <input
+          type="text"
+          id="gist-description-input"
+          placeholder="Gistの説明を入力"
+          style={{ marginTop: "0.25rem" }}
+        />
+      </label>
+      <small>空の場合は自動生成されます</small>
     </div>
 
     <div style={{ textAlign: "center", marginBottom: "1rem" }}>
@@ -615,6 +654,8 @@ app.post("/api/gist/create", async (c) => {
     const files = body.files;
     const publicParam = body.public;
     const gistId = body.gist_id as string | undefined;
+    const customDescription = body.description as string | undefined;
+    const customFilenames = body.filenames;
 
     if (!files) {
       return c.json({ success: false, error: "ファイルが見つかりません" }, 400);
@@ -635,13 +676,21 @@ app.post("/api/gist/create", async (c) => {
       );
     }
 
+    // カスタムファイル名の配列を取得
+    const filenameArray: string[] = customFilenames 
+      ? (Array.isArray(customFilenames) ? customFilenames.map(String) : [String(customFilenames)])
+      : [];
+
     // Gist用のファイルオブジェクトを作成
     const gistFiles: Record<string, { content: string }> = {};
 
-    for (const file of fileArray) {
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
       if (file instanceof File) {
         const content = await file.text();
-        gistFiles[file.name] = { content };
+        // カスタムファイル名がある場合はそれを使用、なければ元のファイル名
+        const filename = filenameArray[i]?.trim() || file.name;
+        gistFiles[filename] = { content };
       }
     }
 
@@ -671,7 +720,7 @@ app.post("/api/gist/create", async (c) => {
 
     // GitHub APIでGistを作成または更新
     const gistData = {
-      description: `${isUpdate ? 'Updated' : 'Uploaded'} via Gist Uploader - ${new Date().toISOString()}`,
+      description: customDescription || `${isUpdate ? 'Updated' : 'Uploaded'} via Gist Uploader - ${new Date().toISOString()}`,
       public: isPublic,
       files: gistFiles,
     };

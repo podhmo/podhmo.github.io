@@ -196,3 +196,67 @@ Deno.test("parseBody all:true behavior simulation", () => {
   const publicValue = Array.isArray(publicParam) ? publicParam[0] : publicParam;
   assertEquals(publicValue, "true");
 });
+
+Deno.test("Custom filename handling", async () => {
+  // Simulate files with custom filenames
+  const files = [
+    new MockFile("original1.txt", "Content 1"),
+    new MockFile("original2.txt", "Content 2"),
+  ];
+  
+  // Simulate custom filenames from form
+  const customFilenames = ["renamed1.txt", "renamed2.txt"];
+  
+  // Process files with custom names
+  const gistFiles: Record<string, { content: string }> = {};
+  
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const content = await file.text();
+    const filename = customFilenames[i] || file.name;
+    gistFiles[filename] = { content };
+  }
+  
+  // Verify custom filenames are used
+  assertEquals(Object.keys(gistFiles).length, 2);
+  assertExists(gistFiles["renamed1.txt"]);
+  assertExists(gistFiles["renamed2.txt"]);
+  assertEquals(gistFiles["renamed1.txt"].content, "Content 1");
+  assertEquals(gistFiles["renamed2.txt"].content, "Content 2");
+});
+
+Deno.test("Custom description handling", () => {
+  // Test with custom description
+  const customDescription = "My custom gist description";
+  const isUpdate = false;
+  
+  const description = customDescription || `${isUpdate ? 'Updated' : 'Uploaded'} via Gist Uploader`;
+  
+  assertEquals(description, "My custom gist description");
+  
+  // Test without custom description (fallback)
+  const emptyDescription = "";
+  const fallbackDescription = emptyDescription || `${isUpdate ? 'Updated' : 'Uploaded'} via Gist Uploader`;
+  
+  assertEquals(fallbackDescription, "Uploaded via Gist Uploader");
+});
+
+Deno.test("File overwrite scenario for Gist update", async () => {
+  // Scenario: User wants to update "old-file.txt" in existing Gist
+  // by uploading "new-file.txt" but renaming it to "old-file.txt"
+  
+  const uploadedFile = new MockFile("new-file.txt", "New content to replace old file");
+  const customFilename = "old-file.txt"; // Same name as existing file in Gist
+  
+  const gistFiles: Record<string, { content: string }> = {};
+  const content = await uploadedFile.text();
+  gistFiles[customFilename] = { content };
+  
+  // Verify the file will be uploaded with the custom name
+  // This will overwrite "old-file.txt" in the Gist
+  assertExists(gistFiles["old-file.txt"]);
+  assertEquals(gistFiles["old-file.txt"].content, "New content to replace old file");
+  
+  // Original filename should not be in the gistFiles
+  assertEquals(gistFiles["new-file.txt"], undefined);
+});
