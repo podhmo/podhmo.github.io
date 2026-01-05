@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "jsr:@std/assert@0.224.0";
 import { extractFileIdFromUrl } from "./url-parser.ts";
 
 Deno.test("AI Studio URL Parser: extractFileIdFromUrl", async (t) => {
