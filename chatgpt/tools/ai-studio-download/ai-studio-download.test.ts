@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@0.224.0";
-import { extractFileIdFromUrl } from "./url-parser.ts";
+import { extractFileIdFromUrl } from "./ai-studio-download.ts";
 
 Deno.test("AI Studio URL Parser: extractFileIdFromUrl", async (t) => {
   await t.step("should extract file ID from valid AI Studio URL", () => {
