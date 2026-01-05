@@ -4,6 +4,33 @@
 
 このアプリケーションは、GitHub Pagesのような静的ホスティング環境での動作を想定しており、すべての処理はクライアントサイドのJavaScriptで行われます。
 
+## TypeScript CLI ツール
+
+TypeScript版のCLIツールも提供されており、コマンドラインから対話履歴をダウンロードできます。
+
+### 使い方
+
+**対話形式でダウンロード（デフォルト）:**
+```bash
+ai-studio-download
+```
+
+**URL を指定して直接ダウンロード:**
+```bash
+ai-studio-download --url https://aistudio.google.com/prompts/1-UCiE72JzsfPU5YzE0KVHj5MynEyKbQ5
+```
+
+**出力先ディレクトリを指定:**
+```bash
+ai-studio-download -o ./output --url https://aistudio.google.com/prompts/1-UCiE72JzsfPU5YzE0KVHj5MynEyKbQ5
+```
+
+### CLI オプション
+- `-u, --url <URL>`: AI Studio の URL を指定して直接ダウンロード
+- `-o, --output <パス>`: ダウンロード先のディレクトリを指定
+- `--keyFile <パス>`: サービスアカウントキーファイルへのパスを指定
+- `-h, --help`: ヘルプメッセージを表示
+
 ## 機能
 
 -   Google OAuth 2.0 を使用した安全なログイン

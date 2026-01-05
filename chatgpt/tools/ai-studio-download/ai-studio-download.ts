@@ -90,6 +90,52 @@ async function listFiles(client: any, folderId: string): Promise<DriveFile[]> {
   return files;
 }
 
+async function getFileById(client: any, fileId: string): Promise<DriveFile | null> {
+  try {
+    const response = await client.request<DriveFile>({
+      url: `${DRIVE_API_URL}/files/${fileId}`,
+      params: {
+        fields: "id, name, modifiedTime",
+      },
+    });
+
+    if (response.data) {
+      return response.data;
+    } else {
+      console.error(`ファイル ID: ${fileId} が見つかりませんでした。`);
+      return null;
+    }
+  } catch (error) {
+    console.error(
+      `ファイル情報の取得中にエラーが発生しました (ID: ${fileId}):`,
+      error.message,
+    );
+    return null;
+  }
+}
+
+
+/**
+ * Extract file ID from AI Studio URL
+ * @param url AI Studio URL (e.g., https://aistudio.google.com/prompts/1-UCiE72JzsfPU5YzE0KVHj5MynEyKbQ5)
+ * @returns File ID or null if URL is invalid
+ */
+function extractFileIdFromUrl(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    // AI Studio URL format: https://aistudio.google.com/prompts/{fileId}
+    if (urlObj.hostname === "aistudio.google.com" && urlObj.pathname.startsWith("/prompts/")) {
+      const pathParts = urlObj.pathname.split("/");
+      const fileId = pathParts[2]; // /prompts/{fileId}
+      if (fileId && fileId.length > 0) {
+        return fileId;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 function sanitizeFileName(originalName: string): string {
   let namePart = originalName;
@@ -165,9 +211,9 @@ async function downloadFileInteractive(
 
 async function main() {
   const flags = parse(Deno.args, {
-    string: ["output", "keyFile"],
+    string: ["output", "keyFile", "url"],
     boolean: ["help"],
-    alias: { "h": "help", "o": "output" },
+    alias: { "h": "help", "o": "output", "u": "url" },
   });
 
   if (flags.help) {
@@ -190,6 +236,30 @@ async function main() {
   }
 
   const client = await getAuthenticatedClient();
+  
+  // If URL parameter is provided, download directly by ID
+  if (flags.url) {
+    const fileId = extractFileIdFromUrl(flags.url as string);
+    if (!fileId) {
+      console.error(`無効なAI Studio URLです: ${flags.url}`);
+      console.error("正しいURL形式: https://aistudio.google.com/prompts/{fileId}");
+      Deno.exit(1);
+    }
+
+    console.log(`URL からファイル ID を抽出しました: ${fileId}`);
+    const file = await getFileById(client, fileId);
+    
+    if (!file) {
+      console.error(`ファイル ID ${fileId} の情報を取得できませんでした。`);
+      Deno.exit(1);
+    }
+
+    console.log(`ファイル "${file.name}" (ID: ${fileId}) をダウンロードします...`);
+    await downloadFileInteractive(client, fileId, file.name, flags.output as string);
+    Deno.exit(0);
+  }
+
+  // Original interactive flow
   const folderId = await findAiStudioFolderId(client);
 
   if (!folderId) {
@@ -249,7 +319,11 @@ Google AI Studio 対話履歴ダウンローダー
 更新日時順に一覧表示されます。カーソルキーでダウンロードしたいファイルを選択し、
 Enterキーで決定してください。
 
+または、--url オプションを使用して、AI Studio の URL から直接ダウンロードすることもできます。
+
 オプション:
+  -u, --url <URL>     AI Studio の URL を指定して直接ダウンロードします。
+                      例: https://aistudio.google.com/prompts/1-UCiE72JzsfPU5YzE0KVHj5MynEyKbQ5
   -o, --output <パス> ダウンロード先のディレクトリを指定します。
                       省略時はカレントディレクトリに保存されます。
   --keyFile <パス>    サービスアカウントキーファイルへのパスを指定します。
@@ -263,6 +337,8 @@ Enterキーで決定してください。
   ai-studio-download
   ai-studio-download -o ./downloaded_histories
   ai-studio-download --keyFile ./path/to/your-service-account-key.json
+  ai-studio-download --url https://aistudio.google.com/prompts/1-UCiE72JzsfPU5YzE0KVHj5MynEyKbQ5
+  ai-studio-download -u https://aistudio.google.com/prompts/1-UCiE72JzsfPU5YzE0KVHj5MynEyKbQ5 -o ./output
 `);
 }
 
