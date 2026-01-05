@@ -199,9 +199,9 @@ const Layout: FC<PropsWithChildren> = (props) => {
               
               // 各ファイルの変更後のファイル名を取得
               const filenameInputs = document.querySelectorAll('.filename-input');
-              const filenameMap: Record<number, string> = {};
+              const filenameMap = {};
               filenameInputs.forEach((input, index) => {
-                filenameMap[index] = (input as HTMLInputElement).value.trim() || selectedFiles[index].name;
+                filenameMap[index] = input.value.trim() || selectedFiles[index].name;
               });
               
               const formData = new FormData();
