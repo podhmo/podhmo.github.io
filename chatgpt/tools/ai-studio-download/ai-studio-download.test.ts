@@ -1,23 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-
-// Since extractFileIdFromUrl is not exported, we need to recreate it for testing
-// or export it from the main file. For now, we'll recreate it here.
-function extractFileIdFromUrl(url: string): string | null {
-  try {
-    const urlObj = new URL(url);
-    // AI Studio URL format: https://aistudio.google.com/prompts/{fileId}
-    if (urlObj.hostname === "aistudio.google.com" && urlObj.pathname.startsWith("/prompts/")) {
-      const pathParts = urlObj.pathname.split("/");
-      const fileId = pathParts[2]; // /prompts/{fileId}
-      if (fileId && fileId.length > 0) {
-        return fileId;
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+import { extractFileIdFromUrl } from "./url-parser.ts";
 
 Deno.test("AI Studio URL Parser: extractFileIdFromUrl", async (t) => {
   await t.step("should extract file ID from valid AI Studio URL", () => {
