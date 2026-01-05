@@ -90,6 +90,12 @@ async function listFiles(client: any, folderId: string): Promise<DriveFile[]> {
   return files;
 }
 
+/**
+ * Get file metadata by file ID from Google Drive
+ * @param client Authenticated Google API client
+ * @param fileId Google Drive file ID
+ * @returns DriveFile object or null if file not found
+ */
 async function getFileById(client: any, fileId: string): Promise<DriveFile | null> {
   try {
     const response = await client.request<DriveFile>({
