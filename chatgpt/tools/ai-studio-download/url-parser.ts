@@ -9,9 +9,10 @@ export function extractFileIdFromUrl(url: string): string | null {
     // AI Studio URL format: https://aistudio.google.com/prompts/{fileId}
     if (urlObj.hostname === "aistudio.google.com" && urlObj.pathname.startsWith("/prompts/")) {
       const pathParts = urlObj.pathname.split("/");
-      const fileId = pathParts[2]; // /prompts/{fileId}
-      if (fileId && fileId.length > 0) {
-        return fileId;
+      // pathParts will be ['', 'prompts', 'fileId', ...] for pathname '/prompts/fileId'
+      // or ['', 'prompts', 'fileId', ''] for pathname '/prompts/fileId/'
+      if (pathParts.length >= 3 && pathParts[2] && pathParts[2].length > 0) {
+        return pathParts[2];
       }
     }
     return null;
