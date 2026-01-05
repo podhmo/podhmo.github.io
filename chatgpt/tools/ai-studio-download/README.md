@@ -33,11 +33,14 @@ ai-studio-download -o ./output --url https://aistudio.google.com/prompts/1-UCiE7
 
 ## 機能
 
+### ウェブアプリケーション
+
 -   Google OAuth 2.0 を使用した安全なログイン
+-   **URLから直接ダウンロード** - AI Studio の URL を入力して、対話履歴を直接ダウンロード
 -   Google Drive内の "Google AI Studio" フォルダ内のJSONファイルを時系列（降順）で一覧表示
 -   ファイル名の空白をハイフン (`-`) に置換する正規化処理
 -   正規化されたファイル名でJSONファイルをダウンロード (`<normalized-name>.json`)
--   正規化されたファイル名で空のMarkdownファイルをダウンロード (`<normalized-name>.md`)
+-   正規化されたファイル名でMarkdownファイルをダウンロード (`<normalized-name>.md`)
 -   Pico.css v2 を使用したシンプルなレスポンシブデザイン
 -   JavaScriptはES Modules (ESM) 形式で記述
 
@@ -84,10 +87,21 @@ ai-studio-download -o ./output --url https://aistudio.google.com/prompts/1-UCiE7
         5.  **注意:** もし `https://YOUR_USERNAME.github.io/REPOSITORY_NAME/` のようにサブディレクトリでホストする場合、GCPの「承認済みの JavaScript 生成元」にも `https://YOUR_USERNAME.github.io` を設定する必要があります（サブディレクトリなしのルートドメイン）。
 2.  アプリケーションを開くと、Google APIライブラリのロード後に「Googleアカウントでログイン」ボタンが表示されます。
 3.  ボタンをクリックし、Googleアカウントでログインし、要求される権限（Google Driveのファイルの読み取り）を承認します。
-4.  ログインに成功すると、"Google AI Studio" フォルダ（または設定したフォルダ）内のJSONファイルが一覧表示されます。
-5.  各ファイルの横にある「JSON形式でDL」ボタンをクリックすると、正規化されたファイル名でJSONファイルがダウンロードされます。
-6.  「MD形式でDL」ボタンをクリックすると、正規化されたファイル名で空のMarkdownファイルがダウンロードされます。
-7.  作業が終わったら「ログアウト」ボタンでログアウトできます。
+4.  ログインに成功すると、2つのダウンロード方法が利用できます：
+
+### 方法1: URLから直接ダウンロード
+
+5a. AI Studio で対話履歴を開き、ブラウザのアドレスバーから URL をコピーします（例: `https://aistudio.google.com/prompts/1-UCiE72JzsfPU5YzE0KVHj5MynEyKbQ5`）。
+5b. 「URLから直接ダウンロード」セクションに URL を貼り付けます。
+5c. 「JSON形式でダウンロード」または「MD形式でダウンロード」ボタンをクリックします。
+
+### 方法2: ファイル一覧から選択してダウンロード
+
+5d. "Google AI Studio" フォルダ（または設定したフォルダ）内のJSONファイルが一覧表示されます。
+5e. 各ファイルの横にある「JSON形式でDL」ボタンをクリックすると、正規化されたファイル名でJSONファイルがダウンロードされます。
+5f. 「MD形式でDL」ボタンをクリックすると、正規化されたファイル名でMarkdownファイルがダウンロードされます。
+
+6.  作業が終わったら「ログアウト」ボタンでログアウトできます。
 
 ## 注意点
 

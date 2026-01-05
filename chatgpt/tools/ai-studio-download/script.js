@@ -21,6 +21,12 @@ const noFilesMessage = document.getElementById('no-files-message');
 const includeThoughtsCheckbox = document.getElementById('includeThoughtsCheckbox');
 const onlyUserInputsCheckbox = document.getElementById('onlyUserInputsCheckbox');
 
+// URL指定ダウンロード用のDOM要素
+const urlDownloadForm = document.getElementById('url-download-form');
+const urlInput = document.getElementById('url-input');
+const urlDownloadMdButton = document.getElementById('url-download-md-button');
+const urlStatusMessage = document.getElementById('url-status-message');
+
 
 /**
  * GAPIクライアントの初期化
@@ -161,6 +167,116 @@ function normalizeFileName(originalName) {
     const nameWithoutExtension = originalName.replace(/\.json$/i, '');
     return nameWithoutExtension.replace(/\s+/g, '-');
 }
+
+/**
+ * AI Studio URL からファイル ID を抽出
+ * @param {string} url
+ * @returns {string|null}
+ */
+function extractFileIdFromUrl(url) {
+    try {
+        const urlObj = new URL(url);
+        // AI Studio URL format: https://aistudio.google.com/prompts/{fileId}
+        if (urlObj.hostname === "aistudio.google.com" && urlObj.pathname.startsWith("/prompts/")) {
+            const pathParts = urlObj.pathname.split("/");
+            // pathParts will be ['', 'prompts', 'fileId', ...]
+            if (pathParts.length >= 3 && pathParts[2] && pathParts[2].length > 0) {
+                return pathParts[2];
+            }
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * ファイル ID からファイル情報を取得
+ * @param {string} fileId
+ * @returns {Promise<Object|null>}
+ */
+async function getFileById(fileId) {
+    try {
+        const response = await gapi.client.drive.files.get({
+            fileId: fileId,
+            fields: 'id,name,createdTime,modifiedTime'
+        });
+        return response.result;
+    } catch (error) {
+        console.error('Error getting file by ID:', error);
+        return null;
+    }
+}
+
+/**
+ * URL から直接ファイルをダウンロード
+ * @param {string} url
+ * @param {string} format - 'json' or 'md'
+ */
+async function handleDownloadByUrl(url, format = 'json') {
+    if (!gapi.client.getToken()) {
+        showUrlStatus('認証されていません。ログインしてください。', 'error');
+        return;
+    }
+
+    const fileId = extractFileIdFromUrl(url);
+    if (!fileId) {
+        showUrlStatus('無効な AI Studio URL です。正しい形式: https://aistudio.google.com/prompts/{fileId}', 'error');
+        return;
+    }
+
+    showUrlStatus(`ファイル ID: ${fileId} を取得中...`, 'info');
+
+    const fileInfo = await getFileById(fileId);
+    if (!fileInfo) {
+        showUrlStatus(`ファイル ID ${fileId} が見つかりませんでした。`, 'error');
+        return;
+    }
+
+    showUrlStatus(`"${fileInfo.name}" をダウンロード中...`, 'info');
+
+    const normalizedBaseName = normalizeFileName(fileInfo.name);
+    
+    if (format === 'json') {
+        await handleDownloadFile(fileId, `${normalizedBaseName}.json`, 'application/json');
+    } else if (format === 'md') {
+        await handleDownloadFile(fileId, `${normalizedBaseName}.md`, 'text/markdown', (jsonText => {
+            const options = {
+                withThoughts: includeThoughtsCheckbox ? includeThoughtsCheckbox.checked : false,
+                onlyUserInputs: onlyUserInputsCheckbox ? onlyUserInputsCheckbox.checked : false,
+                userName: 'ユーザー',
+                aiName: 'AI',
+            };
+            return formatChatHistoryToMarkdown(JSON.parse(jsonText), options);
+        }));
+    }
+
+    showUrlStatus(`✓ "${fileInfo.name}" をダウンロードしました。`, 'success');
+}
+
+/**
+ * URL ステータスメッセージを表示
+ * @param {string} message
+ * @param {string} type - 'info', 'success', 'error'
+ */
+function showUrlStatus(message, type = 'info') {
+    if (!urlStatusMessage) return;
+    
+    urlStatusMessage.textContent = message;
+    urlStatusMessage.style.display = 'block';
+    
+    // Remove all color classes
+    urlStatusMessage.style.color = '';
+    
+    if (type === 'error') {
+        urlStatusMessage.style.color = 'var(--pico-color-red-500, #dc2626)';
+    } else if (type === 'success') {
+        urlStatusMessage.style.color = 'var(--pico-color-green-500, #16a34a)';
+    } else {
+        urlStatusMessage.style.color = 'var(--pico-color-blue-500, #3b82f6)';
+    }
+}
+
 
 /**
  * 取得したファイルリストをHTMLに描画
@@ -537,6 +653,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // オプションチェックボックスの初期状態を設定（HTMLでcheckedがあればそれが優先される）
     // なければJSでデフォルト値を設定することも可能だが、HTMLに任せる
     // 例：if (includeThoughtsCheckbox && includeThoughtsCheckbox.checked === undefined) includeThoughtsCheckbox.checked = true;
+
+    // URL指定ダウンロードフォームのイベントリスナー
+    if (urlDownloadForm) {
+        urlDownloadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = urlInput ? urlInput.value.trim() : '';
+            if (url) {
+                await handleDownloadByUrl(url, 'json');
+            } else {
+                showUrlStatus('URL を入力してください。', 'error');
+            }
+        });
+    }
+
+    if (urlDownloadMdButton) {
+        urlDownloadMdButton.addEventListener('click', async () => {
+            const url = urlInput ? urlInput.value.trim() : '';
+            if (url) {
+                await handleDownloadByUrl(url, 'md');
+            } else {
+                showUrlStatus('URL を入力してください。', 'error');
+            }
+        });
+    }
 });
 
 /* 歴史的経緯により、以下のスクリプトタグはHTMLに直接書くことが推奨されているが、esmとの呼び出し関係を気にするために動的に生成する
