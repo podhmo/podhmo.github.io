@@ -193,7 +193,29 @@ class App {
 }
 
 // アプリケーションインスタンスを作成して開始
-const currentBasePath = globalThis.location.pathname.replace(/\/[^/]*$/, '');
+// Detect the application base path intelligently
+function detectBasePath() {
+    const pathname = globalThis.location.pathname;
+    
+    // Check if we're in the /chatgpt/ application directory (production on GitHub Pages)
+    if (pathname.startsWith('/chatgpt/') || pathname === '/chatgpt') {
+        return '/chatgpt';
+    }
+    
+    // For local development or other deployments, use the directory of the current page
+    // But only if we're at a route like /index.html or just /
+    const lastSegment = pathname.split('/').pop();
+    if (lastSegment === '' || lastSegment.endsWith('.html')) {
+        return pathname.replace(/\/[^/]*$/, '');
+    }
+    
+    // If we're at a deep route (e.g., /category/foo/template/bar),
+    // we can't reliably detect basePath from URL alone.
+    // Default to empty string for local development.
+    return '';
+}
+
+const currentBasePath = detectBasePath();
 console.log(`Current base path: ${currentBasePath}`);
 const app = new App(document.getElementById('app'), currentBasePath);
 app.start();
