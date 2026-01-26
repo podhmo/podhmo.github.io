@@ -74,6 +74,12 @@ class App {
      * ルートを定義します。
      */
     setupRoutes() {
+        // Route patterns that support slashes in category and template names
+        // Negative lookahead (?!\/template\/) ensures we don't match past a /template/ delimiter
+        const CATEGORY_ROUTE_PATTERN = /^\/category\/((?:(?!\/template\/).)+)$/;
+        // Non-greedy match (.+?) to capture category up to first /template/, then greedy match for template name
+        const TEMPLATE_ROUTE_PATTERN = /^\/category\/(.+?)\/template\/(.+)$/;
+
         this.router.addRoute('/', async () => {
             this.appState.setCurrentPath('/');
             this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
@@ -93,9 +99,8 @@ class App {
             this.renderUI();
         });
 
-        // Route for category view - matches /category/anything (including slashes)
-        // but not if it's followed by /template/
-        this.router.addRoute(/^\/category\/((?:(?!\/template\/).)+)$/, async (params) => {
+        // Route for category view - uses CATEGORY_ROUTE_PATTERN defined above
+        this.router.addRoute(CATEGORY_ROUTE_PATTERN, async (params) => {
             // Need to decode because browser preserves %2F encoding in location.pathname
             const categoryName = decodeURIComponent(params[0]);
             this.appState.setCurrentPath(decodeURIComponent(location.pathname));
@@ -124,10 +129,8 @@ class App {
             this.renderUI();
         });
 
-        // Route for template view - matches /category/anything/template/anything
-        // Both category and template names can contain slashes
-        // Uses non-greedy match (.+?) to match up to the first /template/
-        this.router.addRoute(/^\/category\/(.+?)\/template\/(.+)$/, async (params) => {
+        // Route for template view - uses TEMPLATE_ROUTE_PATTERN defined above
+        this.router.addRoute(TEMPLATE_ROUTE_PATTERN, async (params) => {
             // Need to decode because browser preserves %2F encoding in location.pathname
             const categoryName = decodeURIComponent(params[0]);
             const templateName = decodeURIComponent(params[1]);
