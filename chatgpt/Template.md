@@ -97,6 +97,60 @@ gistとかに貼る時に画像などが表示されるようになって便利�
 コードブロックで出力して
 ```
 
+##引用の応酬での会話をフラットに取り出す
+
+grokにおいては実はネストした引用の応酬を取り出すことは難しい。理想的にはさらに前方向にスレッドも読めていけると嬉しい。
+
+```raw
+ツールとして x_thread_fetch を使用し、指定された起点ポストIDを起点にJSONレスポンスを取得してください。
+
+- 出力から以下の属性を確実に抽出（必須）:
+  - post.id
+  - post.quoted_tweet_id
+  - post.conversation_id
+  - post.is_reply_to_root (存在する場合)
+  - post.media (存在する場合) → 特に photos 配列内の各要素の media_url または url をすべて取得
+
+- 完全な引用親チェーン + 会話ルート遡行（兄弟無視・純粋親子関係拡張版）:
+  1. 起点ポストを取得 (main_post)。
+  2. 兄弟投稿（same conversation_id内のself_thread/replies で is_reply_to_root=falseのもの）は完全に無視。
+  3. 遡行ルール（再帰的）:
+     - まず main_post.quoted_tweet_id が存在する場合 → そのIDで x_thread_fetch を実行し、親ポストを取得。
+     - quoted_tweet_id が null でも、main_post.is_reply_to_root == true かつ main_post.conversation_id != main_post.id の場合 → conversation_id のルートポスト（conversation_id == post.id のポスト）を親として fetch し、**quoted_post_id 相当として扱う**。
+     - 親ポストについても上記を繰り返し、quoted_tweet_id が null かつ is_reply_to_root == false または conversation_id == post.id になるまで遡行（根っこに到達）。
+  4. すべてのポストをタイムスタンプ順（古い順）で並べ替えて一意のチェーンを作成。重複排除。
+  5. チェーン外の無関係リプライ・兄弟投稿は絶対に含めない。
+
+- 再帰的呼び出しトリガー（深さ拡張）:
+  - ユーザーが「もっと深いはず」「さらに遡行」「根っこまで」「再帰的に」「チェーンを延長」「以前を取得」「逆方向」などのキーワードを含む場合、**即座に現在のチェーンの最古ポスト（根っこ）を起点として再び quoted_tweet_id + conversation_idルート遡行を徹底実行し、既存チェーンとマージ**。
+
+- 各ポストについて収集する情報（本文・メディアは省略禁止）:
+  - Username/author (with handle)
+  - Full text/content (完全テキスト、一切省略なし)
+  - URL (https://x.com/[username]/status/[post_id])
+  - Quoted Post ID (quoted_tweet_id、または conversationルート遡行時は conversation_id のルートポストIDを相当として記載)
+  - Attached Media URLs（存在する場合）: 添付画像・動画の全URLをリスト形式で記載
+    - 例: 
+      - https://pbs.twimg.com/media/XXXXX.jpg?format=jpg&name=orig
+      - https://pbs.twimg.com/media/YYYYY.mp4?format=mp4&name=orig
+    - 複数枚ある場合はすべて列挙（省略厳禁）
+
+- 出力形式:
+  - Quote Parent Chain: 根っこ（quoted_tweet_id = null かつ conversation_id == post.id）から順に時系列（古い順）でリスト
+  - 各ポストのメディアURLは「Attached Media URLs:」の後に箇条書きで必ず表示（0件の場合は「なし」と明記）
+  - 根っこ到達を明示的に確認
+  - 視覚図（ASCIIアート）で親子構造を表示（引用 → / 会話ルート →）
+  - すべての遡行を愚直に実行、省略・推測なし
+  - ツールレスポンスを省略せず、必要に応じて複数回 fetch
+  - 兄弟投稿（is_reply_to_root=falseの同一conversation内）は絶対に見逃さず除外
+
+- ズルせず、兄弟投稿を一切含めず、quoted_tweet_id + conversation_id(is_reply_to_root=true時)の親子関係のみでチェーンを構築してください。
+- メディアURLは可能な限りオリジナル解像度（?format=jpg&name=orig または ?format=mp4&name=orig）のものを優先的に記載
+
+# 入力
+
+```
+
 # 思考の備忘録
 
 ## 思索の文章化 雄弁が過ぎる先導者的なやつ
