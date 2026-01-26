@@ -93,8 +93,10 @@ class App {
             this.renderUI();
         });
 
-        this.router.addRoute('/category/:categoryName', async (params) => {
-            const categoryName = decodeURIComponent(params.categoryName);
+        // Route for category view - matches /category/anything (including slashes)
+        // but not if it's followed by /template/
+        this.router.addRoute(/^\/category\/((?:(?!\/template\/).)+)$/, async (params) => {
+            const categoryName = params[0];
             this.appState.setCurrentPath(decodeURIComponent(location.pathname));
             this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
             this.currentMainContentVNode = html`<p>Loading templates for ${categoryName}...</p>`;
@@ -121,9 +123,12 @@ class App {
             this.renderUI();
         });
 
-        this.router.addRoute('/category/:categoryName/template/:templateName', async (params) => {
-            const categoryName = decodeURIComponent(params.categoryName);
-            const templateName = decodeURIComponent(params.templateName);
+        // Route for template view - matches /category/anything/template/anything
+        // Both category and template names can contain slashes
+        // We match the last occurrence of /template/ to handle cases where category or template names contain "template"
+        this.router.addRoute(/^\/category\/(.+?)\/template\/(.+)$/, async (params) => {
+            const categoryName = params[0];
+            const templateName = params[1];
 
             this.appState.setCurrentPath(decodeURIComponent(location.pathname));
             this.appState.clearVariableValues();

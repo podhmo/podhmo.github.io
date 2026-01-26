@@ -62,10 +62,18 @@ export class Router {
      * URLパスからパラメータを抽出します。
      * @param {RegExp} regex - ルートの正規表現
      * @param {string} path - 現在のURLパス
-     * @returns {object} - パラメータのキーと値のオブジェクト
+     * @param {string[]} paramNames - パラメータ名の配列
+     * @returns {object|array} - パラメータのキーと値のオブジェクト、または配列
      */
     extractParams(regex, path, paramNames = []) {
         const values = path.match(regex).slice(1);
+        
+        // If no parameter names are provided, return the values as an array
+        if (paramNames.length === 0) {
+            return values;
+        }
+        
+        // Otherwise, return an object with named parameters
         const params = {};
         paramNames.forEach((name, index) => {
             params[name] = values[index];
