@@ -66,7 +66,13 @@ export class Router {
      * @returns {object|array} - paramNamesが空でない場合はパラメータのキーと値のオブジェクト、空の場合は値の配列
      */
     extractParams(regex, path, paramNames = []) {
-        const values = path.match(regex).slice(1);
+        const match = path.match(regex);
+        if (!match) {
+            // This should not happen if the route matched, but handle it defensively
+            return paramNames.length === 0 ? [] : {};
+        }
+        
+        const values = match.slice(1);
         
         // If no parameter names are provided, return the values as an array
         if (paramNames.length === 0) {

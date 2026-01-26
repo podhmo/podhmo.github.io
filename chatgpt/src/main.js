@@ -75,9 +75,16 @@ class App {
      */
     setupRoutes() {
         // Route patterns that support slashes in category and template names
-        // Negative lookahead (?!\/template\/) ensures we don't match past a /template/ delimiter
+        // 
+        // CATEGORY_ROUTE_PATTERN: Matches /category/<anything> where <anything> can contain slashes
+        // - (?:...) is a non-capturing group
+        // - (?!\/template\/) is negative lookahead - fails if the next part is /template/
+        // - (?:(?!\/template\/).)+ matches one or more characters that are not followed by /template/
         const CATEGORY_ROUTE_PATTERN = /^\/category\/((?:(?!\/template\/).)+)$/;
-        // Non-greedy match (.+?) to capture category up to first /template/, then greedy match for template name
+        
+        // TEMPLATE_ROUTE_PATTERN: Matches /category/<cat>/template/<tmpl> where both can contain slashes
+        // - (.+?) is non-greedy - matches minimum characters needed up to first /template/
+        // - (.+) is greedy - matches all remaining characters (the template name)
         const TEMPLATE_ROUTE_PATTERN = /^\/category\/(.+?)\/template\/(.+)$/;
 
         this.router.addRoute('/', async () => {
@@ -206,6 +213,7 @@ class App {
 // Detect the application base path intelligently
 function detectBasePath() {
     const pathname = globalThis.location.pathname;
+    const HTML_FILE_EXTENSION = '.html';
     
     // Check if we're in the /chatgpt/ application directory (production on GitHub Pages)
     if (pathname.startsWith('/chatgpt/') || pathname === '/chatgpt') {
@@ -215,7 +223,7 @@ function detectBasePath() {
     // For local development or other deployments, use the directory of the current page
     // But only if we're at a route like /index.html or just /
     const lastSegment = pathname.split('/').pop();
-    if (lastSegment === '' || lastSegment.endsWith('.html')) {
+    if (lastSegment === '' || lastSegment.endsWith(HTML_FILE_EXTENSION)) {
         return pathname.replace(/\/[^/]*$/, '');
     }
     
