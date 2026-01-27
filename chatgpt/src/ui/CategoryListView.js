@@ -19,7 +19,7 @@ export function CategoryListView(categories, router) {
         ${categories.map(category => html`
             <article>
                 <header>
-                    <a href="/category/${encodeURIComponent(category.categoryName)}" onClick=${(e) => { e.preventDefault(); router.navigateTo(`/category/${encodeURIComponent(category.categoryName)}`); }}>
+                    <a href="#/category/${encodeURIComponent(category.categoryName)}" onClick=${(e) => { e.preventDefault(); router.navigateTo(`/category/${encodeURIComponent(category.categoryName)}`); }}>
                         <h3>${category.categoryName}</h3>
                     </a>
                 </header>

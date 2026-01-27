@@ -26,12 +26,11 @@ const html = htm.bind(h);
 class App {
     /**
      * @param {HTMLElement} appRootEl - The root element to render the application into.
-     * @param {string} basePath - ルーティングのベースパス
      */
-    constructor(appRootEl, basePath = '') {
+    constructor(appRootEl) {
         this.appRootEl = appRootEl;
         this.appState = new AppState();
-        this.router = new Router(basePath);
+        this.router = new Router();
         this.currentBreadcrumbsVNode = null;
         this.currentMainContentVNode = html`<p>Initializing...</p>`;
         this.setupRoutes();
@@ -74,6 +73,19 @@ class App {
      * ルートを定義します。
      */
     setupRoutes() {
+        // Route patterns that support slashes in category and template names
+        // 
+        // CATEGORY_ROUTE_PATTERN: Matches /category/<anything> where <anything> can contain slashes
+        // - (?:...) is a non-capturing group
+        // - (?!\/template\/) is negative lookahead - fails if the next part is /template/
+        // - (?:(?!\/template\/).)+ matches one or more characters that are not followed by /template/
+        const CATEGORY_ROUTE_PATTERN = /^\/category\/((?:(?!\/template\/).)+)$/;
+        
+        // TEMPLATE_ROUTE_PATTERN: Matches /category/<cat>/template/<tmpl> where both can contain slashes
+        // - (.+?) is non-greedy - matches minimum characters needed up to first /template/
+        // - (.+) is greedy - matches all remaining characters (the template name)
+        const TEMPLATE_ROUTE_PATTERN = /^\/category\/(.+?)\/template\/(.+)$/;
+
         this.router.addRoute('/', async () => {
             this.appState.setCurrentPath('/');
             this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
@@ -93,9 +105,12 @@ class App {
             this.renderUI();
         });
 
-        this.router.addRoute('/category/:categoryName', async (params) => {
-            const categoryName = decodeURIComponent(params.categoryName);
-            this.appState.setCurrentPath(decodeURIComponent(location.pathname));
+        // Route for category view - uses CATEGORY_ROUTE_PATTERN defined above
+        this.router.addRoute(CATEGORY_ROUTE_PATTERN, async (params) => {
+            // Params is an array when using regex patterns
+            // Hash fragments are already decoded by the browser
+            const categoryName = decodeURIComponent(params[0]);
+            this.appState.setCurrentPath(location.hash.slice(1));
             this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
             this.currentMainContentVNode = html`<p>Loading templates for ${categoryName}...</p>`;
             this.renderUI();
@@ -121,11 +136,14 @@ class App {
             this.renderUI();
         });
 
-        this.router.addRoute('/category/:categoryName/template/:templateName', async (params) => {
-            const categoryName = decodeURIComponent(params.categoryName);
-            const templateName = decodeURIComponent(params.templateName);
+        // Route for template view - uses TEMPLATE_ROUTE_PATTERN defined above
+        this.router.addRoute(TEMPLATE_ROUTE_PATTERN, async (params) => {
+            // Params is an array when using regex patterns
+            // Hash fragments are already decoded by the browser
+            const categoryName = decodeURIComponent(params[0]);
+            const templateName = decodeURIComponent(params[1]);
 
-            this.appState.setCurrentPath(decodeURIComponent(location.pathname));
+            this.appState.setCurrentPath(location.hash.slice(1));
             this.appState.clearVariableValues();
 
             this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
@@ -193,7 +211,5 @@ class App {
 }
 
 // アプリケーションインスタンスを作成して開始
-const currentBasePath = globalThis.location.pathname.replace(/\/[^/]*$/, '');
-console.log(`Current base path: ${currentBasePath}`);
-const app = new App(document.getElementById('app'), currentBasePath);
+const app = new App(document.getElementById('app'));
 app.start();

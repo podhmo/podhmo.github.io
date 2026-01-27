@@ -222,14 +222,13 @@ ${instruction}
             })}
             
             <footer>
-                <a href="/category/${encodeURIComponent(template.categoryName)}" 
+                <a href="#/category/${encodeURIComponent(template.categoryName)}" 
                    onClick=${(e) => {
                        e.preventDefault();
                        if (router) {
                            router.navigateTo(`/category/${encodeURIComponent(template.categoryName)}`);
                        } else {
-                           window.history.pushState({}, '', `/category/${encodeURIComponent(template.categoryName)}`);
-                           window.dispatchEvent(new PopStateEvent('popstate'));
+                           window.location.hash = `/category/${encodeURIComponent(template.categoryName)}`;
                        }
                    }}>
                    Back to ${template.categoryName}

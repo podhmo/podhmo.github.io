@@ -1,15 +1,14 @@
 /**
  * シンプルなSPAルーター
- * History APIを利用します。
+ * Hash-based routingを利用します。
  */
 export class Router {
     /**
-     * @param {string} basePath - ルーティングのベースパス（例: '/chatgpt'）
+     * ルーターを初期化します。
      */
-    constructor(basePath = '') {
-        this.basePath = basePath.replace(/\/$/, ''); // 末尾スラッシュ除去
+    constructor() {
         this.routes = [];
-        globalThis.addEventListener('popstate', () => this.handleLocationChange());
+        globalThis.addEventListener('hashchange', () => this.handleLocationChange());
     }
 
     /**
@@ -38,11 +37,9 @@ export class Router {
      * 現在のURLに基づいて適切なハンドラを実行します。
      */
     async handleLocationChange() {
-        // basePathを除去したパスでマッチング
-        let currentPath = globalThis.location.pathname;
-        if (this.basePath && currentPath.startsWith(this.basePath)) {
-            currentPath = currentPath.slice(this.basePath.length) || '/';
-        }
+        // Get the hash, removing the leading '#'
+        let currentPath = globalThis.location.hash.slice(1) || '/';
+        
         for (const route of this.routes) {
             const match = currentPath.match(route.regex);
             if (match) {
@@ -62,10 +59,24 @@ export class Router {
      * URLパスからパラメータを抽出します。
      * @param {RegExp} regex - ルートの正規表現
      * @param {string} path - 現在のURLパス
-     * @returns {object} - パラメータのキーと値のオブジェクト
+     * @param {string[]} paramNames - パラメータ名の配列（空の場合は配列を返す）
+     * @returns {object|array} - paramNamesが空でない場合はパラメータのキーと値のオブジェクト、空の場合は値の配列
      */
     extractParams(regex, path, paramNames = []) {
-        const values = path.match(regex).slice(1);
+        const match = path.match(regex);
+        if (!match) {
+            // Defensive: should not happen if route matched
+            return paramNames.length === 0 ? [] : {};
+        }
+        
+        const values = match.slice(1);
+        
+        // If no parameter names are provided, return the values as an array
+        if (paramNames.length === 0) {
+            return values;
+        }
+        
+        // Otherwise, return an object with named parameters
         const params = {};
         paramNames.forEach((name, index) => {
             params[name] = values[index];
@@ -79,9 +90,7 @@ export class Router {
      * @param {string} path - ナビゲート先のパス
      */
     navigateTo(path) {
-        // basePathを付与
-        const fullPath = this.basePath + (path.startsWith('/') ? path : '/' + path);
-        globalThis.history.pushState({}, '', fullPath);
-        this.handleLocationChange();
+        // Set the hash
+        globalThis.location.hash = path.startsWith('/') ? path : '/' + path;
     }
 }
