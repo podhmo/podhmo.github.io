@@ -1,15 +1,14 @@
 /**
  * シンプルなSPAルーター
- * History APIを利用します。
+ * Hash-based routingを利用します。
  */
 export class Router {
     /**
-     * @param {string} basePath - ルーティングのベースパス（例: '/chatgpt'）
+     * ルーターを初期化します。
      */
-    constructor(basePath = '') {
-        this.basePath = basePath.replace(/\/$/, ''); // 末尾スラッシュ除去
+    constructor() {
         this.routes = [];
-        globalThis.addEventListener('popstate', () => this.handleLocationChange());
+        globalThis.addEventListener('hashchange', () => this.handleLocationChange());
     }
 
     /**
@@ -38,11 +37,9 @@ export class Router {
      * 現在のURLに基づいて適切なハンドラを実行します。
      */
     async handleLocationChange() {
-        // basePathを除去したパスでマッチング
-        let currentPath = globalThis.location.pathname;
-        if (this.basePath && currentPath.startsWith(this.basePath)) {
-            currentPath = currentPath.slice(this.basePath.length) || '/';
-        }
+        // Get the hash, removing the leading '#'
+        let currentPath = globalThis.location.hash.slice(1) || '/';
+        
         for (const route of this.routes) {
             const match = currentPath.match(route.regex);
             if (match) {
@@ -68,7 +65,7 @@ export class Router {
     extractParams(regex, path, paramNames = []) {
         const match = path.match(regex);
         if (!match) {
-            // This should not happen if the route matched, but handle it defensively
+            // Defensive: should not happen if route matched
             return paramNames.length === 0 ? [] : {};
         }
         
@@ -93,9 +90,7 @@ export class Router {
      * @param {string} path - ナビゲート先のパス
      */
     navigateTo(path) {
-        // basePathを付与
-        const fullPath = this.basePath + (path.startsWith('/') ? path : '/' + path);
-        globalThis.history.pushState({}, '', fullPath);
-        this.handleLocationChange();
+        // Set the hash
+        globalThis.location.hash = path.startsWith('/') ? path : '/' + path;
     }
 }

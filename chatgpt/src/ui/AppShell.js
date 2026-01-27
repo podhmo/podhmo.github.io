@@ -11,14 +11,13 @@ const html = htm.bind(h);
  */
 export function AppShell(appState, router) { // Renamed for clarity, pass router if needed or use global/event
     const breadcrumbs = appState.getBreadcrumbs();
-    const handleNav = (event, path) => { // Moved here or could be global/passed
+    const handleNav = (event, path) => {
         event.preventDefault();
         // If router is not passed, this relies on global router or dispatches event for main.js
         if (router) {
             router.navigateTo(path);
         } else {
-            window.history.pushState({}, '', path);
-            window.dispatchEvent(new PopStateEvent('popstate'));
+            window.location.hash = path;
         }
     };
 
@@ -29,7 +28,7 @@ export function AppShell(appState, router) { // Renamed for clarity, pass router
                     <li>
                         ${index === breadcrumbs.length - 1
                             ? html`<span aria-current="page">${crumb.name}</span>`
-                            : html`<a href="${crumb.path}" onClick=${(e) => handleNav(e, crumb.path)}>${crumb.name}</a>`
+                            : html`<a href="#${crumb.path}" onClick=${(e) => handleNav(e, crumb.path)}>${crumb.name}</a>`
                         }
                     </li>
                 `)}

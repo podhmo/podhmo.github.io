@@ -26,12 +26,11 @@ const html = htm.bind(h);
 class App {
     /**
      * @param {HTMLElement} appRootEl - The root element to render the application into.
-     * @param {string} basePath - ルーティングのベースパス
      */
-    constructor(appRootEl, basePath = '') {
+    constructor(appRootEl) {
         this.appRootEl = appRootEl;
         this.appState = new AppState();
-        this.router = new Router(basePath);
+        this.router = new Router();
         this.currentBreadcrumbsVNode = null;
         this.currentMainContentVNode = html`<p>Initializing...</p>`;
         this.setupRoutes();
@@ -108,9 +107,10 @@ class App {
 
         // Route for category view - uses CATEGORY_ROUTE_PATTERN defined above
         this.router.addRoute(CATEGORY_ROUTE_PATTERN, async (params) => {
-            // Need to decode because browser preserves %2F encoding in location.pathname
+            // Params is an array when using regex patterns
+            // Hash fragments are already decoded by the browser
             const categoryName = decodeURIComponent(params[0]);
-            this.appState.setCurrentPath(decodeURIComponent(location.pathname));
+            this.appState.setCurrentPath(location.hash.slice(1));
             this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
             this.currentMainContentVNode = html`<p>Loading templates for ${categoryName}...</p>`;
             this.renderUI();
@@ -138,11 +138,12 @@ class App {
 
         // Route for template view - uses TEMPLATE_ROUTE_PATTERN defined above
         this.router.addRoute(TEMPLATE_ROUTE_PATTERN, async (params) => {
-            // Need to decode because browser preserves %2F encoding in location.pathname
+            // Params is an array when using regex patterns
+            // Hash fragments are already decoded by the browser
             const categoryName = decodeURIComponent(params[0]);
             const templateName = decodeURIComponent(params[1]);
 
-            this.appState.setCurrentPath(decodeURIComponent(location.pathname));
+            this.appState.setCurrentPath(location.hash.slice(1));
             this.appState.clearVariableValues();
 
             this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
@@ -210,30 +211,5 @@ class App {
 }
 
 // アプリケーションインスタンスを作成して開始
-// Detect the application base path intelligently
-function detectBasePath() {
-    const pathname = globalThis.location.pathname;
-    const HTML_FILE_EXTENSION = '.html';
-    
-    // Check if we're in the /chatgpt/ application directory (production on GitHub Pages)
-    if (pathname.startsWith('/chatgpt/') || pathname === '/chatgpt') {
-        return '/chatgpt';
-    }
-    
-    // For local development or other deployments, use the directory of the current page
-    // But only if we're at a route like /index.html or just /
-    const lastSegment = pathname.split('/').pop();
-    if (lastSegment === '' || lastSegment.endsWith(HTML_FILE_EXTENSION)) {
-        return pathname.replace(/\/[^/]*$/, '');
-    }
-    
-    // If we're at a deep route (e.g., /category/foo/template/bar),
-    // we can't reliably detect basePath from URL alone.
-    // Default to empty string for local development.
-    return '';
-}
-
-const currentBasePath = detectBasePath();
-console.log(`Current base path: ${currentBasePath}`);
-const app = new App(document.getElementById('app'), currentBasePath);
+const app = new App(document.getElementById('app'));
 app.start();

@@ -11,7 +11,7 @@ const html = htm.bind(h);
  */
 export function TemplateListView(category, router) {
     if (!category || !category.templates || category.templates.length === 0) {
-        return html`<p>No templates found in this category.</p><a href="/" onClick=${(e) => { e.preventDefault(); router.navigateTo('/'); }}>Back to Categories</a>`;
+        return html`<p>No templates found in this category.</p><a href="#/" onClick=${(e) => { e.preventDefault(); router.navigateTo('/'); }}>Back to Categories</a>`;
     }
 
     return html`
@@ -19,7 +19,7 @@ export function TemplateListView(category, router) {
         ${category.templates.map(template => html`
             <article>
                 <header>
-                    <a href="/category/${encodeURIComponent(category.categoryName)}/template/${encodeURIComponent(template.templateName)}" 
+                    <a href="#/category/${encodeURIComponent(category.categoryName)}/template/${encodeURIComponent(template.templateName)}" 
                        onClick=${(e) => { e.preventDefault(); router.navigateTo(`/category/${encodeURIComponent(category.categoryName)}/template/${encodeURIComponent(template.templateName)}`); }}>
                         <h4>${template.templateName}</h4>
                     </a>
@@ -27,6 +27,6 @@ export function TemplateListView(category, router) {
                 ${template.description ? html`<p dangerouslySetInnerHTML=${{ __html: template.description.replace(/\n/g, '<br>') }}></p>` : null}
             </article>
         `)}
-        <p><a href="/" onClick=${(e) => { e.preventDefault(); router.navigateTo('/'); }}>Back to Categories</a></p>
+        <p><a href="#/" onClick=${(e) => { e.preventDefault(); router.navigateTo('/'); }}>Back to Categories</a></p>
     `;
 }
