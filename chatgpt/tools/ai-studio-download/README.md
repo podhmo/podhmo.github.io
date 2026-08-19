@@ -4,13 +4,43 @@
 
 このアプリケーションは、GitHub Pagesのような静的ホスティング環境での動作を想定しており、すべての処理はクライアントサイドのJavaScriptで行われます。
 
+## TypeScript CLI ツール
+
+TypeScript版のCLIツールも提供されており、コマンドラインから対話履歴をダウンロードできます。
+
+### 使い方
+
+**対話形式でダウンロード（デフォルト）:**
+```bash
+ai-studio-download
+```
+
+**URL を指定して直接ダウンロード:**
+```bash
+ai-studio-download --url https://aistudio.google.com/prompts/1-UCiE72JzsfPU5YzE0KVHj5MynEyKbQ5
+```
+
+**出力先ディレクトリを指定:**
+```bash
+ai-studio-download -o ./output --url https://aistudio.google.com/prompts/1-UCiE72JzsfPU5YzE0KVHj5MynEyKbQ5
+```
+
+### CLI オプション
+- `-u, --url <URL>`: AI Studio の URL を指定して直接ダウンロード
+- `-o, --output <パス>`: ダウンロード先のディレクトリを指定
+- `--keyFile <パス>`: サービスアカウントキーファイルへのパスを指定
+- `-h, --help`: ヘルプメッセージを表示
+
 ## 機能
 
+### ウェブアプリケーション
+
 -   Google OAuth 2.0 を使用した安全なログイン
+-   **URLから直接ダウンロード** - AI Studio の URL を入力して、対話履歴を直接ダウンロード
 -   Google Drive内の "Google AI Studio" フォルダ内のJSONファイルを時系列（降順）で一覧表示
 -   ファイル名の空白をハイフン (`-`) に置換する正規化処理
 -   正規化されたファイル名でJSONファイルをダウンロード (`<normalized-name>.json`)
--   正規化されたファイル名で空のMarkdownファイルをダウンロード (`<normalized-name>.md`)
+-   正規化されたファイル名でMarkdownファイルをダウンロード (`<normalized-name>.md`)
 -   Pico.css v2 を使用したシンプルなレスポンシブデザイン
 -   JavaScriptはES Modules (ESM) 形式で記述
 
@@ -57,10 +87,16 @@
         5.  **注意:** もし `https://YOUR_USERNAME.github.io/REPOSITORY_NAME/` のようにサブディレクトリでホストする場合、GCPの「承認済みの JavaScript 生成元」にも `https://YOUR_USERNAME.github.io` を設定する必要があります（サブディレクトリなしのルートドメイン）。
 2.  アプリケーションを開くと、Google APIライブラリのロード後に「Googleアカウントでログイン」ボタンが表示されます。
 3.  ボタンをクリックし、Googleアカウントでログインし、要求される権限（Google Driveのファイルの読み取り）を承認します。
-4.  ログインに成功すると、"Google AI Studio" フォルダ（または設定したフォルダ）内のJSONファイルが一覧表示されます。
-5.  各ファイルの横にある「JSON形式でDL」ボタンをクリックすると、正規化されたファイル名でJSONファイルがダウンロードされます。
-6.  「MD形式でDL」ボタンをクリックすると、正規化されたファイル名で空のMarkdownファイルがダウンロードされます。
-7.  作業が終わったら「ログアウト」ボタンでログアウトできます。
+4.  ログインに成功すると、2つのダウンロード方法が利用できます：
+    - **方法1: URLから直接ダウンロード**
+        - AI Studio で対話履歴を開き、ブラウザのアドレスバーから URL をコピーします（例: `https://aistudio.google.com/prompts/1-UCiE72JzsfPU5YzE0KVHj5MynEyKbQ5`）
+        - 「URLから直接ダウンロード」セクションに URL を貼り付けます
+        - 「JSON形式でダウンロード」または「MD形式でダウンロード」ボタンをクリックします
+    - **方法2: ファイル一覧から選択してダウンロード**
+        - "Google AI Studio" フォルダ（または設定したフォルダ）内のJSONファイルが一覧表示されます
+        - 各ファイルの横にある「JSON形式でDL」ボタンをクリックすると、正規化されたファイル名でJSONファイルがダウンロードされます
+        - 「MD形式でDL」ボタンをクリックすると、正規化されたファイル名でMarkdownファイルがダウンロードされます
+5.  作業が終わったら「ログアウト」ボタンでログアウトできます。
 
 ## 注意点
 
