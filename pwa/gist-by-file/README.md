@@ -21,43 +21,66 @@ GitHubアカウントでログインし、複数ファイルを選択してGist�
 
 ## 技術スタック
 
-- **ランタイム**: Deno
+- **ランタイム**: Cloudflare Workers (workerd)
 - **フレームワーク**: Hono + JSX
 - **UI**: Pico CSS v2（モバイルファースト）
-- **デプロイ**: Deno Deploy（世界中のエッジで配信）
+- **デプロイ**: Cloudflare Workers（世界中のエッジで配信）
 
 ## 必要要件
 
-- Deno 1.40以上
+- Node.js 20以上（wrangler でローカル実行・デプロイ）
 
 ## セットアップ
 
 1. **GitHub OAuth App の作成**
    - GitHub Developer Settings から OAuth App を作成します。
-   - **Authorization callback URL** に `http://localhost:3333/auth/callback` を設定します。
+   - **Authorization callback URL** に `http://localhost:8787/auth/callback` を設定します。
 
 2. **環境変数の設定**
-   プロジェクトルートに `.env` ファイルを作成し、以下の情報を記述します。
+   プロジェクトルートに `.dev.vars` ファイルを作成し、以下の情報を記述します。
 
    ```env
    GITHUB_CLIENT_ID=your_client_id
    GITHUB_CLIENT_SECRET=your_client_secret
-   BASE_URL=http://localhost:3333
+   # BASE_URL は省略時 http://localhost:8787
    ```
 
    **必要なGitHub OAuth scopes**: `read:user,gist`
+
+3. **依存関係のインストール**
+
+   ```bash
+   npm install
+   ```
 
 ## 実行方法
 
 ### ローカル開発
 
-以下のコマンドで開発サーバーを起動します。
+以下のコマンドで開発サーバー（wrangler dev / workerd）を起動します。
 
 ```bash
-deno task dev
+npm run dev
 ```
 
-ブラウザで `http://localhost:3333` にアクセスしてください。
+ブラウザで `http://localhost:8787` にアクセスしてください。
+
+### テスト・型チェック
+
+```bash
+npm test            # vitest
+npm run typecheck   # tsc --noEmit
+```
+
+### デプロイ
+
+```bash
+npm run deploy
+wrangler secret put GITHUB_CLIENT_ID
+wrangler secret put GITHUB_CLIENT_SECRET
+```
+
+本番環境では `wrangler.jsonc` の `vars.BASE_URL` をデプロイ先のURL（例: `https://gist-by-file.<account>.workers.dev`）に変更し、GitHub OAuth App の callback URL も合わせてください。
 
 ## 使い方
 
@@ -102,47 +125,17 @@ deno task dev
 プロジェクトの進行状況と今後のタスクについては [TODO.md](./TODO.md)
 を参照してください。
 
-## 開発ガイドライン
-
-### 依存関係管理ルール
-
-**重要**: 以下の優先順位に従って依存関係を管理してください：
-
-1. **JSR標準ライブラリを優先**: `jsr:@std/*` からのimportを最優先
-2. **JSRレジストリを活用**: 可能な限り `jsr:@namespace/package` を使用
-3. **npm fallback**: JSRで見つからない場合のみ `npm:package-name` を使用
-4. **禁止事項**: `https://deno.land/x/` からの直接importは**絶対に禁止**
-
-### プロジェクト構成ルール
-
-- **複数ファイルプロジェクト**: `deno.json` で依存関係を管理（現在の構成）
-- **単一ファイルプロジェクト**: `deno.json`
-  を作らず、import時に直接バージョン指定
-
-```typescript
-// ✅ 推奨: JSR標準ライブラリ
-import { load } from "jsr:@std/dotenv@^0.220.0";
-
-// ✅ 推奨: JSRパッケージ
-import { Hono } from "jsr:@hono/hono@^4.1.0";
-
-// ⚠️ 許可: JSRで見つからない場合のみ
-import { somePackage } from "npm:package-name@^1.0.0";
-
-// ❌ 禁止: deno.land/x からの直接import
-import { someLib } from "https://deno.land/x/somelib@v1.0.0/mod.ts";
-```
-
 ## 構成について
 
-- **deno.json**: 依存関係管理（JSR使用）とタスクランナー設定。
-- **main.tsx**:
+- **wrangler.jsonc**: Workers の設定（エントリーポイント、vars）。
+- **src/index.tsx**:
   アプリケーションロジックのすべて（ルーティング、JSXコンポーネント、OAuth処理）。
+- **test/index.test.ts**: vitest によるロジックテスト。
 - **Pico CSS**:
   CDN経由で読み込み、クラスレスに近い形でモバイルファーストなUIを実現。
 
 ## 注意点
 
-- 本実装では簡易化のため、ユーザー情報をJSON化して直接Cookie (`user_session`)
-  に保存しています。本番環境では暗号化するか、Deno
-  KVなどを用いたセッションストアの実装を推奨します。
+- 本実装では簡易化のため、ユーザー情報（アクセストークン含む）をJSON化して直接Cookie (`user_session`)
+  に保存しています。本番環境では暗号化するか、Workers KVなどを用いたセッションストアの実装を推奨します。
+- `BASE_URL` が `https:` のときのみ Cookie に `Secure` 属性が付きます。http の localhost では動作確認のため付けていません。

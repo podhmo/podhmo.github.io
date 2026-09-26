@@ -1,33 +1,20 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { load } from "@std/dotenv";
 import type { FC, PropsWithChildren } from "hono/jsx";
 
-// ローカル開発時に .env ファイルを読み込む
-await load({ export: true });
-
-const app = new Hono();
-
-// 環境変数
-const CLIENT_ID = Deno.env.get("GITHUB_CLIENT_ID");
-const CLIENT_SECRET = Deno.env.get("GITHUB_CLIENT_SECRET");
-const BASE_URL = Deno.env.get("BASE_URL") || "http://localhost:3333";
-
-// BASE_URLからport番号を抽出
-const getPortFromBaseUrl = (baseUrl: string): number => {
-  try {
-    const url = new URL(baseUrl);
-    return url.port
-      ? parseInt(url.port, 10)
-      : (url.protocol === "https:" ? 443 : 80);
-  } catch {
-    // URLのパースに失敗した場合は3333をデフォルトとする
-    return 3333;
-  }
+// Cloudflare Workers では env はリクエスト毎に c.env から読む
+type Bindings = {
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+  BASE_URL?: string;
 };
 
-const PORT = getPortFromBaseUrl(BASE_URL);
+const app = new Hono<{ Bindings: Bindings }>();
+
+const DEFAULT_BASE_URL = "http://localhost:8787"; // wrangler dev のデフォルト
+
+const baseUrl = (env: Bindings): string => env.BASE_URL || DEFAULT_BASE_URL;
 
 // 型定義
 interface GitHubUser {
@@ -83,21 +70,21 @@ const Layout: FC<PropsWithChildren> = (props) => {
             const clearBtn = document.getElementById('clear-btn');
             const uploadProgress = document.getElementById('upload-progress');
             const uploadResult = document.getElementById('upload-result');
-            
+
             let selectedFiles = [];
-            
+
             // Gist URLからIDを抽出する関数
             function extractGistId(url) {
               if (!url || url.trim() === '') return null;
-              
+
               // URLからGist IDを抽出
               // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7
               // 例: https://gist.github.com/podhmo/b73d88ae90a35c94db109183a4d22eb7#file-c2pa-md
-              // 注意: このパターンはサーバー側のバリデーション(line 649)と一致させる必要があります
+              // 注意: このパターンはサーバー側のバリデーションと一致させる必要があります
               const match = url.match(/gist\\.github\\.com\\/[^\\/]+\\/([a-fA-F0-9]+)/);
               return match ? match[1] : null;
             }
-            
+
             // Gist URL入力の監視
             const gistUrlInput = document.getElementById('gist-url-input');
             if (gistUrlInput && uploadBtn) {
@@ -110,35 +97,35 @@ const Layout: FC<PropsWithChildren> = (props) => {
                 }
               });
             }
-            
+
             // ファイル選択イベント
             if (fileInput) {
               fileInput.addEventListener('change', handleFileSelect, false);
             }
-            
+
             function handleFileSelect(e) {
               const files = e.target.files;
               handleFiles(files);
             }
-            
+
             async function handleFiles(files) {
               selectedFiles = Array.from(files);
               await displayFiles();
             }
-            
+
             async function displayFiles() {
               if (selectedFiles.length === 0) {
                 filePreview.style.display = 'none';
                 return;
               }
-              
+
               fileList.innerHTML = '';
-              
+
               for (let i = 0; i < selectedFiles.length; i++) {
                 const file = selectedFiles[i];
                 const fileDiv = document.createElement('div');
                 let content = '';
-                
+
                 // テキストファイルの場合は内容を読み取り
                 if (file.type.startsWith('text/') || file.name.match(/\\.(js|ts|jsx|tsx|py|md|txt|json|html|css)$/i)) {
                   try {
@@ -147,16 +134,16 @@ const Layout: FC<PropsWithChildren> = (props) => {
                     content = '[ファイルを読み取れませんでした]';
                   }
                 }
-                
+
                 fileDiv.innerHTML = \`
                   <details style="margin-bottom: 0.5rem; padding: 0.5rem; border: 1px solid var(--pico-muted-border-color); border-radius: 0.25rem;">
                     <summary>
-                      <input 
-                        type="text" 
-                        value="\${file.name}" 
-                        data-file-index="\${i}" 
-                        class="filename-input" 
-                        style="width: 70%; display: inline-block; margin-right: 0.5rem; font-size: 0.9em;" 
+                      <input
+                        type="text"
+                        value="\${file.name}"
+                        data-file-index="\${i}"
+                        class="filename-input"
+                        style="width: 70%; display: inline-block; margin-right: 0.5rem; font-size: 0.9em;"
                         onclick="event.stopPropagation();"
                       />
                       <small>(\${(file.size / 1024).toFixed(1)} KB)</small>
@@ -166,10 +153,10 @@ const Layout: FC<PropsWithChildren> = (props) => {
                 \`;
                 fileList.appendChild(fileDiv);
               }
-              
+
               filePreview.style.display = 'block';
             }
-            
+
             // クリアボタン
             if (clearBtn) {
               clearBtn.addEventListener('click', function() {
@@ -179,31 +166,31 @@ const Layout: FC<PropsWithChildren> = (props) => {
                 uploadResult.style.display = 'none';
               });
             }
-            
+
             // アップロードボタン
             if (uploadBtn) {
               uploadBtn.addEventListener('click', async function() {
               if (selectedFiles.length === 0) return;
-              
+
               // Gistの可視性設定を取得
               const isPublic = document.querySelector('input[name="gist-visibility"]:checked').value === 'public';
-              
+
               // Gist URLを取得
               const gistUrlInput = document.getElementById('gist-url-input');
               const gistUrl = gistUrlInput ? gistUrlInput.value.trim() : '';
               const gistId = extractGistId(gistUrl);
-              
+
               // Gist Descriptionを取得
               const gistDescriptionInput = document.getElementById('gist-description-input');
               const gistDescription = gistDescriptionInput ? gistDescriptionInput.value.trim() : '';
-              
+
               // 各ファイルの変更後のファイル名を取得
               const filenameInputs = document.querySelectorAll('.filename-input');
               const filenameMap = {};
               filenameInputs.forEach((input, index) => {
                 filenameMap[index] = input.value.trim() || selectedFiles[index].name;
               });
-              
+
               const formData = new FormData();
               selectedFiles.forEach((file, index) => {
                 formData.append('files', file);
@@ -216,7 +203,7 @@ const Layout: FC<PropsWithChildren> = (props) => {
               if (gistDescription) {
                 formData.append('description', gistDescription);
               }
-              
+
               try {
                 // プログレステキストを更新
                 const action = gistId ? '更新' : '作成';
@@ -224,20 +211,20 @@ const Layout: FC<PropsWithChildren> = (props) => {
                 if (progressText) {
                   progressText.textContent = \`🚀 Gistを\${action}中...\`;
                 }
-                
+
                 uploadProgress.style.display = 'block';
                 uploadResult.style.display = 'none';
-                
+
                 const response = await fetch('/api/gist/create', {
                   method: 'POST',
                   body: formData
                 });
-                
+
                 const result = await response.json();
-                
+
                 uploadProgress.style.display = 'none';
                 uploadResult.style.display = 'block';
-                
+
                 if (result.success) {
                   uploadResult.innerHTML = \`
                     <article style="border-color: var(--pico-ins-color);">
@@ -286,7 +273,7 @@ const Layout: FC<PropsWithChildren> = (props) => {
           {props.children}
         </main>
         <footer class="container">
-          <small>Built with Hono & Deno</small>
+          <small>Built with Hono & Cloudflare Workers</small>
         </footer>
       </body>
     </html>
@@ -380,7 +367,7 @@ const FileUploadForm: FC = () => (
     <div id="file-preview" style={{ display: "none" }}>
       <h3>選択されたファイル</h3>
       <div id="file-list"></div>
-      
+
       <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
         <fieldset>
           <legend>📊 Gistの公開設定</legend>
@@ -405,7 +392,7 @@ const FileUploadForm: FC = () => (
           </label>
         </fieldset>
       </div>
-      
+
       <div class="grid" style={{ marginTop: "1rem" }}>
         <button
           id="upload-btn"
@@ -439,37 +426,6 @@ const FileUploadForm: FC = () => (
 
     <div id="upload-result" style={{ display: "none" }}></div>
   </article>
-);
-
-const FilePreview: FC<{ fileName: string; size: number; content?: string }> = (
-  { fileName, size, content },
-) => (
-  <details
-    style={{
-      marginBottom: "0.5rem",
-      padding: "0.5rem",
-      border: "1px solid var(--pico-muted-border-color)",
-      borderRadius: "0.25rem",
-    }}
-  >
-    <summary>
-      <strong>{fileName}</strong> ({(size / 1024).toFixed(1)} KB)
-    </summary>
-    {content && (
-      <pre
-        style={{
-          fontSize: "0.8em",
-          background: "var(--pico-card-background-color)",
-          padding: "0.5rem",
-          borderRadius: "0.25rem",
-          maxHeight: "200px",
-          overflow: "auto",
-        }}
-      >
-        {content.length > 1000 ? content.substring(0, 1000) + "..." : content}
-      </pre>
-    )}
-  </details>
 );
 
 const ErrorScreen: FC<{ message: string; detail?: string }> = (
@@ -521,20 +477,27 @@ app.get("/", (c) => {
 });
 
 app.get("/auth/login", (c) => {
-  if (!CLIENT_ID) {
+  const clientId = c.env.GITHUB_CLIENT_ID;
+  if (!clientId) {
     return c.html(<ErrorScreen message="GITHUB_CLIENT_ID is not set" />, 500);
   }
 
   const params = new URLSearchParams({
-    client_id: CLIENT_ID,
+    client_id: clientId,
     scope: "read:user,gist",
-    redirect_uri: `${BASE_URL}/auth/callback`,
+    redirect_uri: `${baseUrl(c.env)}/auth/callback`,
   });
 
   return c.redirect(
     `https://github.com/login/oauth/authorize?${params.toString()}`,
   );
 });
+
+interface TokenResponse {
+  access_token?: string;
+  error?: string;
+  error_description?: string;
+}
 
 app.get("/auth/callback", async (c) => {
   const code = c.req.query("code");
@@ -553,7 +516,12 @@ app.get("/auth/callback", async (c) => {
   if (!code) {
     return c.html(<ErrorScreen message="認証コードが見つかりませんでした" />);
   }
-  if (!CLIENT_ID || !CLIENT_SECRET) {
+
+  const clientId = c.env.GITHUB_CLIENT_ID;
+  const clientSecret = c.env.GITHUB_CLIENT_SECRET;
+  const url = baseUrl(c.env);
+
+  if (!clientId || !clientSecret) {
     return c.html(
       <ErrorScreen message="Server configuration error: GitHub OAuth credentials not set" />,
       500,
@@ -571,14 +539,14 @@ app.get("/auth/callback", async (c) => {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          client_id: CLIENT_ID,
-          client_secret: CLIENT_SECRET,
+          client_id: clientId,
+          client_secret: clientSecret,
           code,
         }),
       },
     );
 
-    const tokenData = await tokenRes.json();
+    const tokenData = await tokenRes.json() as TokenResponse;
     if (tokenData.error) throw new Error(tokenData.error_description);
 
     const accessToken = tokenData.access_token;
@@ -588,16 +556,16 @@ app.get("/auth/callback", async (c) => {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
-        "User-Agent": "Hono-Deno-App",
+        "User-Agent": "Gist-Uploader",
       },
     });
 
     if (!userRes.ok) throw new Error("Failed to fetch user data");
 
-    const userData = await userRes.json();
+    const userData = await userRes.json() as GitHubUser;
 
     // 必要な情報だけ抽出（アクセストークンも含める）
-    const user: GitHubUser & { access_token: string } = {
+    const user: GitHubUser & { access_token?: string } = {
       login: userData.login,
       avatar_url: userData.avatar_url,
       name: userData.name,
@@ -608,19 +576,20 @@ app.get("/auth/callback", async (c) => {
     // 3. Cookieに保存 (本番ではセッションIDのみを保存し、データはDB/KVに入れることを推奨)
     setCookie(c, "user_session", JSON.stringify(user), {
       httpOnly: true,
-      secure: true, // HTTPS環境(localhost以外)では必須に近いが、動作確認のため環境に合わせて調整してください
+      secure: url.startsWith("https:"), // https のときだけ Secure を付ける (localhostでの動作確認用)
       path: "/",
       maxAge: 60 * 60 * 24, // 1日
     });
 
     return c.redirect("/");
-  } catch (e: any) {
+  } catch (e) {
     console.error("OAuth callback error:", e);
+    const err = e instanceof Error ? e : new Error(String(e));
     return c.html(
       <ErrorScreen
         message="GitHub認証中にエラーが発生しました"
-        detail={`Error: ${e.message}\nStack: ${
-          e.stack || "No stack trace available"
+        detail={`Error: ${err.message}\nStack: ${
+          err.stack || "No stack trace available"
         }`}
       />,
     );
@@ -640,7 +609,7 @@ app.post("/api/gist/create", async (c) => {
     return c.json({ success: false, error: "認証が必要です" }, 401);
   }
 
-  let user: GitHubUser;
+  let user: GitHubUser & { access_token?: string };
   try {
     user = JSON.parse(userCookie);
   } catch {
@@ -664,7 +633,7 @@ app.post("/api/gist/create", async (c) => {
     // 可視性設定（デフォルト: public）
     // all: true の場合、単一の値でも配列になる可能性があるため配列から取得
     const publicValue = Array.isArray(publicParam) ? publicParam[0] : publicParam;
-    const isPublic = publicValue === 'true';
+    const isPublic = publicValue === "true";
 
     // ファイル配列に変換
     const fileArray = Array.isArray(files) ? files : [files];
@@ -677,8 +646,10 @@ app.post("/api/gist/create", async (c) => {
     }
 
     // カスタムファイル名の配列を取得
-    const filenameArray: string[] = customFilenames 
-      ? (Array.isArray(customFilenames) ? customFilenames.map(String) : [String(customFilenames)])
+    const filenameArray: string[] = customFilenames
+      ? (Array.isArray(customFilenames)
+        ? customFilenames.map(String)
+        : [String(customFilenames)])
       : [];
 
     // Gist用のファイルオブジェクトを作成
@@ -702,25 +673,26 @@ app.post("/api/gist/create", async (c) => {
     }
 
     // Gist IDがある場合は更新、ない場合は作成
-    const isUpdate = gistId && gistId.trim() !== '';
-    
+    const isUpdate = !!gistId && gistId.trim() !== "";
+
     // Gist IDの検証（16進数文字のみ許可）
-    // 注意: このパターンはクライアント側の extractGistId (line 96) と一致させる必要があります
-    if (isUpdate && !/^[a-fA-F0-9]+$/.test(gistId!)) {
+    // 注意: このパターンはクライアント側の extractGistId と一致させる必要があります
+    if (isUpdate && !/^[a-fA-F0-9]+$/.test(gistId)) {
       return c.json(
         { success: false, error: "無効なGist IDです" },
         400,
       );
     }
-    
-    const apiUrl = isUpdate 
+
+    const apiUrl = isUpdate
       ? `https://api.github.com/gists/${gistId}`
       : "https://api.github.com/gists";
     const method = isUpdate ? "PATCH" : "POST";
 
     // GitHub APIでGistを作成または更新
     const gistData = {
-      description: customDescription || `${isUpdate ? 'Updated' : 'Uploaded'} via Gist Uploader - ${new Date().toISOString()}`,
+      description: customDescription ||
+        `${isUpdate ? "Updated" : "Uploaded"} via Gist Uploader - ${new Date().toISOString()}`,
       public: isPublic,
       files: gistFiles,
     };
@@ -728,7 +700,7 @@ app.post("/api/gist/create", async (c) => {
     const gistResponse = await fetch(apiUrl, {
       method: method,
       headers: {
-        "Authorization": `Bearer ${getAccessTokenFromUser(user as any)}`,
+        "Authorization": `Bearer ${getAccessTokenFromUser(user)}`,
         "Accept": "application/vnd.github.v3+json",
         "Content-Type": "application/json",
         "User-Agent": "Gist-Uploader",
@@ -745,18 +717,22 @@ app.post("/api/gist/create", async (c) => {
       }, 500);
     }
 
-    const gistResult = await gistResponse.json();
+    const gistResult = await gistResponse.json() as {
+      html_url: string;
+      id: string;
+    };
 
     return c.json({
       success: true,
       gist_url: gistResult.html_url,
       gist_id: gistResult.id,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Gist creation/update error:", error);
+    const err = error instanceof Error ? error : new Error(String(error));
     return c.json({
       success: false,
-      error: error.message || "Gist作成/更新中にエラーが発生しました",
+      error: err.message || "Gist作成/更新中にエラーが発生しました",
     }, 500);
   }
 });
@@ -771,10 +747,4 @@ function getAccessTokenFromUser(
   return userWithToken.access_token;
 }
 
-// アプリケーションをexport（Deno Deploy用）
-export { app };
-
-// 直接実行時のみサーバー起動（ローカル開発用）
-if (import.meta.main) {
-  Deno.serve({ port: PORT }, app.fetch);
-}
+export default app;
