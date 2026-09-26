@@ -42,6 +42,7 @@ GitHubアカウントでログインし、複数ファイルを選択してGist�
    ```env
    GITHUB_CLIENT_ID=your_client_id
    GITHUB_CLIENT_SECRET=your_client_secret
+   SESSION_SECRET=<ランダムな値。例: openssl rand -base64 32>  # user_session Cookie の暗号化鍵
    # BASE_URL は省略時はリクエストの origin が使われる
    # （wrangler dev なら http://localhost:8787）
    ```
@@ -79,6 +80,7 @@ npm run typecheck   # tsc --noEmit
 npm run deploy
 wrangler secret put GITHUB_CLIENT_ID
 wrangler secret put GITHUB_CLIENT_SECRET
+wrangler secret put SESSION_SECRET
 ```
 
 BASE_URL は未設定ならリクエストの origin が使われるため、workers.dev でもカスタムドメインでもそのまま動きます。GitHub OAuth App の callback URL にデプロイ先の `https://<host>/auth/callback` を登録してください（固定したい場合のみ `wrangler.jsonc` の `vars.BASE_URL` を設定）。
@@ -131,12 +133,14 @@ BASE_URL は未設定ならリクエストの origin が使われるため、wor
 - **wrangler.jsonc**: Workers の設定（エントリーポイント、vars）。
 - **src/index.tsx**:
   アプリケーションロジックのすべて（ルーティング、JSXコンポーネント、OAuth処理）。
-- **test/index.test.ts**: vitest によるロジックテスト。
+- **src/session.ts**: `user_session` Cookie の AES-GCM 暗号化/復号。
+- **test/**: vitest によるロジックテスト。
 - **Pico CSS**:
   CDN経由で読み込み、クラスレスに近い形でモバイルファーストなUIを実現。
 
 ## 注意点
 
-- 本実装では簡易化のため、ユーザー情報（アクセストークン含む）をJSON化して直接Cookie (`user_session`)
-  に保存しています。本番環境では暗号化するか、Workers KVなどを用いたセッションストアの実装を推奨します。
+- ユーザー情報（アクセストークン含む）は `SESSION_SECRET` で AES-GCM 暗号化して Cookie (`user_session`)
+  に保存しています。さらに堅くするなら Workers KV などサーバー側セッションストアへの移行も検討してください。
+- `SESSION_SECRET` を変更すると既存のログインセッションはすべて無効になります。
 - オリジン（`BASE_URL`、未設定ならリクエストURL）が `https:` のときのみ Cookie に `Secure` 属性が付きます。http の localhost では動作確認のため付けていません。
