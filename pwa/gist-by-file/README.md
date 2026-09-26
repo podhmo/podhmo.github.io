@@ -42,7 +42,7 @@ GitHubアカウントでログインし、複数ファイルを選択してGist�
    ```env
    GITHUB_CLIENT_ID=your_client_id
    GITHUB_CLIENT_SECRET=your_client_secret
-   SESSION_SECRET=session_cookie_encryption_key  # user_session Cookie の暗号化鍵（ランダムな長い文字列）
+   SESSION_SECRET=<ランダムな値。例: openssl rand -base64 32>  # user_session Cookie の暗号化鍵
    # BASE_URL は省略時はリクエストの origin が使われる
    # （wrangler dev なら http://localhost:8787）
    ```
