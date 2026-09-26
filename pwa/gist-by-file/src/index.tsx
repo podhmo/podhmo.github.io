@@ -12,9 +12,9 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-const DEFAULT_BASE_URL = "http://localhost:8787"; // wrangler dev のデフォルト
-
-const baseUrl = (env: Bindings): string => env.BASE_URL || DEFAULT_BASE_URL;
+// BASE_URL 未設定時はリクエストの origin を使う（dev は localhost、本番は Workers の URL）
+const baseUrl = (env: Bindings, reqUrl: string): string =>
+  env.BASE_URL || new URL(reqUrl).origin;
 
 // 型定義
 interface GitHubUser {
@@ -485,7 +485,7 @@ app.get("/auth/login", (c) => {
   const params = new URLSearchParams({
     client_id: clientId,
     scope: "read:user,gist",
-    redirect_uri: `${baseUrl(c.env)}/auth/callback`,
+    redirect_uri: `${baseUrl(c.env, c.req.url)}/auth/callback`,
   });
 
   return c.redirect(
@@ -519,7 +519,7 @@ app.get("/auth/callback", async (c) => {
 
   const clientId = c.env.GITHUB_CLIENT_ID;
   const clientSecret = c.env.GITHUB_CLIENT_SECRET;
-  const url = baseUrl(c.env);
+  const url = baseUrl(c.env, c.req.url);
 
   if (!clientId || !clientSecret) {
     return c.html(
@@ -577,6 +577,7 @@ app.get("/auth/callback", async (c) => {
     setCookie(c, "user_session", JSON.stringify(user), {
       httpOnly: true,
       secure: url.startsWith("https:"), // https のときだけ Secure を付ける (localhostでの動作確認用)
+      sameSite: "Lax",
       path: "/",
       maxAge: 60 * 60 * 24, // 1日
     });

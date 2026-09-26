@@ -28,7 +28,7 @@ GitHubアカウントでログインし、複数ファイルを選択してGist�
 
 ## 必要要件
 
-- Node.js 20以上（wrangler でローカル実行・デプロイ）
+- Node.js 22.12以上（24 推奨。wrangler 4 / vitest 5 の要件）
 
 ## セットアップ
 
@@ -42,7 +42,8 @@ GitHubアカウントでログインし、複数ファイルを選択してGist�
    ```env
    GITHUB_CLIENT_ID=your_client_id
    GITHUB_CLIENT_SECRET=your_client_secret
-   # BASE_URL は省略時 http://localhost:8787
+   # BASE_URL は省略時はリクエストの origin が使われる
+   # （wrangler dev なら http://localhost:8787）
    ```
 
    **必要なGitHub OAuth scopes**: `read:user,gist`
@@ -80,7 +81,7 @@ wrangler secret put GITHUB_CLIENT_ID
 wrangler secret put GITHUB_CLIENT_SECRET
 ```
 
-本番環境では `wrangler.jsonc` の `vars.BASE_URL` をデプロイ先のURL（例: `https://gist-by-file.<account>.workers.dev`）に変更し、GitHub OAuth App の callback URL も合わせてください。
+BASE_URL は未設定ならリクエストの origin が使われるため、workers.dev でもカスタムドメインでもそのまま動きます。GitHub OAuth App の callback URL にデプロイ先の `https://<host>/auth/callback` を登録してください（固定したい場合のみ `wrangler.jsonc` の `vars.BASE_URL` を設定）。
 
 ## 使い方
 
@@ -138,4 +139,4 @@ wrangler secret put GITHUB_CLIENT_SECRET
 
 - 本実装では簡易化のため、ユーザー情報（アクセストークン含む）をJSON化して直接Cookie (`user_session`)
   に保存しています。本番環境では暗号化するか、Workers KVなどを用いたセッションストアの実装を推奨します。
-- `BASE_URL` が `https:` のときのみ Cookie に `Secure` 属性が付きます。http の localhost では動作確認のため付けていません。
+- オリジン（`BASE_URL`、未設定ならリクエストURL）が `https:` のときのみ Cookie に `Secure` 属性が付きます。http の localhost では動作確認のため付けていません。

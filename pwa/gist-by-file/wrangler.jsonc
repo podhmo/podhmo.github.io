@@ -5,8 +5,6 @@
   "compatibility_date": "2026-09-18",
   // GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET はシークレットなので
   // ローカルは .dev.vars、本番は `wrangler secret put` で設定する。
-  // BASE_URL は本番デプロイ時に Workers の URL へ合わせること。
-  "vars": {
-    "BASE_URL": "http://localhost:8787"
-  }
+  // BASE_URL は未設定ならリクエストの origin が使われる（カスタムドメイン等で
+  // 固定したい場合のみ vars に書く）
 }
