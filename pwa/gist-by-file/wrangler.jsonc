@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gist-by-file",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-09-18",
+  // GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET はシークレットなので
+  // ローカルは .dev.vars、本番は `wrangler secret put` で設定する。
+  // BASE_URL は未設定ならリクエストの origin が使われる（カスタムドメイン等で
+  // 固定したい場合のみ vars に書く）
+}

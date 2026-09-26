@@ -1,3 +1,5 @@
+> **2026-09-26**: Deno/Deno Deploy から Cloudflare Workers (wrangler + Hono) に移行済み。
+
 # TODO - Gist File Uploader
 
 ## 完了済み ✅
