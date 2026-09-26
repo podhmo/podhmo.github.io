@@ -1,13 +1,16 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { FC, PropsWithChildren } from "hono/jsx";
+import { decryptSession, encryptSession } from "./session";
 
 // Cloudflare Workers では env はリクエスト毎に c.env から読む
 type Bindings = {
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   BASE_URL?: string;
+  SESSION_SECRET?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -22,6 +25,21 @@ interface GitHubUser {
   avatar_url: string;
   name: string | null;
   html_url: string;
+}
+
+type SessionUser = GitHubUser & { access_token?: string };
+
+// user_session Cookie を読む。復号失敗・未設定は未ログイン扱い
+async function readSession(
+  c: Context<{ Bindings: Bindings }>,
+): Promise<SessionUser | null> {
+  const cookie = getCookie(c, "user_session");
+  if (!cookie || !c.env.SESSION_SECRET) return null;
+  try {
+    return await decryptSession<SessionUser>(cookie, c.env.SESSION_SECRET);
+  } catch {
+    return null;
+  }
 }
 
 // --- Components ---
@@ -461,17 +479,14 @@ const ErrorScreen: FC<{ message: string; detail?: string }> = (
 
 // --- Routes ---
 
-app.get("/", (c) => {
-  const userCookie = getCookie(c, "user_session");
-
-  if (userCookie) {
-    try {
-      const user = JSON.parse(userCookie) as GitHubUser;
-      return c.html(<ProfileScreen user={user} />);
-    } catch {
-      // Cookieが不正な場合は削除してログイン画面へ
-      deleteCookie(c, "user_session");
-    }
+app.get("/", async (c) => {
+  const user = await readSession(c);
+  if (user) {
+    return c.html(<ProfileScreen user={user} />);
+  }
+  if (getCookie(c, "user_session")) {
+    // 復号できないCookieは削除してログイン画面へ
+    deleteCookie(c, "user_session");
   }
   return c.html(<LoginScreen />);
 });
@@ -519,11 +534,18 @@ app.get("/auth/callback", async (c) => {
 
   const clientId = c.env.GITHUB_CLIENT_ID;
   const clientSecret = c.env.GITHUB_CLIENT_SECRET;
+  const sessionSecret = c.env.SESSION_SECRET;
   const url = baseUrl(c.env, c.req.url);
 
   if (!clientId || !clientSecret) {
     return c.html(
       <ErrorScreen message="Server configuration error: GitHub OAuth credentials not set" />,
+      500,
+    );
+  }
+  if (!sessionSecret) {
+    return c.html(
+      <ErrorScreen message="Server configuration error: SESSION_SECRET is not set" />,
       500,
     );
   }
@@ -565,7 +587,7 @@ app.get("/auth/callback", async (c) => {
     const userData = await userRes.json() as GitHubUser;
 
     // 必要な情報だけ抽出（アクセストークンも含める）
-    const user: GitHubUser & { access_token?: string } = {
+    const user: SessionUser = {
       login: userData.login,
       avatar_url: userData.avatar_url,
       name: userData.name,
@@ -573,8 +595,8 @@ app.get("/auth/callback", async (c) => {
       access_token: accessToken,
     };
 
-    // 3. Cookieに保存 (本番ではセッションIDのみを保存し、データはDB/KVに入れることを推奨)
-    setCookie(c, "user_session", JSON.stringify(user), {
+    // 3. Cookieに保存（SESSION_SECRET で AES-GCM 暗号化）
+    setCookie(c, "user_session", await encryptSession(user, sessionSecret), {
       httpOnly: true,
       secure: url.startsWith("https:"), // https のときだけ Secure を付ける (localhostでの動作確認用)
       sameSite: "Lax",
@@ -605,16 +627,9 @@ app.get("/auth/logout", (c) => {
 // Gist作成/更新API
 app.post("/api/gist/create", async (c) => {
   // ユーザー認証確認
-  const userCookie = getCookie(c, "user_session");
-  if (!userCookie) {
+  const user = await readSession(c);
+  if (!user) {
     return c.json({ success: false, error: "認証が必要です" }, 401);
-  }
-
-  let user: GitHubUser & { access_token?: string };
-  try {
-    user = JSON.parse(userCookie);
-  } catch {
-    return c.json({ success: false, error: "認証情報が不正です" }, 401);
   }
 
   try {
