@@ -14,7 +14,7 @@ Cloudflare Workers + Web Share Target API を使う。
 
 ### 必要なもの
 
-- [Node.js](https://nodejs.org/) (v18 以上)
+- [Node.js](https://nodejs.org/) (v24 推奨)
 - [Cloudflare アカウント](https://dash.cloudflare.com/sign-up)
 
 ### インストール
