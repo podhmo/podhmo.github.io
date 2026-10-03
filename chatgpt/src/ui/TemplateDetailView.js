@@ -106,19 +106,28 @@ ${instruction}
     };
 
     const handleDownload = () => {
-        // The downloaded file is the merged prompt itself, without the
-        // chat-oriented decorations (title, <details> wrapper, target text)
+        // The downloaded file is a single self-contained prompt to hand to a
+        // model: the merged prompt bodies plus the target text (if filled in),
+        // without the chat-oriented decorations (title, <details> wrapper)
         // that buildFinalPrompt adds for the copy button.
         const processedBodies = template.prompts.map(prompt => getProcessedPromptBody(prompt.body));
+        const targetText = document.getElementById('prompt-target-text').value;
 
         let content;
         if (template.prompts.length === 1) {
             content = processedBodies[0];
         } else {
-            content = template.prompts.map((prompt, index) => {
+            const fileBlocks = template.prompts.map((prompt, index) => {
                 const name = prompt.title || `part-${index + 1}`;
                 return `<file name="${name}">\n${processedBodies[index]}\n</file>`;
             }).join('\n\n');
+            content = `以下の \`<file name="...">\` ブロックを、スキルのファイル一式（指示・参照資料・スクリプト）として解釈し、その指示に従ってください。\n\n${fileBlocks}`;
+        }
+
+        // The empty-text branch of createTargetDocumentSection refers to the
+        // conversation history, which is meaningless in a file — skip it.
+        if (targetText.trim() !== '') {
+            content += createTargetDocumentSection(targetText);
         }
 
         const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
