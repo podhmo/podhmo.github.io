@@ -24,7 +24,7 @@ link ./claude-code-to-markdown.ts         claude-code-to-markdown
 link ./github-copilot-cli-to-markdown.ts  github-copilot-cli-to-markdown
 link ./llm-scaffold.ts                    llm-scaffold
 link ./normalize-text.ts                  normalize-text
-link ./sync-skills.ts                     sync-skills
+link ./sync-writing-skills.ts            sync-writing-skills
 
 # ai-studio-download だけ google-auth-library が必要なので npm install する
 if [ -d "$dir/ai-studio-download" ]; then
