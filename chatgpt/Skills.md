@@ -3,7 +3,7 @@
 [Qiita の比較記事](https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14)で取り上げられた Agent Skill を、コピペ/Download 可能なプロンプトテンプレートにしたもの。
 
 - ブロック単位でコピーするか、「Download (.md)」で全ブロックを合成した1つのプロンプトとして取り出せる
-- このファイルは tools/sync-skills.ts で生成している (手編集しない)。再生成: deno run --allow-net --allow-write tools/sync-skills.ts Skills.md
+- このファイルは tools/sync-skills.ts で生成している (手編集しない)。再生成: node tools/sync-skills.ts Skills.md (chatgpt/ から。Node 24+ 必須)
 
 
 ## yomiyasu
