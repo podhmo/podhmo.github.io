@@ -4,6 +4,7 @@
 - ai-studio-download    -- Google AI Studioの対話履歴をダウンロードするツール(JSON形式)
 - llm-scaffold          -- llmの生成結果をそのままディレクトリに転写したい
 - normalize-text        -- テキストのエスケープシーケンス変換とホームディレクトリの正規化
+- sync-writing-skills   -- 文章推敲系 Agent Skill (github/gist) の markdown を取り寄せて ../WritingSkills.md を生成
 
 ## install
 
@@ -14,4 +15,5 @@ deno install -f --global --allow-sys --allow-read --allow-write --allow-env=GOOG
 alias ai-studio-download="GOOGLE_APPLICATION_CREDENTIALS=~/.config/google/service-account-key.json ai-studio-download"
 deno install -f --global --allow-read --allow-env -n normalize-text ./normalize-text.ts
 deno install -f --global --allow-read ./github-copilot-cli-to-markdown.ts
+deno install -f --global --allow-net --allow-write -n sync-writing-skills ./sync-writing-skills.ts
 ```

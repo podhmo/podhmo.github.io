@@ -3,6 +3,7 @@
 いいかんじで選択してコピペしたい
 
 - https://podhmo.github.io/chatgpt/
+- https://podhmo.github.io/chatgpt/?source=./WritingSkills.md (WritingSkills.md -- 日本語推敲スキル集)
   
 
 ## tools
