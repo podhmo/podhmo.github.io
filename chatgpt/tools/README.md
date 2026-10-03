@@ -15,4 +15,5 @@ deno install -f --global --allow-sys --allow-read --allow-write --allow-env=GOOG
 alias ai-studio-download="GOOGLE_APPLICATION_CREDENTIALS=~/.config/google/service-account-key.json ai-studio-download"
 deno install -f --global --allow-read --allow-env -n normalize-text ./normalize-text.ts
 deno install -f --global --allow-read ./github-copilot-cli-to-markdown.ts
+deno install -f --global --allow-net --allow-write -n sync-writing-skills ./sync-writing-skills.ts
 ```

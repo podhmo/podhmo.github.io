@@ -1,10 +1,10 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S deno run --allow-net --allow-write
 // Agent Skill リポジトリ/gist から markdown 群を取り寄せ、
 // Prompt Template Clipper 形式 (chatgpt/Template.md と同じ) の WritingSkills.md を生成する。
 //
-// 使い方 (Node 24+ 必須: .ts を直接実行する):
-//   node sync-writing-skills.ts [output.md]
-//   # またはリポジトリルートから: node chatgpt/tools/sync-writing-skills.ts chatgpt/WritingSkills.md
+// 使い方:
+//   deno run --allow-net --allow-write sync-writing-skills.ts [output.md]
+//   # またはリポジトリルートから: deno run --allow-net --allow-write chatgpt/tools/sync-writing-skills.ts chatgpt/WritingSkills.md
 //
 
 // 各スキルの構成ファイルは ` ```md:<path> ` 形式のタイトル付きコードブロックとして
@@ -12,8 +12,6 @@
 // <file name="path"> 形式に合成された1つのプロンプトとして取り出せる。
 //
 // スキルの追加・更新は SKILLS 定数を編集して再実行する。
-
-import { writeFile } from "node:fs/promises";
 
 interface SkillSource {
   /** `## <templateName>` として出力される */
@@ -112,7 +110,7 @@ function fenceFor(body: string): string {
 }
 
 async function main(): Promise<void> {
-  const output = process.argv[2] ?? "../WritingSkills.md";
+  const output = Deno.args[0] ?? "../WritingSkills.md";
   const chunks: string[] = [];
 
   chunks.push(`# 日本語推敲スキル
@@ -133,7 +131,7 @@ https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14 で取り上げられ�
   }
 
   const content = chunks.join("\n\n") + "\n";
-  await writeFile(output, content, "utf-8");
+  await Deno.writeTextFile(output, content);
   console.log(`wrote ${output} (${content.length} chars)`);
 }
 
