@@ -114,9 +114,14 @@ ${instruction}
         const targetText = document.getElementById('prompt-target-text').value;
 
         let content;
-        if (template.prompts.length === 1) {
+        if (template.prompts.length === 1 && !template.prompts[0].title) {
+            // An untitled block is a plain prompt: emit the body itself.
             content = processedBodies[0];
         } else {
+            // A titled block is a file in the prompt package (e.g. SKILL.md):
+            // emit the same lead-in + <file name> format as multi-block
+            // templates, so the file never starts with e.g. YAML frontmatter
+            // and the model can map each block to a path.
             const fileBlocks = template.prompts.map((prompt, index) => {
                 const name = prompt.title || `part-${index + 1}`;
                 return `<file name="${name}">\n${processedBodies[index]}\n</file>`;
