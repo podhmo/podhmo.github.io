@@ -38,7 +38,7 @@ const SKILLS: SkillSource[] = [
 
 - 出典: https://github.com/nanaism/yomiyasu (MIT)
 - 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
-- scripts/ の lint 系 python スクリプトはプロンプトには含めていない。Python が使えない環境では SKILL.md 記載の目視点検で代替する`,
+- scripts/ は python3 (標準ライブラリのみ) で実行可能。チャットで使う分には不要`,
     files: [
       { url: `${YOMIYASU_BASE}/SKILL.md`, title: "SKILL.md" },
       { url: `${YOMIYASU_BASE}/references/gemini-syntax.md`, title: "references/gemini-syntax.md" },
@@ -46,6 +46,8 @@ const SKILLS: SkillSource[] = [
       { url: `${YOMIYASU_BASE}/references/domains/tech.md`, title: "references/domains/tech.md" },
       { url: `${YOMIYASU_BASE}/references/domains/business.md`, title: "references/domains/business.md" },
       { url: `${YOMIYASU_BASE}/references/domains/essay.md`, title: "references/domains/essay.md" },
+      { url: `${YOMIYASU_BASE}/scripts/yomiyasu_lint.py`, title: "scripts/yomiyasu_lint.py" },
+      { url: `${YOMIYASU_BASE}/scripts/yomiyasu_diff.py`, title: "scripts/yomiyasu_diff.py" },
     ],
   },
   {
@@ -54,7 +56,7 @@ const SKILLS: SkillSource[] = [
 
 - 出典: https://github.com/coji/natural-japanese (MIT)
 - 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
-- scripts/ の lint.py 等 (uv 前提) はプロンプトには含めていない。実行できない環境では references/manual-checklist.md を使う`,
+- scripts/ は uv run scripts/lint.py 等で実行 (PEP 723)。uv がない環境では references/manual-checklist.md を使う`,
     files: [
       { url: `${NATURAL_JAPANESE_BASE}/SKILL.md`, title: "SKILL.md" },
       { url: `${NATURAL_JAPANESE_BASE}/references/writing-constitution.md`, title: "references/writing-constitution.md" },
@@ -74,6 +76,12 @@ const SKILLS: SkillSource[] = [
       { url: `${NATURAL_JAPANESE_BASE}/references/doctypes/memo.md`, title: "references/doctypes/memo.md" },
       { url: `${NATURAL_JAPANESE_BASE}/references/doctypes/slide.md`, title: "references/doctypes/slide.md" },
       { url: `${NATURAL_JAPANESE_BASE}/assets/style-profile-template.md`, title: "assets/style-profile-template.md" },
+      { url: `${NATURAL_JAPANESE_BASE}/scripts/lint.py`, title: "scripts/lint.py" },
+      { url: `${NATURAL_JAPANESE_BASE}/scripts/outline.py`, title: "scripts/outline.py" },
+      { url: `${NATURAL_JAPANESE_BASE}/scripts/semantic.py`, title: "scripts/semantic.py" },
+      { url: `${NATURAL_JAPANESE_BASE}/scripts/terms.py`, title: "scripts/terms.py" },
+      { url: `${NATURAL_JAPANESE_BASE}/scripts/textcore.py`, title: "scripts/textcore.py" },
+      { url: `${NATURAL_JAPANESE_BASE}/scripts/calibrate.py`, title: "scripts/calibrate.py" },
     ],
   },
   {
@@ -119,7 +127,8 @@ https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14 で取り上げられ�
     for (const file of skill.files) {
       const body = (await fetchText(file.url)).trim();
       const fence = fenceFor(body);
-      chunks.push(`${fence}md:${file.title}\n${body}\n${fence}`);
+      const lang = file.title.endsWith(".py") ? "py" : "md";
+      chunks.push(`${fence}${lang}:${file.title}\n${body}\n${fence}`);
     }
   }
 

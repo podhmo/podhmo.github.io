@@ -11,7 +11,7 @@ AIが生成した不自然な日本語を読みやすく直す writing skill。�
 
 - 出典: https://github.com/nanaism/yomiyasu (MIT)
 - 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
-- scripts/ の lint 系 python スクリプトはプロンプトには含めていない。Python が使えない環境では SKILL.md 記載の目視点検で代替する
+- scripts/ は python3 (標準ライブラリのみ) で実行可能。チャットで使う分には不要
 
 
 ````md:SKILL.md
@@ -635,13 +635,1116 @@ Qiita 7万件調査（逆瀬川 2026）の実証データに基づき、読者�
 絵文字や文末コロン（：）は一切使用しません。
 ```
 
+````py:scripts/yomiyasu_lint.py
+#!/usr/bin/env python3
+"""
+yomiyasu_lint.py - 日本語文章のAIっぽさ（LLM-Slop）数値化・機械的静的検査スクリプト
+
+Qiita 7万件の計量調査、統語構造復元論、AI語彙の出現頻度分析に基づく
+決定論的リンター。標準ライブラリのみで動作。
+"""
+
+import sys
+import re
+import argparse
+import json
+import unicodedata
+from typing import List, Dict, Any, Tuple
+
+
+# 絵文字正規表現パターン（CJK統合漢字拡張などのサロゲートペア漢字を除外した厳密な絵文字範囲）
+EMOJI_PATTERN = re.compile(
+    r"[\U0001F600-\U0001F64F]"  # Emoticons
+    r"|[\U0001F300-\U0001F5FF]"  # Misc Symbols and Pictographs
+    r"|[\U0001F680-\U0001F6FF]"  # Transport and Map
+    r"|[\U0001F700-\U0001F77F]"  # Alchemical Symbols
+    r"|[\U0001F780-\U0001F7FF]"  # Geometric Shapes Extended
+    r"|[\U0001F800-\U0001F8FF]"  # Supplemental Arrows-C
+    r"|[\U0001F900-\U0001F9FF]"  # Supplemental Symbols and Pictographs
+    r"|[\U0001FA00-\U0001FA6F]"  # Chess Symbols
+    r"|[\U0001FA70-\U0001FAFF]"  # Symbols and Pictographs Extended-A
+    r"|[\u2600-\u27BF]"          # Misc Symbols, Dingbats
+    r"|[\u2300-\u23FF]"          # Misc Technical
+    r"|[\u2B50-\u2B55]"
+)
+
+# 2026年最新AIスロップ語彙リスト
+SLOP_WORDS = [
+    # 質感を装う疑似具体語
+    "手触り", "肌感", "肌感覚", "体温", "温度感", "熱量", "血の通った", "泥臭い", "泥臭さ",
+    # 認知・評価を装う語
+    "解像度", "腹落ち", "メンタルモデル", "本質的", "地に足のついた", "等身大",
+    # 抽象比喩名詞
+    "営み", "装置", "意思決定OS", "土台", "羅針盤", "起爆剤", "触媒",
+    # 必殺技造語（体験の壮大化）
+    "真理", "虚飾", "境地", "美学", "深淵", "冷徹", "禁欲的", "優美", "極致", "宿命",
+    # 2026年急増語（文脈によるが要点検）
+    "正本",
+]
+
+# 比喩動詞・AI偏愛動詞パターン
+METAPHOR_VERB_PATTERNS = [
+    (r"(地味に|よく|じわじわ)効[かきくけいた]", "比喩動詞「効く」の過剰使用"),
+    (r"(データ|仕様|設計|環境|ビルド|システム|秩序)が(静かに)?壊れ", "比喩動詞「壊れる」"),
+    (r"静かに(壊れ|落ち|失敗|沈黙)", "英語直訳「静かに壊れる (silently fail)」"),
+    (r"黙って(無視|捨て|スキップ|破棄)", "英語直訳「黙って無視される」"),
+    (r"側に倒[すしせ]", "判断を方向で表現する「〜側に倒す」"),
+    (r"時間[をに]溶か[したす]", "比喩動詞「時間を溶かす」"),
+    (r"(1つずつ|一つずつ)潰[していく]", "比喩動詞「潰す」"),
+    (r"(実装|詳細|コード|設計|内部|仕組み|領域|本質)(に|まで|へ)踏み込[んむみま]", "比喩動詞「踏み込む」"),
+    (r"動かしながら引き返[すし]", "比喩動詞「引き返す」"),
+    (r"代わりに添え[るた]", "比喩動詞「添える」"),
+    (r"(議論|意見|結論|方向性|価格|話題|検討)が[^。！？!?]*?収斂", "比喩動詞「収斂する」"),
+    (r"した瞬間に?", "英語直訳「〜した瞬間 (the moment ...)」"),
+    (r"(前提|基盤)が崩れ[るた]", "抽象比喩「前提が崩れる」"),
+    (r"文化が醸成", "非生物主語「文化が醸成される」"),
+    (r"プロセスが定着", "非生物主語「プロセスが定着する」"),
+    (r"事例が残した", "非生物主語「事例が残した」"),
+]
+
+# メタフィラー・定型句
+FILLER_PATTERNS = [
+    (r"^(まず|ここで)?重要なのは、?", "前置フィラー「重要なのは」"),
+    (r"^結論から言うと、?", "前置フィラー「結論から言うと」"),
+    (r"^正直に言うと、?", "前置フィラー「正直に言うと」"),
+    (r"^避けたいのは、?", "前置フィラー「避けたいのは」"),
+    (r"いかがでした(でしょうか|か)?[？?。]?$", "定型クロージング「いかがでしたでしょうか」"),
+    (r"ぜひ(参考|試し|活用)(に)?して(みて)?ください[！!。]?", "定型クロージング「ぜひ〜してみてください」"),
+    (r"〜に他なりません", "過剰な自己ラベリング「〜に他なりません」"),
+]
+
+# ネガティブパラレリズム（AではなくB）
+NEGATIVE_PARALLELISM_PATTERN = re.compile(r"([^。、]+)ではなく、?([^。、]+)")
+
+
+def get_frontmatter_line_count(lines: List[str]) -> int:
+    """YAMLフロントマター（先頭の --- から 次の --- まで）の行数を返す"""
+    if not lines or lines[0].strip() != "---":
+        return 0
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            return idx + 1
+    return 0
+
+
+def extract_plain_sentences(text: str) -> List[Tuple[int, str]]:
+    """コードブロックや引用、箇条書きを除去し、地の文の段落文（行番号つき）を抽出する"""
+    lines = text.split("\n")
+    sentences = []
+    in_code_block = False
+    fm_lines = get_frontmatter_line_count(lines)
+
+    for idx, line in enumerate(lines, 1):
+        if idx <= fm_lines:
+            continue
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+        if in_code_block:
+            continue
+        # 空行、見出し、表行、画像記法、HTMLタグ、引用行、箇条書き行、インデントされたリスト継続行は地の文から除外
+        if (
+            not stripped
+            or stripped.startswith("#")
+            or stripped.startswith("|")
+            or stripped.startswith("![")
+            or stripped.startswith("[![")
+            or stripped.startswith("<")
+            or stripped.startswith(">")
+            or re.match(r"^[-*+]\s|^\d+\.\s", stripped)
+            or line.startswith("  ")
+            or line.startswith("\t")
+        ):
+            continue
+
+        # 文の区切り（。！？または行末）
+        raw_sents = re.split(r"(?<=[。！？])", stripped)
+        for s in raw_sents:
+            s_clean = s.strip()
+            if s_clean and len(s_clean) > 3:
+                sentences.append((idx, s_clean))
+
+    return sentences
+
+
+def check_sentence_end_repetitions(sentences: List[Tuple[int, str]]) -> List[Dict[str, Any]]:
+    """3文以上連続する同一語尾の検知"""
+    findings = []
+    end_types = []
+
+    for line_no, s in sentences:
+        clean = re.sub(r"[。！？\s]+$", "", s)
+        end_type = "その他"
+        if clean.endswith("です"):
+            end_type = "です"
+        elif clean.endswith("ます"):
+            end_type = "ます"
+        elif clean.endswith("でした"):
+            end_type = "でした"
+        elif clean.endswith("ました"):
+            end_type = "ました"
+        elif clean.endswith("である"):
+            end_type = "である"
+        elif clean.endswith("だ"):
+            end_type = "だ"
+        elif clean.endswith("だろう"):
+            end_type = "だろう"
+        end_types.append((line_no, s, end_type))
+
+    # 3連続チェック
+    count = 1
+    for i in range(1, len(end_types)):
+        prev_line, prev_s, prev_type = end_types[i - 1]
+        curr_line, curr_s, curr_type = end_types[i]
+
+        if curr_type != "その他" and curr_type == prev_type:
+            count += 1
+            if count == 3:
+                findings.append({
+                    "rule": "sentence_end_repetition",
+                    "line": curr_line,
+                    "severity": "warn",
+                    "message": f"同一文末「{curr_type}」が3回以上連続しています。文末のリズムを調整してください。",
+                    "snippet": curr_s
+                })
+        else:
+            count = 1
+
+    return findings
+
+
+def analyze_markdown_metrics(text: str) -> Dict[str, Any]:
+    """太字頻度、箇条書き比率などの構造メトリクスを算出（引用文やコードブロックは除外）"""
+    lines = text.split("\n")
+    plain_lines = []
+    in_code = False
+    fm_lines = get_frontmatter_line_count(lines)
+    for idx, l in enumerate(lines, 1):
+        if idx <= fm_lines:
+            continue
+        stripped = l.strip()
+        if stripped.startswith("```"):
+            in_code = not in_code
+            continue
+        if in_code or stripped.startswith(">") or stripped.startswith("|") or stripped.startswith("![") or stripped.startswith("[![") or stripped.startswith("<"):
+            continue
+        plain_lines.append(l)
+
+    total_lines = len([l for l in plain_lines if l.strip()])
+    list_lines = 0
+    for l in plain_lines:
+        if re.match(r"^\s*([-*+]|\d+\.)\s+", l):
+            # 外部参照リンク（- [タイトル](http...)）は並列データのため思考リストから除外
+            if not re.search(r"[-*+]\s+\[.*?\]\(https?://", l):
+                list_lines += 1
+
+    plain_content = "\n".join(plain_lines)
+    bold_matches = re.findall(r"\*\*[^*]+\*\*", plain_content)
+    bold_count = len(bold_matches)
+    char_count = len(re.sub(r"\s+", "", plain_content))
+
+    bold_per_1000 = (bold_count / char_count * 1000) if char_count > 0 else 0
+    list_ratio = (list_lines / total_lines) if total_lines > 0 else 0
+
+    return {
+        "char_count": char_count,
+        "total_lines": total_lines,
+        "list_lines": list_lines,
+        "list_ratio": round(list_ratio, 3),
+        "bold_count": bold_count,
+        "bold_per_1000": round(bold_per_1000, 2),
+    }
+
+
+# ---- 太字が表示されるか（GitHub などの Markdown）----
+# GitHub の Markdown では、** のすぐ内側が記号（「」（）` など）で、すぐ外側が文字だと、** を太字の印として読まず、
+# ** がそのまま表示される。新しい CommonMark（記号に Unicode の S も入る）でも、GitHub の GFM（P だけ）でも
+# 太字になる形だけを「表示される」とみなす。直し方の案は、かっこの内側だけを太字にする → 句読点を太字の外に出す
+# → 文字に接する側に半角スペースを入れる、の順に試す。
+BOLD_ASCII_PUNCT = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
+BOLD_BRACKETS = {"「": "」", "『": "』", "（": "）", "(": ")", "【": "】", "〔": "〕", "［": "］", "[": "]",
+                 "〈": "〉", "《": "》", "“": "”", "‘": "’", "＜": "＞"}
+
+
+def _bold_ws(ch: str) -> bool:
+    return ch == "" or ch.isspace()
+
+
+def _bold_punct_gfm(ch: str) -> bool:
+    return ch != "" and (ch in BOLD_ASCII_PUNCT or unicodedata.category(ch).startswith("P"))
+
+
+def _bold_punct_new(ch: str) -> bool:
+    return ch != "" and unicodedata.category(ch)[0] in "PS"
+
+
+def _bold_can_open(prev: str, nxt: str) -> bool:
+    return all(not _bold_ws(nxt) and (not p(nxt) or _bold_ws(prev) or p(prev)) for p in (_bold_punct_gfm, _bold_punct_new))
+
+
+def _bold_can_close(prev: str, nxt: str) -> bool:
+    return all(not _bold_ws(prev) and (not p(prev) or _bold_ws(nxt) or p(nxt)) for p in (_bold_punct_gfm, _bold_punct_new))
+
+
+def _bold_code_spans(line: str):
+    """インラインコード（同じ数のバッククォートで閉じたもの）の範囲"""
+    runs = [(m.start(), m.end()) for m in re.finditer(r"`+", line)]
+    spans, k = [], 0
+    while k < len(runs):
+        s, e = runs[k]
+        for m in range(k + 1, len(runs)):
+            if runs[m][1] - runs[m][0] == e - s:
+                spans.append((s, runs[m][1]))
+                k = m
+                break
+        k += 1
+    return spans
+
+
+def _bold_pairs(line: str):
+    code = _bold_code_spans(line)
+    pos = [m.start() for m in re.finditer(r"(?<![*\\])\*\*(?!\*)", line)
+           if not any(a <= m.start() < b for a, b in code)]
+    return [(pos[k], pos[k + 1]) for k in range(0, len(pos) - 1, 2)]
+
+
+def _bold_pair_ok(line: str, i: int, j: int) -> bool:
+    ch = lambda p: line[p] if 0 <= p < len(line) else ""
+    return _bold_can_open(ch(i - 1), ch(i + 2)) and _bold_can_close(ch(j - 1), ch(j + 2))
+
+
+def _bold_close_of(s: str) -> int:
+    """s の先頭のかっこに対応する閉じかっこの位置（なければ -1）"""
+    o, c, depth = s[0], BOLD_BRACKETS[s[0]], 0
+    for k, x in enumerate(s):
+        if x == o:
+            depth += 1
+        elif x == c:
+            depth -= 1
+            if depth == 0:
+                return k
+    return -1
+
+
+def _bold_fix(line: str, i: int, j: int, k: int):
+    """k 番目の太字（i と j の **）の直し方の案。(直したあとの部分, 直し方) を返す"""
+    inner = line[i + 2:j]
+    tries = []
+    if len(inner) >= 3 and inner[0] in BOLD_BRACKETS and _bold_close_of(inner) == len(inner) - 1:
+        tries.append((inner[0] + "**" + inner[1:-1] + "**" + inner[-1], "かっこの内側だけを太字にする"))
+    if len(inner) >= 2 and inner[-1] in "。、．，！？!?":
+        tries.append(("**" + inner[:-1] + "**" + inner[-1], "句読点を太字の外に出す"))
+    ch = lambda p: line[p] if 0 <= p < len(line) else ""
+    body = inner
+    if _bold_ws(ch(i + 2)) or _bold_ws(ch(j - 1)):
+        body = inner.strip()
+    left = "" if _bold_can_open(ch(i - 1), body[:1]) else " "
+    right = "" if _bold_can_close(body[-1:], ch(j + 2)) else " "
+    tries.append((left + "**" + body + "**" + right, "太字の内側の空白を取る" if body != inner and not (left or right)
+                  else "文字に接する側に半角スペースを入れる"))
+    for middle, how in tries:
+        cand = line[:i] + middle + line[j + 2:]
+        pairs = _bold_pairs(cand)
+        if k < len(pairs) and _bold_pair_ok(cand, *pairs[k]):
+            return middle, how
+    return None, "手で直す"
+
+
+def bold_problems(text: str, skip_frontmatter: bool = True):
+    """太字にならない ** の場所と、直し方の案。コードブロック・インラインコード・HTML の行・先頭の設定部分は見ない"""
+    out, fence = [], None
+    lines = text.split("\n")
+    start = 0
+    if skip_frontmatter and lines and lines[0].strip() == "---":
+        for n in range(1, len(lines)):
+            if lines[n].strip() == "---":
+                start = n + 1
+                break
+    for no in range(start, len(lines)):
+        line = lines[no].rstrip("\r")
+        m = re.match(r"\s{0,3}(`{3,}|~{3,})(.*)$", line)
+        if fence:
+            if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= fence[1] and not m.group(2).strip():
+                fence = None
+            continue
+        if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+            fence = (m.group(1)[0], len(m.group(1)))
+            continue
+        if line.lstrip().startswith("<"):
+            continue
+        for k, (i, j) in enumerate(_bold_pairs(line)):
+            if _bold_pair_ok(line, i, j):
+                continue
+            middle, how = _bold_fix(line, i, j, k)
+            pre, post = line[max(0, i - 4):i], line[j + 2:j + 6]
+            found = pre + _bold_short(line[i:j + 2]) + post
+            suggest = pre + _bold_short(middle) + post if middle is not None else ""
+            out.append({"line": no + 1, "found": found, "suggest": suggest, "how": how})
+    return out
+
+
+def _bold_short(s: str) -> str:
+    """長い太字は、直すところ（両端）だけを見せる"""
+    return s if len(s) <= 30 else s[:12] + "…" + s[-12:]
+
+
+def lint_text(text: str) -> Dict[str, Any]:
+    """文章全体を総合検査する"""
+    findings = []
+    metrics = analyze_markdown_metrics(text)
+    sentences = extract_plain_sentences(text)
+
+    # 1. メトリクス異常の検査（地の文が十分ある場合に適用）
+    if metrics["char_count"] > 300:
+        if metrics["bold_per_1000"] > 3.0:
+            findings.append({
+                "rule": "excess_bold",
+                "line": 1,
+                "severity": "warn",
+                "message": f"太字の頻度（1,000字あたり {metrics['bold_per_1000']}個）が高すぎます（推奨: 2.5以下）。重要な要点のみに絞ってください。",
+                "snippet": f"太字数: {metrics['bold_count']}回 / {metrics['char_count']}文字"
+            })
+
+        if metrics["list_ratio"] > 0.25:
+            findings.append({
+                "rule": "excess_list",
+                "line": 1,
+                "severity": "warn",
+                "message": f"箇条書きの比率（{round(metrics['list_ratio']*100, 1)}%）が高すぎます（推奨: 20%以下）。思考や論理展開は地の文で記述してください。",
+                "snippet": f"リスト行: {metrics['list_lines']} / 全非空行: {metrics['total_lines']}"
+            })
+
+    # 2. 文末重複検査
+    findings.extend(check_sentence_end_repetitions(sentences))
+
+    # 2.5 太字が表示されるか（GitHub などの Markdown で ** がそのまま出るところ）
+    for p in bold_problems(text):
+        findings.append({
+            "rule": "bold_not_rendered",
+            "line": p["line"],
+            "severity": "error",
+            "message": f"太字の印（**）が記号に接していて、GitHub などでは太字にならず ** がそのまま表示されます。直し方: {p['how']}。",
+            "snippet": f"{p['found']} → {p['suggest']}" if p["suggest"] else p["found"]
+        })
+
+    # 3. 語彙・構文パターン検査
+    lines = text.split("\n")
+    in_code = False
+    fm_lines = get_frontmatter_line_count(lines)
+    for line_no, line in enumerate(lines, 1):
+        if line_no <= fm_lines:
+            continue
+        stripped = line.strip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_code = not in_code
+            continue
+        if in_code:
+            continue
+
+        # 絵文字検知（見出し・本文問わず禁止）
+        emoji_matches = EMOJI_PATTERN.findall(line)
+        if emoji_matches:
+            findings.append({
+                "rule": "emoji_prohibited",
+                "line": line_no,
+                "severity": "warn",
+                "message": f"絵文字（{' '.join(emoji_matches[:3])}）が検出されました。AI特有の装飾を排し、平文で記述してください。",
+                "snippet": line.strip()
+            })
+
+        # 見出し行の余計な言い換え補足カッコ検知
+        if stripped.startswith("#"):
+            if re.search(r"（(素の出力|いわゆる|概要|詳細|感謝と設計への反映)）", stripped):
+                findings.append({
+                    "rule": "redundant_bracket",
+                    "line": line_no,
+                    "severity": "warn",
+                    "message": "見出しに情報量の増えない補足カッコが含まれています。平文で簡潔に記述してください。",
+                    "snippet": line.strip()
+                })
+            continue
+
+        # 引用ブロック（>）やテーブル行（|）、画像、HTMLタグはアンチパターン例示等の可能性が高いため語彙スキャンをスキップ
+        if stripped.startswith(">") or stripped.startswith("|") or stripped.startswith("![") or stripped.startswith("[![") or stripped.startswith("<"):
+            continue
+
+        # インラインコード（`...`）を除去したテキストを作成
+        scan_text = re.sub(r"`[^`]+`", "", stripped)
+        # 太字や強調などの装飾記号（**、*、__）を除去した正規化テキストで語彙・比喩を検査
+        plain_text = re.sub(r"\*\*|\*|__", "", scan_text)
+
+        # 和欧文間の不自然な半角空白検知（例: 「も yomiyasu で」「この README は」）
+        if re.search(r"([ぁ-んァ-ヶ一-龥])\s+([a-zA-Z0-9_-]{2,})\s+([ぁ-ん])", scan_text):
+            # リンク構文 [text](url) の一部でないことを確認
+            if not re.search(r"\[.*?\]\(.*?\)", scan_text):
+                findings.append({
+                    "rule": "unnatural_halfwidth_space",
+                    "line": line_no,
+                    "severity": "warn",
+                    "message": "英単語の前後に不要な半角空白が空けられています。日本語の助詞と自然に接続させてください。",
+                    "snippet": line.strip()
+                })
+
+        # 文末コロン（全角「：」または半角「:」）検知
+        if re.search(r"[：:]$", scan_text) and not scan_text.startswith("http"):
+            findings.append({
+                "rule": "trailing_colon",
+                "line": line_no,
+                "severity": "warn",
+                "message": "文末にコロン（：）が使われています。英語直訳の記法を避け、平文の句点（。）で終えるか前置きを省いてください。",
+                "snippet": line.strip()
+            })
+
+        # スロップ語彙
+        for word in SLOP_WORDS:
+            if word in plain_text:
+                findings.append({
+                    "rule": "slop_vocabulary",
+                    "line": line_no,
+                    "severity": "warn",
+                    "message": f"AI頻出語彙「{word}」が含まれています。文脈上必要のない比喩や大げさな装飾であれば、ふだん使う自然な表現に置き換えてください。ただし、文字どおりの意味や必要な文脈を担っている場合は残してかまいません。",
+                    "snippet": line.strip()
+                })
+
+        # 比喩動詞パターン
+        kowareru_span = None
+        for pattern, desc in METAPHOR_VERB_PATTERNS:
+            if desc == "英語直訳「静かに壊れる (silently fail)」" and kowareru_span:
+                # 「壊れる」と「静かに壊れる」が同一動詞に二重反応することを防止
+                for m in re.finditer(pattern, plain_text):
+                    span = (m.start(), m.end())
+                    if kowareru_span[0] <= span[0] and span[1] <= kowareru_span[1]:
+                        continue
+                    findings.append({
+                        "rule": "metaphor_verb",
+                        "line": line_no,
+                        "severity": "warn",
+                        "message": f"{desc}が検出されました。不自然な比喩動詞であれば、ふだん使う動詞や客観的な表現に書き直してください。ただし、文字どおりの動作や状態変化を表している場合は無理に言い換える必要はありません。",
+                        "snippet": line.strip()
+                    })
+                    break
+                continue
+
+            m = re.search(pattern, plain_text)
+            if m:
+                if desc == "比喩動詞「壊れる」":
+                    kowareru_span = (m.start(), m.end())
+                findings.append({
+                    "rule": "metaphor_verb",
+                    "line": line_no,
+                    "severity": "warn",
+                    "message": f"{desc}が検出されました。不自然な比喩動詞であれば、ふだん使う動詞や客観的な表現に書き直してください。ただし、文字どおりの動作や状態変化を表している場合は無理に言い換える必要はありません。",
+                    "snippet": line.strip()
+                })
+
+        # フィラーパターン
+        for pattern, desc in FILLER_PATTERNS:
+            if re.search(pattern, plain_text):
+                findings.append({
+                    "rule": "meta_filler",
+                    "line": line_no,
+                    "severity": "warn",
+                    "message": f"{desc}が検出されました。単なる前置きや不要な飾りであれば削り、本題から書いてください。ただし、「何が大事か」という評価や主張そのものを担っている場合は、述語に移すなどして意味を残してください。",
+                    "snippet": line.strip()
+                })
+
+        # ネガティブパラレリズム
+        if NEGATIVE_PARALLELISM_PATTERN.search(plain_text):
+            if "ではなく、" in plain_text or "ではなく" in plain_text:
+                findings.append({
+                    "rule": "negative_parallelism",
+                    "line": line_no,
+                    "severity": "info",
+                    "message": "「AではなくB」構文が検出されました。否定を外しても主張が変わらない場合は肯定文を検討してください。ただし、誤解の訂正や見方の切り替えなど意味・比重を担っている否定なら、無理に肯定化せずそのまま残してください。",
+                    "snippet": line.strip()
+                })
+
+    # スコア計算（100点満点からの減点方式: warn=5点, info=2点）
+    penalty = sum(5 if f["severity"] in ("warn", "error") else 2 for f in findings)
+    score = max(0, 100 - penalty)
+
+    return {
+        "score": score,
+        "is_clean": len(findings) == 0,
+        "metrics": metrics,
+        "findings": findings
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description="日本語文章のAIっぽさ数値化リンター")
+    parser.add_argument("file", nargs="?", help="検査対象のMarkdownファイルパス（指定なしの場合は標準入力）")
+    parser.add_argument("--json", action="store_true", help="JSON形式で出力")
+    parser.add_argument("--strict", action="store_true", help="警告が1件でもあれば非ゼロ（終了コード1）で終了")
+
+    args = parser.parse_args()
+
+    if args.file:
+        try:
+            with open(args.file, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as e:
+            print(f"Error opening file {args.file}: {e}", file=sys.stderr)
+            sys.exit(2)
+    else:
+        content = sys.stdin.read()
+
+    result = lint_text(content)
+
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print("=" * 60)
+        print(f"AIっぽさ 検査レポート (スコア: {result['score']}/100)")
+        print("=" * 60)
+        m = result["metrics"]
+        print(f"・文字数: {m['char_count']} | 行数: {m['total_lines']}")
+        print(f"・太字頻度: 1,000字あたり {m['bold_per_1000']} 個 (推奨: 2.0以下 / 警告: 3.0超)")
+        print(f"・箇条書き比率: {round(m['list_ratio']*100, 1)}% (推奨: 15%以下 / 警告: 25%超)")
+        print("-" * 60)
+
+        if result["is_clean"]:
+            print("[PASS] 設定された検査ルールによる指摘はありません。")
+        else:
+            print(f"[NOTICE] {len(result['findings'])} 件の改善推奨箇所が見つかりました。\n")
+            for f in result["findings"]:
+                sev = f"[{f['severity'].upper()}]"
+                print(f"L{f['line']} {sev} {f['message']}")
+                print(f"  > {f['snippet']}\n")
+
+    if args.strict:
+        warn_count = sum(1 for f in result["findings"] if f["severity"] in ("warn", "error"))
+        if warn_count > 0:
+            sys.exit(1)
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
+````
+
+````py:scripts/yomiyasu_diff.py
+#!/usr/bin/env python3
+"""
+yomiyasu_diff.py（試作）- 元の文と書き直した文を比べて、足したもの・削ったものの候補を機械的に拾う。
+
+標準ライブラリだけで動く。モデルは呼ばない。
+拾うのは「意味が変わりやすい」ものだけに絞る。
+  1. 文末や言い回しの種類（依頼・勧誘・義務・評価・可能・推量・念押し・意志・条件・説明化・つなぎ）の数の増減
+  2. 元の文にない語（漢字2字以上、カタカナ2字以上、英数字2字以上）と、書き直した文から消えた語
+  3. 箇条書きをやめたかどうか、段落をまとめたかどうか
+  4. 書き直した文の中で、つながりを確かめるべき場所（文頭のつなぎ、主題の「も」、予告だけの文、文頭の指示語）
+  5. 文末の種類（勧め・依頼・動作の「〜します」・評価・常体など）と、文書の立場が混ざっている候補
+  6. 書き直した文の中で、太字にならない書き方（GitHub などで ** がそのまま表示されるところ）と、直し方の案
+言い換えかどうか、つながりが合っているか、文末が立場に合っているかの最終判断は、この結果を見たモデル（または人）がする。
+"""
+import re
+import sys
+import json
+import difflib
+import unicodedata
+
+# 文末や言い回しの種類。数が増えた・減ったものを候補にする
+MARKERS = {
+    "依頼": r"(?:て|で)ください",
+    "勧誘": r"ましょう",
+    "義務": r"なければ(?:なりません|ならない)|なくては(?:なりません|ならない)|ねばならない|必要があ(?:ります|る)|べき",
+    "評価": r"大切|重要|大事|不可欠|欠かせ|肝心|肝要",
+    "可能": r"でき(?:ます|る|ません|ない)|(?<![しさ])(?:ら|れ)(?:ます|ません)(?=[。、がけし]|$)|(?<=[作使書読言防守残伝送続進])(?:れ|え|け|め|せ)(?:ます|る)(?=[。、がけし]|$)",
+    "推量": r"でしょう|だろう|かもしれ|はず|と思(?:います|う)|ようです|らしい|おそれ|たいところ",
+    "念押し": r"のです|んです|こそ|まさに|必ず|絶対|常に",
+    "意志": r"(?:に|ように|ことに)し(?:ます|ている|ています)",
+    "条件": r"(?<!例)(?<!たと)(?:れ|え|け|せ|て|ね|め|べ)ば(?![かり])|なら(?=[、。]|$|\s)|たら(?=[、。]|$|\s)|場合",
+    "説明化": r"ことが挙げられ|ということ|ことです|ことになります",
+    "つなぎ": r"まず|また(?!は)|そして|さらに|次に|最後に|ただし|しかし|つまり|そのため|ので(?!す)|によって|ことで|ことにより",
+}
+
+CONTENT = re.compile(r"[一-龥々〆ヵヶ]{2,}|[ァ-ヴー]{2,}|[A-Za-z][A-Za-z0-9_.+#/-]+")
+
+
+def normalize(t: str) -> str:
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)          # 太字
+    t = re.sub(r"(?m)^\s*(?:[*\-・]|\d+[.)])\s+", "", t)  # 箇条書きの印
+    t = re.sub(r"(?m)^#+\s*", "", t)                 # 見出し
+    t = re.sub(r"[ \t]+", " ", t)
+    return t.strip()
+
+
+def has_list(t: str) -> bool:
+    return bool(re.search(r"(?m)^\s*(?:[*\-・]|\d+[.)])\s+\S", t))
+
+
+def sentences(t: str):
+    return [s for s in re.split(r"(?<=[。！？!?])|\n+", t) if s.strip()]
+
+
+def paragraphs(t: str):
+    """段落の数を数える。続いた箇条書きは1つの段落とみなす"""
+    blocks, prev_list = [], False
+    for line in t.split("\n"):
+        if not line.strip():
+            prev_list = False
+            continue
+        is_list = bool(re.match(r"\s*(?:[*\-・]|\d+[.)])\s+", line))
+        if is_list and prev_list:
+            continue
+        blocks.append(line)
+        prev_list = is_list
+    return blocks
+
+
+LOGIC = [
+    ("文頭のつなぎ", re.compile(r"^(?:ただし|しかし|一方|また|さらに|つまり|そのため|したがって|だから|それでも|なお|そこで|ところが)")),
+    ("主題の「も」", re.compile(r"^(?!それで)[^、。]{0,17}[^、。てでり]も、")),
+    ("予告だけの文", re.compile(r"^.{0,28}(?:が|も)あります。$|次の(?:点|こと|とおり|通り)です|以下の(?:点|こと|とおり|通り)")),
+    ("文頭の指示語", re.compile(r"^(?:これ|それ(?!でも|から)|こう(?:した|して|する|いう)|そう(?:した|して|する|いう)|この|その)(?!して)")),
+]
+
+
+def logic_points(t: str):
+    pts = []
+    for s in sentences(normalize(t)):
+        s2 = s.strip()
+        for name, pat in LOGIC:
+            if pat.search(s2):
+                pts.append({"kind": name, "sentence": s2})
+    return pts
+
+
+# ---- 文末の種類と、文書の立場 ----
+# 立場は3つ。勧め = 読み手に勧める・頼む、決まり = 決まり・手順を伝える、説明 = 事実・結果・考えを伝える
+STANCES = {"勧め": "勧め", "読み手に勧める": "勧め", "決まり": "決まり", "手順": "決まり", "説明": "説明", "報告": "説明", "体験": "説明"}
+
+# 状態や性質を表す「〜ます」の語幹（動作ではないもの）
+STATIVE = ("なり", "あり", "おり", "でき", "分かり", "わかり", "つながり", "変わり", "起き", "起こり", "生じ",
+           "増え", "減り", "見え", "聞こえ", "残り", "続き", "終わり", "始まり", "決まり", "進み", "遅れ",
+           "下回り", "上回り", "異なり", "違い", "限り", "足り", "合い", "当たり", "向き", "似", "伝わり",
+           "高まり", "下がり", "上がり", "広がり", "強まり", "弱まり", "落ち", "壊れ", "崩れ", "外れ", "漏れ",
+           "そろい", "揃い", "思え", "感じられ", "止まり", "消え", "困り", "迷い", "助かり")
+# 可能の形（「防げます」など）。一段動詞と見分けられないので、よく出るものだけ並べる
+POTENTIAL = ("防げ", "書け", "読め", "使え", "言え", "選べ", "話せ", "待て", "探せ", "直せ", "残せ", "減らせ", "増やせ",
+             "守れ", "作れ", "取れ", "気づけ", "見つけられ", "続けられ", "避けられ", "変えられ", "決められ", "伝えられ")
+EVAL_END = r"(?:重要|最重要|大切|大事|不可欠|肝心|肝要|欠かせません|鍵|カギ|最優先|必要)(?:です|でした|だ|である)?$"
+
+
+def bare_end(s: str) -> str:
+    """文末の判定に使う形。太字や記号、文末のかっこ書き（「〜」の例など）を外す"""
+    t = re.sub(r"\*\*|`", "", s).strip().rstrip("。．.！!？?").strip()
+    prev = None
+    while prev != t:
+        prev = t
+        t = re.sub(r"[（(][^（）()]*[）)]$", "", t).strip()
+    return re.sub(r"[」』）)]+$", "", t)
+
+
+def register(s: str) -> str:
+    """敬体か常体か。体言止めなどは空を返す"""
+    t = bare_end(s)
+    if re.search(r"(?:です|ます|ません|ました|でした|ましょう|ください|でしょう)$", t):
+        return "敬体"
+    if re.search(r"(?:だ|である|ではない|でない)$", t) or (re.search(r"[るうくすつぬぶむぐたい]$", t) and not re.search(r"[ァ-ヴー一-龥A-Za-z0-9]$", t)):
+        return "常体"
+    return ""
+
+
+def ending_kind(s: str) -> str:
+    t = bare_end(s)
+    if not t:
+        return ""
+    if re.search(r"ください(?:ね)?$|(?:て|で)はいけません$|(?:て|で)はなりません$|ていただきます$|ていただけます$", t):
+        return "依頼"
+    if re.search(r"ましょう$|とよいです$|といいです$|をおすすめします$|をお勧めします$", t):
+        return "勧め"
+    if re.search(r"(?:でしょう|だろう|かもしれません|かもしれない|と思います|と考えます|と感じます|はずです|ようです|気がします)$", t):
+        return "推量・考え"
+    if re.search(r"(?:なければなりません|なくてはなりません|必要があります|べきです)$", t):
+        return "義務"
+    if re.search(EVAL_END, t):
+        return "評価"
+    if re.search(r"(?:ました|でした|ませんでした)$", t):
+        return "過去"
+    if re.search(r"(?:ます|ません)$", t):
+        stem = re.sub(r"(?:ます|ません)$", "", t)
+        if re.search(r"(?:て|で)い$", stem):
+            return "説明（〜ています）"
+        if re.search(r"(?:られ|[^しさ]れ)$", stem) or stem.endswith(STATIVE) or stem.endswith(POTENTIAL):
+            return "説明（〜ます）"
+        return "動作（〜します）"
+    if re.search(r"です$", t):
+        return "断定（〜です）"
+    if re.search(r"(?:だ|である|ではない|でない)$", t):
+        return "常体"
+    if re.search(r"[るうくすつぬぶむぐたい]$", t) and not re.search(r"[ァ-ヴー一-龥A-Za-z0-9]$", t):
+        return "常体"
+    return "体言止めなど"
+
+
+def ending_units(t: str, markdown: bool = False):
+    """文末を見る単位。箇条書きの1項目も1文。ダッシュの前も1つの区切りとして見る。
+    markdown=True のときは、コードブロック・先頭の設定部分・表の区切り行を飛ばし、表のセルは「表」として扱う"""
+    out = []
+    lines = t.split("\n")
+    if markdown and lines and lines[0].strip() == "---":
+        try:
+            end = lines.index("---", 1)
+            lines = lines[end + 1:]
+        except ValueError:
+            pass
+    in_code = False
+    for line in lines:
+        l = line.strip()
+        if markdown and l.startswith("```"):
+            in_code = not in_code
+            continue
+        if in_code or not l or l.startswith("#") or l == "---":
+            continue
+        if l.startswith("|"):
+            if not markdown or set(l) <= set("|-: "):
+                continue
+            where, parts_src = "表", [c.strip() for c in l.strip("|").split("|")]
+        elif re.match(r"^(?:[*\-・]|\d+[.)])\s+", l):
+            where, parts_src = "箇条書き", [re.sub(r"^(?:[*\-・]|\d+[.)])\s+", "", l)]
+        else:
+            where, parts_src = "地の文", [l]
+        for src in parts_src:
+            for s in re.split(r"(?<=[。！？!?])", src):
+                s = s.strip()
+                if not s:
+                    continue
+                full = bool(re.search(r"[。！？!?]$", s))
+                parts = [p.strip() for p in re.split(r"[—―]{1,2}", s)]
+                for n, p in enumerate(parts):
+                    if not p:
+                        continue
+                    k = ending_kind(p)
+                    last = n == len(parts) - 1
+                    if not k or (not last and k == "体言止めなど"):
+                        continue
+                    out.append({"where": where, "sentence": p, "kind": k, "full": full or not last})
+    return out
+
+
+def stance_flags(t: str, stance=None, markdown: bool = False):
+    rows = ending_units(t, markdown)
+    act = [r for r in rows if r["kind"] == "動作（〜します）" and r["where"] != "表"]
+    ask = [r for r in rows if r["kind"] in ("勧め", "依頼") and r["where"] != "表"]
+    rec = [r for r in ask if r["kind"] == "勧め"]
+    ev = [r for r in rows if r["kind"] == "評価" and r["where"] != "表"]
+    flags = []
+    if stance == "勧め":
+        if act:
+            flags.append(("勧めの文書に、主語のない「〜します」がある。読み手にしてほしい行動なら勧め・頼みの形にする。仕組みや道具の働き、やり方の手順の説明なら残す", act))
+    elif stance == "決まり":
+        if rec or ev:
+            flags.append(("決まり・手順の文書に、勧めや評価の文末がある。決まりそのものなら決まりの形（〜します）にする。決まりの理由や前提を述べる文なら残す。「〜してください」はそのままでよい", rec + ev))
+    elif stance == "説明":
+        body = [r for r in ask if r is not rows[-1]] if rows else ask
+        if body:
+            flags.append(("事実・結果・考えの文書に、読み手への勧めや頼みがある（最後の1文を除く）。立場が合っているか見る", body))
+    else:
+        if act and ask:
+            flags.append(("動作の「〜します」と、勧め・依頼が同じ文章にある。「〜します」が書き手の側の予定・決まった手順なのか、読み手にしてほしい行動なのかを見る", act + ask))
+        elif act and ev:
+            flags.append(("動作の「〜します」と、評価（〜が重要です など）が同じ文章にある。決まり・手順の文書なら評価が浮き、勧めの文書なら「〜します」が浮く", act + ev))
+    # 敬体と常体。文として書かれた単位（。で終わるもの、ダッシュの前）だけを数える。表と、。のない箇条書きは数えない
+    full = [r for r in rows if r["where"] != "表" and r["full"]]
+    jotai = [r for r in full if register(r["sentence"]) == "常体"]
+    keitai = [r for r in full if register(r["sentence"]) == "敬体"]
+    if jotai and len(keitai) > len(jotai):
+        flags.append(("敬体の文の中に、常体の文がある。そろえるときは「する → します」と形だけで変えず、立場に合う形にする", jotai))
+    elif keitai and len(jotai) > len(keitai):
+        flags.append(("常体の文の中に、敬体の文がある", keitai))
+    return rows, flags
+
+
+def ending_changes(o: str, r: str):
+    """書き直しで文末の種類が変わった文。似ている元の文と組にして比べる"""
+    ou, ru = ending_units(o), ending_units(r)
+    changes = []
+    for x in ru:
+        best, score = None, 0.0
+        for y in ou:
+            sc = difflib.SequenceMatcher(None, y["sentence"], x["sentence"], autojunk=False).ratio()
+            if sc > score:
+                best, score = y, sc
+        if best and score >= 0.45 and best["kind"] != x["kind"]:
+            changes.append({"orig": best["sentence"], "orig_kind": best["kind"] + ("・箇条書き" if best["where"] == "箇条書き" else ""),
+                            "rewrite": x["sentence"], "rewrite_kind": x["kind"]})
+    return changes
+
+
+# ---- 太字が表示されるか（GitHub などの Markdown）----
+# GitHub の Markdown では、** のすぐ内側が記号（「」（）` など）で、すぐ外側が文字だと、** を太字の印として読まず、
+# ** がそのまま表示される。新しい CommonMark（記号に Unicode の S も入る）でも、GitHub の GFM（P だけ）でも
+# 太字になる形だけを「表示される」とみなす。直し方の案は、かっこの内側だけを太字にする → 句読点を太字の外に出す
+# → 文字に接する側に半角スペースを入れる、の順に試す。
+BOLD_ASCII_PUNCT = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
+BOLD_BRACKETS = {"「": "」", "『": "』", "（": "）", "(": ")", "【": "】", "〔": "〕", "［": "］", "[": "]",
+                 "〈": "〉", "《": "》", "“": "”", "‘": "’", "＜": "＞"}
+
+
+def _bold_ws(ch: str) -> bool:
+    return ch == "" or ch.isspace()
+
+
+def _bold_punct_gfm(ch: str) -> bool:
+    return ch != "" and (ch in BOLD_ASCII_PUNCT or unicodedata.category(ch).startswith("P"))
+
+
+def _bold_punct_new(ch: str) -> bool:
+    return ch != "" and unicodedata.category(ch)[0] in "PS"
+
+
+def _bold_can_open(prev: str, nxt: str) -> bool:
+    return all(not _bold_ws(nxt) and (not p(nxt) or _bold_ws(prev) or p(prev)) for p in (_bold_punct_gfm, _bold_punct_new))
+
+
+def _bold_can_close(prev: str, nxt: str) -> bool:
+    return all(not _bold_ws(prev) and (not p(prev) or _bold_ws(nxt) or p(nxt)) for p in (_bold_punct_gfm, _bold_punct_new))
+
+
+def _bold_code_spans(line: str):
+    """インラインコード（同じ数のバッククォートで閉じたもの）の範囲"""
+    runs = [(m.start(), m.end()) for m in re.finditer(r"`+", line)]
+    spans, k = [], 0
+    while k < len(runs):
+        s, e = runs[k]
+        for m in range(k + 1, len(runs)):
+            if runs[m][1] - runs[m][0] == e - s:
+                spans.append((s, runs[m][1]))
+                k = m
+                break
+        k += 1
+    return spans
+
+
+def _bold_pairs(line: str):
+    code = _bold_code_spans(line)
+    pos = [m.start() for m in re.finditer(r"(?<![*\\])\*\*(?!\*)", line)
+           if not any(a <= m.start() < b for a, b in code)]
+    return [(pos[k], pos[k + 1]) for k in range(0, len(pos) - 1, 2)]
+
+
+def _bold_pair_ok(line: str, i: int, j: int) -> bool:
+    ch = lambda p: line[p] if 0 <= p < len(line) else ""
+    return _bold_can_open(ch(i - 1), ch(i + 2)) and _bold_can_close(ch(j - 1), ch(j + 2))
+
+
+def _bold_close_of(s: str) -> int:
+    """s の先頭のかっこに対応する閉じかっこの位置（なければ -1）"""
+    o, c, depth = s[0], BOLD_BRACKETS[s[0]], 0
+    for k, x in enumerate(s):
+        if x == o:
+            depth += 1
+        elif x == c:
+            depth -= 1
+            if depth == 0:
+                return k
+    return -1
+
+
+def _bold_fix(line: str, i: int, j: int, k: int):
+    """k 番目の太字（i と j の **）の直し方の案。(直したあとの部分, 直し方) を返す"""
+    inner = line[i + 2:j]
+    tries = []
+    if len(inner) >= 3 and inner[0] in BOLD_BRACKETS and _bold_close_of(inner) == len(inner) - 1:
+        tries.append((inner[0] + "**" + inner[1:-1] + "**" + inner[-1], "かっこの内側だけを太字にする"))
+    if len(inner) >= 2 and inner[-1] in "。、．，！？!?":
+        tries.append(("**" + inner[:-1] + "**" + inner[-1], "句読点を太字の外に出す"))
+    ch = lambda p: line[p] if 0 <= p < len(line) else ""
+    body = inner
+    if _bold_ws(ch(i + 2)) or _bold_ws(ch(j - 1)):
+        body = inner.strip()
+    left = "" if _bold_can_open(ch(i - 1), body[:1]) else " "
+    right = "" if _bold_can_close(body[-1:], ch(j + 2)) else " "
+    tries.append((left + "**" + body + "**" + right, "太字の内側の空白を取る" if body != inner and not (left or right)
+                  else "文字に接する側に半角スペースを入れる"))
+    for middle, how in tries:
+        cand = line[:i] + middle + line[j + 2:]
+        pairs = _bold_pairs(cand)
+        if k < len(pairs) and _bold_pair_ok(cand, *pairs[k]):
+            return middle, how
+    return None, "手で直す"
+
+
+def bold_problems(text: str, skip_frontmatter: bool = True):
+    """太字にならない ** の場所と、直し方の案。コードブロック・インラインコード・HTML の行・先頭の設定部分は見ない"""
+    out, fence = [], None
+    lines = text.split("\n")
+    start = 0
+    if skip_frontmatter and lines and lines[0].strip() == "---":
+        for n in range(1, len(lines)):
+            if lines[n].strip() == "---":
+                start = n + 1
+                break
+    for no in range(start, len(lines)):
+        line = lines[no].rstrip("\r")
+        m = re.match(r"\s{0,3}(`{3,}|~{3,})(.*)$", line)
+        if fence:
+            if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= fence[1] and not m.group(2).strip():
+                fence = None
+            continue
+        if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+            fence = (m.group(1)[0], len(m.group(1)))
+            continue
+        if line.lstrip().startswith("<"):
+            continue
+        for k, (i, j) in enumerate(_bold_pairs(line)):
+            if _bold_pair_ok(line, i, j):
+                continue
+            middle, how = _bold_fix(line, i, j, k)
+            pre, post = line[max(0, i - 4):i], line[j + 2:j + 6]
+            found = pre + _bold_short(line[i:j + 2]) + post
+            suggest = pre + _bold_short(middle) + post if middle is not None else ""
+            out.append({"line": no + 1, "found": found, "suggest": suggest, "how": how})
+    return out
+
+
+def _bold_short(s: str) -> str:
+    """長い太字は、直すところ（両端）だけを見せる"""
+    return s if len(s) <= 30 else s[:12] + "…" + s[-12:]
+
+
+def count(pat: str, t: str) -> int:
+    return len(re.findall(pat, t))
+
+
+def context(t: str, i: int, j: int, width: int = 18) -> str:
+    a, b = max(0, i - width), min(len(t), j + width)
+    return t[a:i] + "［" + t[i:j] + "］" + t[j:b]
+
+
+def diff(orig_raw: str, rw_raw: str, stance=None) -> dict:
+    o, r = normalize(orig_raw), normalize(rw_raw)
+    out = {"markers": [], "new_words": [], "lost_words": [], "structure": [], "spans": [], "logic": logic_points(rw_raw),
+           "bold": bold_problems(rw_raw)}
+    _, flags = stance_flags(rw_raw, stance)
+    _, orig_flags = stance_flags(orig_raw, stance)
+    out["endings"] = {"stance": stance, "changes": ending_changes(orig_raw, rw_raw),
+                      "flags": [{"note": n, "sentences": [x["sentence"] for x in rows]} for n, rows in flags],
+                      "orig_flags": [{"note": n, "sentences": [x["sentence"] for x in rows]} for n, rows in orig_flags]}
+
+    # 1. 種類ごとの数の増減
+    for name, pat in MARKERS.items():
+        a, b = count(pat, o), count(pat, r)
+        if a != b:
+            hits_r = [m.group(0) for m in re.finditer(pat, r)]
+            hits_o = [m.group(0) for m in re.finditer(pat, o)]
+            out["markers"].append({"kind": name, "orig": a, "rewrite": b,
+                                   "orig_hits": hits_o, "rewrite_hits": hits_r})
+
+    # 2. 元にない語・消えた語（語の単位で、文のどこかに出てくるかを見る）
+    o_words = set(CONTENT.findall(o))
+    r_words = set(CONTENT.findall(r))
+    out["new_words"] = sorted(w for w in r_words if w not in o)
+    out["lost_words"] = sorted(w for w in o_words if w not in r)
+
+    # 3. 構造
+    if has_list(orig_raw) and not has_list(rw_raw):
+        out["structure"].append("箇条書きを地の文にした。各項目の文末（指示・説明・評価）が元と同じか見る")
+    po, pr = len(paragraphs(orig_raw)), len(paragraphs(rw_raw))
+    if pr < po:
+        out["structure"].append(f"段落をまとめた（{po} → {pr}）。まとめた段落の話題が1つか見る")
+    if len(sentences(r)) != len(sentences(o)):
+        out["structure"].append(f"文の数が変わった（{len(sentences(o))} → {len(sentences(r))}）")
+
+    # 4. 足した部分（文字単位の差分）。種類か新しい語に当たるものだけ残す
+    sm = difflib.SequenceMatcher(None, o, r, autojunk=False)
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag in ("insert", "replace"):
+            seg = r[j1:j2]
+            kinds = [n for n, p in MARKERS.items() if re.search(p, r[max(0, j1 - 3):j2 + 3])]
+            words = [w for w in CONTENT.findall(seg) if w not in o]
+            if kinds or words:
+                out["spans"].append({"added": seg, "was": o[i1:i2], "kinds": kinds, "new_words": words,
+                                     "where": context(r, j1, j2)})
+    return out
+
+
+def bold_head(where: str = "") -> str:
+    return f"■ 太字にならない書き方（{where}GitHub などで ** がそのまま表示される。案のとおりに直す）"
+
+
+def bold_lines(problems):
+    return [f"- {p['line']}行目: {p['found']} → {p['suggest'] or '（手で直す）'}（{p['how']}）" for p in problems]
+
+
+def report(d: dict) -> str:
+    lines = []
+    if d["markers"]:
+        lines.append("■ 言い回しの種類の増減（意味が変わりやすいところ）")
+        for m in d["markers"]:
+            lines.append(f"- {m['kind']}: {m['orig']} → {m['rewrite']}（元: {'、'.join(m['orig_hits']) or 'なし'}／後: {'、'.join(m['rewrite_hits']) or 'なし'}）")
+    if d["new_words"]:
+        lines.append("■ 元の文にない語: " + "、".join(d["new_words"]))
+    if d["lost_words"]:
+        lines.append("■ 消えた語: " + "、".join(d["lost_words"]))
+    for s in d["structure"]:
+        lines.append("■ " + s)
+    if d.get("logic"):
+        lines.append("■ つながりを確かめる場所（書き直した文。何と何をつないでいるか言えるか）")
+        for p in d["logic"]:
+            sent = p["sentence"] if len(p["sentence"]) <= 44 else p["sentence"][:44] + "…"
+            lines.append(f"- {p['kind']}: {sent}")
+    e = d.get("endings") or {}
+    if e.get("changes"):
+        lines.append("■ 文末の種類が変わった文（立場に合う向きか見る）")
+        for c in e["changes"]:
+            sent = c["rewrite"] if len(c["rewrite"]) <= 44 else c["rewrite"][:44] + "…"
+            lines.append(f"- {c['orig_kind']} → {c['rewrite_kind']}: {sent}")
+    if e.get("flags"):
+        head = f"■ 文末の立場（{e['stance']}の文書として見た）" if e.get("stance") else "■ 文末の立場が混ざっている候補（立場を決めてから見る）"
+        lines.append(head)
+        for f in e["flags"]:
+            lines.append(f"- {f['note']}")
+            for s in f["sentences"]:
+                lines.append(f"  ・{s if len(s) <= 44 else s[:44] + '…'}")
+    if d.get("bold"):
+        lines.append(bold_head("書き直した文。"))
+        lines.extend(bold_lines(d["bold"]))
+    return "\n".join(lines) if lines else "（候補なし）"
+
+
+if __name__ == "__main__":
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    stance = None
+    for a in sys.argv[1:]:
+        if a.startswith("--stance="):
+            stance = STANCES.get(a.split("=", 1)[1])
+    if "--endings" in sys.argv and args:
+        # 1つのファイルの文末だけを見る（マークダウンのコードブロックや表の区切りは飛ばす）
+        t = open(args[0], encoding="utf-8").read()
+        rows, flags = stance_flags(t, stance, markdown=True)
+        from collections import Counter
+        c = Counter(r["kind"] for r in rows if r["where"] != "表")
+        print("■ 文末の種類（表を除く）: " + "、".join(f"{k} {v}" for k, v in c.most_common()))
+        for n, fr in flags:
+            print(f"■ {n}")
+            for r in fr:
+                print(f"  ・{r['sentence'] if len(r['sentence']) <= 60 else r['sentence'][:60] + '…'}")
+        bp = bold_problems(t)
+        if bp:
+            print(bold_head())
+            print("\n".join(bold_lines(bp)))
+        sys.exit(0)
+    if len(args) < 2:
+        print("使い方: python3 yomiyasu_diff.py 元の文.txt 書き直した文.txt [--stance=勧め|決まり|説明] [--json]")
+        print("　　　  python3 yomiyasu_diff.py --endings ファイル [--stance=勧め|決まり|説明]")
+        sys.exit(1)
+    o = open(args[0], encoding="utf-8").read()
+    r = open(args[1], encoding="utf-8").read()
+    d = diff(o, r, stance)
+    print(json.dumps(d, ensure_ascii=False, indent=1) if "--json" in sys.argv else report(d))
+````
+
 ## natural-japanese
 
 仕事の日本語文書を読みやすく書く・直す writing skill。「設計 → 執筆 → 検査 → 収束」の工程を持ち、文書タイプ別の型 (references/doctypes/) を含む。
 
 - 出典: https://github.com/coji/natural-japanese (MIT)
 - 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
-- scripts/ の lint.py 等 (uv 前提) はプロンプトには含めていない。実行できない環境では references/manual-checklist.md を使う
+- scripts/ は uv run scripts/lint.py 等で実行 (PEP 723)。uv がない環境では references/manual-checklist.md を使う
 
 
 ````md:SKILL.md
@@ -2514,6 +3617,4700 @@ After は「案件情報の二重入力」という具体的な課題に対し�
 
 - 上記の観察から、この書き手らしさを一言でまとめると何か
 - natural-japanese スキルで下書きする際に、特に意識すべき点
+```
+
+```py:scripts/lint.py
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "sudachipy>=0.6.8",
+#     "sudachidict-core>=20240409",
+# ]
+# ///
+"""lint.py — AI臭い日本語文章を決定的に検出する lint スクリプト。
+
+設計思想（HANDOFF.md 参照）:
+    「AI は自分自身の AI 臭さを認識できない」→ 機械的・決定的に検出して
+    人間（または AI 自身の別セッション）に突きつけ、直すかどうかの判断は
+    委ねる。これは CI ゲートではなく lint であるため、検出件数に関わらず
+    exit code は常に 0 にする。
+    ただし、これは「文章の中身」に関する判断を保留するという意味であり、
+    ファイルが読めない・存在しない・ディレクトリが指定された等の
+    「そもそも lint を実行できない」入力エラーとは区別する。
+    入力エラーの場合はエラーメッセージを表示し、exit code 1 で終了する。
+
+使い方:
+    uv run scripts/lint.py <file.md> [--json]
+
+実装メモ:
+    - sudachipy の Tokenizer 生成（辞書ロード）は重いので、プロセス内で
+      一度だけ生成し使い回す（lazy シングルトン、textcore.get_tokenizer）。
+    - 文分割は「。」「！」「？」「\\n」を区切りとする簡易実装（textcore.split_sentences_with_lines）。
+      厳密な文境界解析ではないが、決定的検出のプロトタイプとしてはこれで十分。
+    - sudachi トークナイザ初期化・Markdown構造マスク・文分割・ファイル読み込みなどの
+      共有基盤は textcore.py にある（scripts/outline.py, scripts/terms.py と共用）。
+"""
+
+from __future__ import annotations
+
+import argparse
+import dataclasses
+import json
+import re
+import statistics
+import sys
+from pathlib import Path
+
+from textcore import (
+    Finding,
+    SENTENCE_SPLIT_RE,
+    _HEADING_RE,
+    _LIST_ITEM_RE,
+    get_tokenizer,
+    iter_lines_with_no,
+    iter_paragraphs_with_lines,
+    mask_html_comments,
+    mask_markdown_structure,
+    read_source_file,
+    split_sentences_with_lines,
+)
+
+# ---------------------------------------------------------------------------
+# 辞書: 禁止語・LLM 常套句カタログ
+# ここは「拡張前提」のカタログ。新しい手癖フレーズに気づいたら追記していく。
+# 出典: HANDOFF.md 55-62行目、および note記事「禁止語60語超」の言及。
+#
+# 2026-07 コーパス校正（corpus/reports/archive/deep-analysis.md §4a）による見直し:
+# 実コーパス（人間103文書 + AI 81文書）で forbidden_phrase 全体の文書発火率が
+# human 58〜67% > ai 30〜33% と逆転していた。単語別ヒット数を見ると、
+# 「最後に」（人間48回 vs AI 2回）と「まさに」（人間24回 vs AI 0回）の2語だけで
+# 人間側ヒットの63%を占めており、これらは単なる日常語であって AI 特有の
+# 手癖ではないと判明したため削除した（deep-analysis.md §5 の明示的な推奨）。
+# 「重要なのは」「このように」「不可欠」「ポイントは」「さて、」は人間側でも
+# 一定数ヒットする（人間6〜15回 vs AI 2回前後）ため削除まではせず、
+# FORBIDDEN_PHRASES_WEAK_SIGNAL に移して severity を info に格下げしている
+# （検出は残すが「重大な逆向きシグナル」としては扱わない）。
+# 逆に「いかがでしょうか」「大切なのは」「根本的な」「まとめると」は
+# AI側ヒットの方が優勢で、当初の設計意図どおりの語として warn のまま残す。
+# ---------------------------------------------------------------------------
+FORBIDDEN_PHRASES: list[str] = [
+    # 結論の押し付け・まとめ口調
+    "と言えるでしょう",
+    "と言えるだろう",
+    "と言えます",
+    "ということになるでしょう",
+    "のではないでしょうか",
+    "重要なのは",
+    "大切なのは",
+    "ポイントは",
+    "結論から言うと",
+    "結論として",
+    "いかがでしたか",
+    "いかがでしょうか",
+    # 「最後に」はコーパス校正で削除（人間48回 vs AI 2回、日常語であってAI手癖ではない）
+    "まとめると",
+    "総じて",
+    # 過剰な強調・持ち上げ
+    "非常に重要",
+    "極めて重要",
+    "言うまでもなく",
+    "言うまでもありません",
+    # 「まさに」はコーパス校正で削除（人間24回 vs AI 0回、日常語であってAI手癖ではない）
+    "まさしく",
+    # 定型導入・空疎な接続
+    "さて、",
+    "それでは、",
+    "このように",
+    "このような中",
+    "ここで注目したいのは",
+    "見ていきましょう",
+    "紹介していきます",
+    "解説していきます",
+    "深掘りしていきます",
+    # 予防線・免責的な言い回し
+    "一概には言えません",
+    "個人差がありますが",
+    "あくまで一例ですが",
+    # 正面から系（出典: japanese-tech-writing の規範から。中身の代わりに姿勢だけを宣言する）
+    "正面から扱う",
+    "正面から見る",
+    "正面から書く",
+    "正面から立てる",
+    "正面から回収する",
+    # 空虚な形容（出典: japanese-tech-writing の規範から。主張の中身を説明せず強調・網羅感だけ付ける）
+    "不可欠",
+    "核心的",
+    "鍵となる",
+    "根本的な",
+    "多角的",
+    "包括的",
+    "総合的",
+    # 空虚な動詞・予告口調（出典: japanese-tech-writing の規範から。何をどう書いたか示さず終わる）
+    "掘り下げる",
+    "深掘りする",
+    "言語化する",
+    "について見ていく",
+    "を探求する",
+]
+
+# コーパス校正で「人間側でも一定数ヒットするため弱いシグナル」と判定した語。
+# 削除はせず検出は残すが、severity を warn ではなく info に下げる
+# （deep-analysis.md §4a: 人間6〜15回 vs AI 2回前後、比率は逆転していないが
+# 絶対数として人間の日常的な使用がそれなりにある語）。
+FORBIDDEN_PHRASES_WEAK_SIGNAL: set[str] = {
+    "重要なのは",
+    "このように",
+    "不可欠",
+    "ポイントは",
+    "さて、",
+}
+
+# ---------------------------------------------------------------------------
+# 辞書: 翻訳調パターン（英語直訳っぽい構文）
+# ---------------------------------------------------------------------------
+TRANSLATIONESE_PATTERNS: list[str] = [
+    r"することができ(る|ます|た)",
+    r"することが可能(です|だ|になる)",
+    r"と言えるだろう",
+    r"という点で",
+    r"という観点(から|で)",
+    r"にとって(重要|不可欠)",
+    r"を持つ(こと|存在)",
+    r"することによって",
+    r"であることは間違いない",
+    r"に他ならない",
+]
+
+# 段落頭に来ると「AI が構成を接続詞で誤魔化しがち」な語
+PARAGRAPH_CONJUNCTIONS: list[str] = [
+    "しかし",
+    "また",
+    "そして",
+    "そのため",
+    "さらに",
+    "つまり",
+    "一方",
+    "一方で",
+    "このように",
+    "なぜなら",
+    "したがって",
+    "ただし",
+]
+
+# 否定→肯定対比の手癖パターン（正規表現）
+ANTITHESIS_PATTERNS = [
+    re.compile(r"ではなく、?.{0,30}"),
+    re.compile(r"だけでなく.{0,10}も"),
+]
+
+# ---------------------------------------------------------------------------
+# 検出器の閾値パラメータ（デフォルト値付きモジュールレベル定数）
+#
+# 各検出器のヒット判定に使う「回数/割合/最低サンプル数」の閾値を、関数内の
+# リテラルではなくここに集約する。scripts/calibrate.py が閾値スイープで
+# パラメータを変えて検出器を直接呼べるようにするための整理であり、
+# ここに定義した値はすべて元のリテラルと同じ（CLI 挙動・検出結果は完全に不変）。
+# 各検出関数は同名のキーワード引数でこれらをデフォルト値として受け取り、
+# 呼び出し側から上書きできる。
+# ---------------------------------------------------------------------------
+ANTITHESIS_REPETITION_THRESHOLD = 3
+# 2026-07 コーパス校正2（corpus/reports/antithesis-recalibration.md）: 絶対回数閾値
+# （3回以上）だけで severity=critical を出す旧仕様は、長文書（例: 12,000文規模の
+# 白書）では検出数が薄まって比率としてはノイズ同然でも critical 連打になる一方、
+# 質の高い書き手の修辞技法（誤解を先に否定してから定義する等）にも無差別に発火して
+# いた。実測（human quality:high、web+aozora、n=81）では絶対回数閾値ヒット率が
+# 23.5%（19文書）に達したが、そのヒット文書の「検出数/総文数」比率分布は中央値
+# 1.5%・90パーセンタイル2.4%・最大4.6%にとどまる。一方 AI 側のヒット文書
+# （hits>=3、n=48）の比率分布は中央値8.3%・最小でも2.65%と、human とほぼ重ならない
+# 分布を示した。この比率を使い、絶対回数閾値は維持しつつ severity を3段階化する:
+# ratio < ANTITHESIS_RATE_INFO_BELOW は info（薄い比率＝人間の技法との区別がつかない）、
+# ratio >= ANTITHESIS_RATE_CRITICAL_ABOVE は critical（高頻度＝真陽性の実測あり）、
+# その中間は warn。閾値0.02/0.03で human 全体の critical化率は4.9%（<5%目標達成）。
+# ただし tech ジャンルのみ human critical化率が11.1%と高く出たため、
+# GENRE_PROFILES["tech"]["antithesis_rate_critical_above"] で0.045に緩めている
+# （tech human critical化率は0%に低下、AI側もcritical 9/84 + warn 6/84 で検出は維持）。
+ANTITHESIS_RATE_INFO_BELOW = 0.02
+ANTITHESIS_RATE_CRITICAL_ABOVE = 0.03
+SENTENCE_VARIANCE_MIN_SENTENCES = 5
+SENTENCE_VARIANCE_CV_THRESHOLD = 0.25
+NOMINAL_ENDING_MIN_SENTENCES = 5
+# 2026-07 コーパス校正で検出方向を反転（corpus/reports/archive/deep-analysis.md §3, §4b）。
+# 体言止めは AI の手癖ではなく人間の修辞技法で、essayジャンルでは人間60%が使う一方
+# AIは0%（essay同ジャンル比較、n=50/37）。「多用」を警告する検出器としては
+# 前提が誤りだったため、「長文なのに体言止めが1つもない」ことを人間的修辞の
+# 欠如（AIらしさの一側面）として検出する方向に反転した。
+# NOMINAL_ENDING_RATIO_THRESHOLD は「この比率以下なら欠如とみなす」閾値
+# （反転前は「以上で警告」だった）。NOMINAL_ENDING_MIN_CHARS は
+# 「~2000字ビンで human 67% vs ai 0%」という長さ依存の知見を踏まえたガード
+# （短文書は人間でも体言止めがゼロなことが珍しくないため対象外にする）。
+NOMINAL_ENDING_RATIO_THRESHOLD = 0.0
+NOMINAL_ENDING_MIN_CHARS = 2000
+PARAGRAPH_CONJ_MIN_PARAGRAPHS = 3
+PARAGRAPH_CONJ_RATIO_THRESHOLD = 0.3
+UNIFORM_PARAGRAPH_MIN_PARAGRAPHS = 4
+UNIFORM_PARAGRAPH_CV_THRESHOLD = 0.15
+# NESTED_ATTRIBUTIVE_THRESHOLD は 2026-07 コーパス校正で検出器ごと削除（弁別力なし）。
+BURSTINESS_MIN_TOKENIZED = 6
+# 2026-07 コーパス校正（corpus/reports/archive/sweep_low_burstiness.md）: 旧値-0.62では
+# human/aiとも0%/0%で「無反応」だった。sweepで-0.9〜-0.2を走査した結果、
+# -0.24で human FP率2.4%・AI検出率100.0%と、他の統計系検出器の中では唯一
+# 弁別力を示したため、この値を採用する。ただしAI標本はn=3と極めて小さく、
+# コーパス拡充後に再sweepして確定させる必要がある暫定値。
+BURSTINESS_THRESHOLD = -0.24
+AUTOCORR_MIN_XS = 4
+AUTOCORR_THRESHOLD = 0.6
+# 2026-07 コーパス校正で閾値を大幅に引き上げ、severityも格下げ（deep-analysis.md
+# §3, §4）。文頭反復は human_web 93% vs ai 41%（文書発火率）と人間側で
+# 圧倒的に多く、essay同ジャンルでも人間92% vs AI35%と逆転していた。
+# 人間の書き手が意図的にリズムとして文頭を反復する技法と、AIの反復癖を
+# この検出器だけでは区別できないため、閾値を3→6に引き上げて「明らかな
+# 過剰反復」だけを拾うようにし、severityもwarnからinfoに下げて
+# 判断材料の提示にとどめる。
+NGRAM_LEAD_REPEAT_THRESHOLD = 6
+NGRAM_TEMPLATE_MIN_COUNT = 6
+NGRAM_TEMPLATE_RATIO_THRESHOLD = 0.4
+LEXDIV_MIN_TOKENS = 30
+TTR_THRESHOLD = 0.45
+MTLD_THRESHOLD = 40
+# 2026-07 コーパス校正（corpus/reports/archive/length_analysis.md）: TTRが意味のある
+# 差を示すのは文書長4000字以上のビンのみ（それ未満は human/ai とも0%で無意味）。
+LEXDIV_MIN_DOC_CHARS = 4000
+
+# ---------------------------------------------------------------------------
+# low_specificity（具体性/一般論臭）検出器のパラメータ
+#
+# Phase 3（HANDOFF.md 参照）: 「固有名詞・数値・実例がなく、抽象名詞ばかりの
+# 段落」は、表層の禁止語や統語パターンとは別種のAI臭（＝素材不足のサイン）で、
+# 既存の検出器では拾えない。段落単位で具体性シグナルを合成スコア化し、
+# 閾値未満なら info で指摘する。
+#
+# 合成式: score = 固有名詞密度*重み + 数値密度*重み + 例示マーカー加点
+#                - 抽象名詞率*重み
+# 「密度」「率」は内容語（名詞/動詞/形容詞/副詞）数に対する割合。
+# 閾値・重みはこの時点では暫定値であり、scripts/calibrate.py の corpus/ 校正
+# （sweep --detector low_specificity）で確定させる前提（このコミット時点の値も
+# 校正済み。閾値変更の経緯は corpus/reports/archive/sweep_low_specificity.md 参照）。
+# ---------------------------------------------------------------------------
+# 2026-07 コーパス校正（corpus/reports/archive/sweep_low_specificity.md、grid search
+# ログはコミットしていないが手順は本ファイルのコメントに残す）: 当初の重み
+# （proper=3.0, numeric=4.0, abstract=1.0, threshold=0.05）は human FP率が
+# 46.6%（!）に達し、実用にならなかった。原因は「固有名詞も数値も例示マーカーも
+# 一切ない段落」が多数を占め、それらが score=0 ちょうどに集中して閾値0付近で
+# 一斉に発火していたため。閾値を負に大きくズラして「明確に抽象名詞が勝っている」
+# 段落だけを拾うよう調整し、あわせて重みを小さくして score の分散を滑らかにした。
+# 現在値は human FP率 3.9%（<5%目標達成）、AI全体検出率 7.4%、
+# claude-haiku-4-5 サブセット検出率 5.9%（n=34）。
+# 弁別力自体は他の校正済み検出器と比べて弱いが、コーパス標本数が小さい
+# （human n=103, ai n=81）中での探索結果であり、コーパス拡充後に再校正すべき
+# 暫定値として明示しておく。
+LOW_SPECIFICITY_MIN_CHARS = 80
+LOW_SPECIFICITY_MIN_CONTENT_WORDS = 15
+LOW_SPECIFICITY_PROPER_NOUN_WEIGHT = 1.0
+LOW_SPECIFICITY_NUMERIC_WEIGHT = 1.0
+LOW_SPECIFICITY_EXAMPLE_MARKER_BONUS = 0.1
+LOW_SPECIFICITY_ABSTRACT_NOUN_WEIGHT = 1.5
+LOW_SPECIFICITY_SCORE_THRESHOLD = -0.15
+
+# 形式名詞・抽象名詞のカタログ（拡張前提）。出典: HANDOFF.md の一般論臭の説明、
+# および japanese-tech-writing の「空句」規範。辞書形（dictionary_form）で比較する。
+#
+# 「こと」「もの」「の」はコーパス校正で除外した: 出現頻度が極端に高く
+# （human 82/103文書、ai 72/81文書で出現）、機能語に近い一般的な形式名詞のため
+# 弁別力がない（corpus/reports/archive/sweep_low_specificity.md 参照）。
+ABSTRACT_NOUN_WORDS: set[str] = {
+    "側面",
+    "観点",
+    "重要性",
+    "可能性",
+    "あり方",
+    "存在",
+    "意味",
+    "本質",
+    "価値",
+    "意義",
+    "課題",
+    "問題",
+    "要素",
+    "要因",
+    "背景",
+    "傾向",
+    "姿勢",
+    "視点",
+    "概念",
+    "特徴",
+    "性質",
+    "状況",
+    "状態",
+    "変化",
+}
+
+# 例示・具体化のマーカー語（段落中にあれば具体性の加点にする）
+EXAMPLE_MARKER_WORDS: list[str] = [
+    "たとえば",
+    "例えば",
+    "実際に",
+    "実際には",
+    "具体的には",
+    "具体例として",
+    "一例として",
+    "先日",
+    "昨日",
+    "現に",
+    "実例として",
+]
+
+# 数値・日付・単位付き数量の検出（半角/全角数字を単位・助数詞と一緒に拾う）
+NUMERIC_QUANTITY_RE = re.compile(
+    r"[0-9０-９]+"
+    r"(年代|年間|世紀|年|月|日|時間|時|分|秒|人|円|%|％|kg|km|cm|mm|g|m|回|件|個|つ|割|倍|台|社|名|冊|本|杯|軒)?"
+)
+
+# ---------------------------------------------------------------------------
+# --genre プロファイル（2026-07 コーパス校正で新設）
+#
+# deep-analysis.md はジャンル別（essay/tech/business）に人間・AI差の大きさが
+# 異なることを示した: essay は nominal_ending・repeated_sentence_lead の逆転が
+# 最も強く出るジャンル、tech は人間の書き手も見出し・箇条書き・太字を多用する
+# ため AI との差が縮む傾向にある。business はコーパスが薄く
+# （人間側n=10、AI側n=0）、単独でのプロファイル確定は時期尚早なので、
+# 指示どおり tech と同じ値を使う。
+# genre 未指定（デフォルト）はどのジャンルにも偏らない共通の保守的閾値
+# （モジュール定数のデフォルト値そのもの）を使う。
+# ---------------------------------------------------------------------------
+GENRE_PROFILES: dict[str, dict] = {
+    "essay": {
+        # essayジャンルは体言止め欠如シグナルが最も強く出る（人間60% vs AI 0%）ため、
+        # 共通閾値よりやや短い文書長からでも欠如を拾えるようにする。
+        "nominal_min_chars": 1500,
+        # essayも文頭反復の逆転が大きい（人間92% vs AI35%）ジャンルだが、
+        # 依然として人間の意図的反復技法との区別はつかないため、共通閾値より
+        # わずかに低いだけに留める（過検出を避ける）。
+        "lead_repeat_threshold": 5,
+        # 読解負荷レーン（--reading-load）の一文長の目安。readability-sweep.md の
+        # 候補1（文長）で、essay だけがジャンル別FP率6.7%と唯一5%を超えた
+        # （tech/business はいずれも0.0%）。エッセイの長い一文は書き手の呼吸で
+        # あることが多いため、共通の90字より緩める。
+        "reading_load_sentence_max_chars": 110,
+    },
+    "tech": {
+        # tech記事は人間もAIも見出し・箇条書き構成に寄るため差が縮む。
+        # 誤検知を避けるため共通閾値よりやや保守的（緩め）にする。
+        "nominal_min_chars": 3000,
+        "lead_repeat_threshold": 7,
+        # antithesis_repetition の2026-07コーパス校正2（corpus/reports/
+        # antithesis-recalibration.md）: tech ジャンルは共通閾値0.03だと
+        # human quality:high の critical化率が11.1%（zennの技術記事2本）と
+        # 目標の5%を超えたため、0.045に緩める（tech human critical化率0%に低下、
+        # AI側もcritical 9/84 + warn 6/84 で検出は維持）。
+        "antithesis_rate_critical_above": 0.045,
+    },
+    # business は 2026-07 の実地校正（corpus/reports/business-calibration.md）で
+    # 実測した。人間側コーパスは corpus/human/web の biz-* 10件のみと薄いため、
+    # 「AIで強く光る検出器を厳しくする」方向の調整はせず、事業文書の正当な慣習
+    # （箇条書き・太字強調・定型見出し・フェーズ表現）と衝突しうる検出器は
+    # 無効化するに留めている（詳細は上記レポート参照）。
+    #   - nominal_min_chars: tech と同値（3000）を維持。実測では business
+    #     コーパス（人間・AIとも）で nominal_ending が閾値に関わらず一度も
+    #     発火しなかった（文書が短くAI/人間どちらの誤検知リスクも無い）ため、
+    #     変更する実測的根拠がない。
+    #   - lead_repeat_threshold: tech と同値（7）を維持。実測でこの値が
+    #     human_business の誤検知（デフォルト閾値6で20%→閾値7で10%）を
+    #     半減させつつ ai_business の検出率（4%）を落とさない局所最適点。
+    #   - disabled_categories: high_bullet_ratio・high_bold_density・
+    #     boilerplate_heading・numbered_phase_structure は、事業文書
+    #     （報告書・提案書・議事録等）で箇条書き・太字強調・「まとめ」等の
+    #     定型見出し・フェーズ/ステップ表現が正当に多用されるため、
+    #     AI側の発火率がどうであれ business ジャンルでは無効化する。
+    #     これらはいずれも EXPERIMENTAL_CATEGORIES に属し、デフォルトでは
+    #     既に出力されない（--experimental 指定時のみ影響する）が、将来
+    #     デフォルト化された場合の誤検知を防ぐため、ジャンル側でも明示的に
+    #     無効化しておく。
+    "business": {
+        "nominal_min_chars": 3000,
+        "lead_repeat_threshold": 7,
+        "disabled_categories": {
+            "high_bullet_ratio",
+            "high_bold_density",
+            "boilerplate_heading",
+            "numbered_phase_structure",
+        },
+    },
+}
+
+
+def format_related_lines(related_lines: list[int]) -> str:
+    """related_lines を人間可読の「対応箇所: L12, L34, ...」形式に整形する（重複除去・昇順ソート）。"""
+    uniq_sorted = sorted(set(related_lines))
+    return "対応箇所: " + ", ".join(f"L{n}" for n in uniq_sorted)
+
+
+# ---------------------------------------------------------------------------
+# --baseline 差分モード
+#
+# スキルの利用フローは「lint → 台帳に直した/残すを仕分け → 修正 → 再lint →
+# 新規findingが出なくなるまで繰り返す」という収束駆動ループになっている。
+# ループのたびに全件を目視で見比べるのは負担が大きいので、前回の --json 出力
+# （baseline）と今回の結果を比較し、resolved（解消）/ new（新規）/
+# persisting（継続）に分類する。
+#
+# 同一性キーの設計判断:
+#   行番号は修正のたびに増減してズレるため、キーに含めない
+#   （同じ指摘でも直した箇所より後ろの行が繰り上がるだけで「新規」扱いに
+#   なってしまう）。excerpt は形態素境界のわずかな変化や、直した箇所の
+#   前後の空白差などで完全一致しなくなることがあるため、正規化
+#   （空白除去）した上で先頭 N 文字の前方一致とする。カテゴリ名は
+#   検出器の種類そのものなので、そのまま等価比較に使う。
+#   これは完全に正確な同一性判定ではないが、実装が単純で、
+#   「同じ場所・同じ理由の指摘かどうか」の近似としては十分安定する。
+# ---------------------------------------------------------------------------
+_BASELINE_KEY_EXCERPT_PREFIX_LEN = 20
+
+# 文書全体の統計量（burstiness・変動係数・TTR/MTLD 等）を excerpt に直接埋め込んでいる
+# カテゴリ。これらは1文書につき高々1件しか出ない「集計そのもの」の finding であり、
+# excerpt が「burstiness=-0.623 (...)」のように計算結果の数値そのものなので、
+# 無関係な編集で文書の統計量がわずかに変化しただけで excerpt 文字列が変わり、
+# 同一性キーに含めると「解消」＋「新規」の偽ペアが発生してしまう。
+# このグループはカテゴリ名だけをキーにする（1文書1件が前提なので情報の欠落もない）。
+#
+# 一方、nominal_ending・repeated_sentence_lead・repeated_syntax_template・
+# paragraph_lead_conjunction・antithesis_repetition は「文書全体集計型」ではあるが、
+# excerpt 自体は実際にマッチした原文（体言止めの文末・反復した文頭など）であり、
+# 数値は detail 側にしか出てこない（同一性キーは detail を見ていない）。
+# これらは1文書内に複数の異なる該当箇所を持つのが普通なので、カテゴリ名だけに
+# 潰さず、従来どおり excerpt の前方一致キーを使う方が精度が高い。
+_CATEGORY_ONLY_KEY_CATEGORIES = {
+    "low_burstiness",
+    "high_length_autocorrelation",
+    "low_sentence_variance",
+    "uniform_paragraph_structure",
+    "low_lexical_diversity_ttr",
+    "low_lexical_diversity_mtld",
+}
+
+
+def _normalize_excerpt_for_key(excerpt: str) -> str:
+    """excerpt を同一性キー用に正規化する（空白類を除去）。"""
+    return re.sub(r"\s+", "", excerpt or "")
+
+
+def _finding_identity_key(category: str, excerpt: str) -> tuple[str, str]:
+    """(category, 正規化excerptの前方一致キー) を返す。行番号は含めない。
+    _CATEGORY_ONLY_KEY_CATEGORIES に該当するカテゴリは excerpt を無視し、
+    カテゴリ名のみをキーにする（理由は上のコメント参照）。
+    """
+    if category in _CATEGORY_ONLY_KEY_CATEGORIES:
+        return (category, "")
+    normalized = _normalize_excerpt_for_key(excerpt)
+    return (category, normalized[:_BASELINE_KEY_EXCERPT_PREFIX_LEN])
+
+
+def validate_baseline_data(baseline_data) -> tuple[dict | None, list[str]]:
+    """--baseline で読み込んだ JSON の形を検証する。
+
+    スキーマが想定外（トップレベルが dict でない、"findings" が配列でない、
+    配列内の要素が dict でない等）でも compute_baseline_diff() をクラッシュ
+    させたくないため、ここで軽量な検証を行い、
+    - 完全に想定外の形なら (None, [警告メッセージ]) を返し、呼び出し側は
+      baseline 比較そのものを諦めて通常の lint 実行にフォールバックする
+      （graceful degradation。lint はそもそも CI ゲートではないので、
+      baseline ファイルの不備で実行全体を落とすべきではない）
+    - "findings" 配列の一部の要素だけが dict でない場合は、その要素だけを
+      読み飛ばして残りで比較を続行する
+    """
+    warnings: list[str] = []
+    if not isinstance(baseline_data, dict):
+        warnings.append(
+            "--baseline の内容が JSON オブジェクトではありません。baseline比較を無視して通常のlintを実行します。"
+        )
+        return None, warnings
+
+    findings_raw = baseline_data.get("findings")
+    if not isinstance(findings_raw, list):
+        warnings.append(
+            "--baseline に 'findings' 配列が見つかりません。baseline比較を無視して通常のlintを実行します。"
+        )
+        return None, warnings
+
+    valid_findings = []
+    skipped = 0
+    for item in findings_raw:
+        # dict であることに加え、_finding_identity_key() が触るフィールドの型も
+        # ここで検証する（category が非文字列だと set 判定、excerpt が非文字列だと
+        # re.sub がクラッシュするため。JSON としては valid でも型が壊れた baseline
+        # は要素単位で読み飛ばす）。
+        if (
+            isinstance(item, dict)
+            and isinstance(item.get("category"), str)
+            and isinstance(item.get("excerpt"), str)
+        ):
+            valid_findings.append(item)
+        else:
+            skipped += 1
+    if skipped:
+        warnings.append(
+            f"--baseline の findings 配列内に不正な要素が{skipped}件あったため読み飛ばしました。"
+        )
+    return {"findings": valid_findings}, warnings
+
+
+def compute_baseline_diff(
+    findings: list[Finding], baseline_data: dict
+) -> tuple[list[dict], dict[str, int]]:
+    """今回の findings と、前回の --json 出力（baseline_data、事前に
+    validate_baseline_data() を通した想定）を比較する。
+
+    各 Finding の `.status` を "new"（今回のみ）または "persisting"
+    （両方に存在）に破壊的に設定する。baseline にしかない finding は
+    「resolved（解消）」として別途リストで返す（対応する現在の Finding
+    オブジェクトが存在しないため、baseline の生 dict のまま返す）。
+
+    多重集合としてマッチングする（同じキーの finding が複数あっても、
+    件数分だけ 1 対 1 で対応付ける）ため、同じ指摘が複数箇所にある
+    ケースでも resolved/persisting の件数がズレない。
+    """
+    from collections import defaultdict
+
+    baseline_findings = baseline_data.get("findings", [])
+    baseline_by_key: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for bf in baseline_findings:
+        key = _finding_identity_key(bf.get("category", ""), bf.get("excerpt", ""))
+        baseline_by_key[key].append(bf)
+
+    for f in findings:
+        key = _finding_identity_key(f.category, f.excerpt)
+        bucket = baseline_by_key.get(key)
+        if bucket:
+            bucket.pop(0)
+            f.status = "persisting"
+        else:
+            f.status = "new"
+
+    resolved = [bf for bucket in baseline_by_key.values() for bf in bucket]
+
+    summary = {
+        "resolved": len(resolved),
+        "new": sum(1 for f in findings if f.status == "new"),
+        "persisting": sum(1 for f in findings if f.status == "persisting"),
+    }
+    return resolved, summary
+
+
+
+# ---------------------------------------------------------------------------
+# 各検出器
+# ---------------------------------------------------------------------------
+
+
+def _raw_or_masked(raw_lines_by_no: dict[int, str] | None, no: int, fallback: str) -> str:
+    """行番号に対応する原文行を返す（無ければマスク済み行にフォールバック）。"""
+    if raw_lines_by_no is None:
+        return fallback
+    return raw_lines_by_no.get(no, fallback)
+
+
+def detect_forbidden_phrases(
+    lines: list[tuple[int, str]], raw_lines_by_no: dict[int, str] | None = None
+) -> list[Finding]:
+    """マスク済み行（コードスパン等を空白化したテキスト）でパターンマッチし、
+    excerpt は同じオフセットで原文行から切り出す（マスクは解析専用、表示は原文）。
+    """
+    findings = []
+    for no, line in lines:
+        raw_line = _raw_or_masked(raw_lines_by_no, no, line)
+        for phrase in FORBIDDEN_PHRASES:
+            idx = line.find(phrase)
+            if idx != -1:
+                start = max(0, idx - 10)
+                end = idx + len(phrase) + 10
+                excerpt = raw_line[start:end] if len(raw_line) >= end else line[start:end]
+                is_weak_signal = phrase in FORBIDDEN_PHRASES_WEAK_SIGNAL
+                severity = "info" if is_weak_signal else "warn"
+                detail = f"禁止語/LLM常套句ヒット: 「{phrase}」"
+                if is_weak_signal:
+                    detail += "（コーパス校正で人間側にも一定数出現する弱いシグナルと判定、severity低下）"
+                findings.append(
+                    Finding(
+                        line=no,
+                        category="forbidden_phrase",
+                        excerpt=excerpt.strip(),
+                        severity=severity,
+                        detail=detail,
+                    )
+                )
+    return findings
+
+
+def detect_translationese(
+    lines: list[tuple[int, str]], raw_lines_by_no: dict[int, str] | None = None
+) -> list[Finding]:
+    findings = []
+    for no, line in lines:
+        raw_line = _raw_or_masked(raw_lines_by_no, no, line)
+        for pat in TRANSLATIONESE_PATTERNS:
+            for m in re.finditer(pat, line):
+                start = max(0, m.start() - 10)
+                end = m.end() + 10
+                excerpt = raw_line[start:end] if len(raw_line) >= end else line[start:end]
+                findings.append(
+                    Finding(
+                        line=no,
+                        category="translationese",
+                        excerpt=excerpt.strip(),
+                        severity="info",
+                        detail=f"翻訳調パターン: /{pat}/ に一致",
+                    )
+                )
+    return findings
+
+
+def detect_antithesis_repetition(
+    lines: list[tuple[int, str]],
+    raw_lines_by_no: dict[int, str] | None = None,
+    threshold: int = ANTITHESIS_REPETITION_THRESHOLD,
+    rate_info_below: float = ANTITHESIS_RATE_INFO_BELOW,
+    rate_critical_above: float = ANTITHESIS_RATE_CRITICAL_ABOVE,
+) -> list[Finding]:
+    """「〜ではなく、〜」「〜だけでなく〜も」を文書全体で数え、threshold回（デフォルト3回）
+    以上なら反復として検出する。
+
+    2026-07 コーパス校正2（corpus/reports/antithesis-recalibration.md、モジュール定数
+    ANTITHESIS_RATE_INFO_BELOW / ANTITHESIS_RATE_CRITICAL_ABOVE のコメントも参照）:
+    出現ごとに severity=critical を付けていた旧仕様は、長文書での薄い頻度でも
+    critical が連打されノイズ化する一方、人間の意図的な修辞技法にも無差別に発火して
+    いた。「検出数/総文数」の比率で severity を3段階化する: 比率が低ければ info
+    （人間の技法との区別がつかない参考情報）、高ければ critical（実測で真陽性が
+    多い高頻度パターン）、その中間は warn。
+
+    どの文同士が反復としてカウントされたか追えるよう、全ヒット行番号を
+    related_lines / detail の両方に含める。excerpt は原文から切り出す。
+    """
+    hits: list[tuple[int, str, str]] = []  # (line_no, matched_excerpt(raw), pattern_name)
+    for no, line in lines:
+        raw_line = _raw_or_masked(raw_lines_by_no, no, line)
+        for pat in ANTITHESIS_PATTERNS:
+            for m in re.finditer(pat, line):
+                excerpt = raw_line[m.start() : m.end()] if len(raw_line) >= m.end() else m.group(0)
+                hits.append((no, excerpt, pat.pattern))
+
+    findings = []
+    if len(hits) >= threshold:
+        # 文書全体の総文数に対する検出数の比率で severity を決める（絶対回数の閾値
+        # 判定とは別に、比率が文書の長さに関わらず一貫した「密度」の指標になる）。
+        total_sentences = len(split_sentences_with_lines(lines, raw_lines_by_no))
+        ratio = len(hits) / total_sentences if total_sentences else 0.0
+        if ratio < rate_info_below:
+            severity = "info"
+        elif ratio >= rate_critical_above:
+            severity = "critical"
+        else:
+            severity = "warn"
+
+        all_lines = [no for no, _, _ in hits]
+        related = format_related_lines(all_lines)
+        for no, text, patname in hits:
+            findings.append(
+                Finding(
+                    line=no,
+                    category="antithesis_repetition",
+                    excerpt=text.strip(),
+                    severity=severity,
+                    detail=(
+                        f"否定→肯定対比パターンが文書内で{len(hits)}回検出（閾値{threshold}回以上、"
+                        f"総文数に対する比率={ratio:.1%}）。{related}"
+                    ),
+                    related_lines=all_lines,
+                )
+            )
+    return findings
+
+
+
+def detect_low_sentence_length_variance(
+    sentences: list[tuple[int, str, str]],
+    threshold: float = SENTENCE_VARIANCE_CV_THRESHOLD,
+    min_sentences: int = SENTENCE_VARIANCE_MIN_SENTENCES,
+) -> list[Finding]:
+    """文長（文字数）の変動係数（CV = 標準偏差/平均）が閾値未満なら
+    「文長が均質すぎる = リズムが単調 = AI臭い」として警告する。
+    最低5文以上ないと統計的に意味がないので判定しない。
+    """
+    lengths = [len(s) for _, s, _ in sentences if len(s) > 0]
+    if len(lengths) < min_sentences:
+        return []
+    mean = statistics.mean(lengths)
+    if mean == 0:
+        return []
+    stdev = statistics.pstdev(lengths)
+    cv = stdev / mean
+    if cv < threshold:
+        first_line = sentences[0][0] if sentences else 1
+        return [
+            Finding(
+                line=first_line,
+                category="low_sentence_variance",
+                excerpt=f"文数={len(lengths)}, 平均文長={mean:.1f}字, 変動係数={cv:.3f}",
+                severity="warn",
+                detail=f"文長の変動係数が閾値({threshold})未満。リズムが均質でAI臭い可能性",
+            )
+        ]
+    return []
+
+
+NOUN_ENDING_POS = {"名詞"}
+TRAILING_SYMBOL_POS = {"補助記号", "空白"}
+
+# 語彙多様性計測の対象とする内容語 POS
+CONTENT_WORD_POS = {"名詞", "動詞", "形容詞", "副詞"}
+
+# 「無生物主語+他動詞」判定で「主語になっても不自然でない代名詞」として許可する語。
+# sudachipy は「この事実」「そのこと」を単一形態素にせず複数形態素
+# （例:「この」+「事実」）に分割するため、単一形態素の表層文字列と比較する
+# 判定では到達不可能。単一形態素で成立する語だけをここに残し、
+# 複数形態素にまたがる語は ABSTRACT_PRONOUN_PHRASES で別途、
+# 隣接形態素を連結して比較する。
+ABSTRACT_PRONOUNS = {"これ", "それ", "あれ", "それら"}
+# 2形態素にまたがる指示表現（連結した表層文字列で比較する）
+ABSTRACT_PRONOUN_PHRASES = {"この事実", "そのこと"}
+# 述語側: 直訳調でよく使われる他動詞的な動詞（辞書は拡張前提）
+TRANSITIVE_SMELL_VERBS = {
+    "もたらす",
+    "示す",
+    "意味する",
+    "証明する",
+    "生み出す",
+    "反映する",
+    "示唆する",
+    "物語る",
+    "浮き彫りにする",
+    "後押しする",
+}
+
+
+@dataclasses.dataclass
+class TokenizedSentence:
+    line: int
+    text: str  # マスク済みテキスト（形態素解析・パターンマッチ用）
+    morphemes: list  # sudachipy.MorphemeList の要素（text を解析した結果）
+    raw_text: str = ""  # 原文（レポートのexcerpt表示は必ずこちらを使う）
+
+
+def tokenize_sentences(sentences: list[tuple[int, str, str]]) -> list[TokenizedSentence]:
+    """文ごとに一度だけ形態素解析し、以後の検出器で使い回す（辞書ロードとトークナイズの
+    コストを最小化するための共有キャッシュ）。
+    形態素解析はマスク済みテキスト（text）に対して行うが、レポート表示用の原文
+    （raw_text、インラインコードスパンのバッククォート内文字列などを含む）も保持し、
+    excerpt はそちらから切り出す。
+    """
+    tokenizer = get_tokenizer()
+    from sudachipy import SplitMode
+
+    result = []
+    for no, sent, raw_sent in sentences:
+        if not sent:
+            continue
+        morphemes = list(tokenizer.tokenize(sent, SplitMode.C))
+        result.append(TokenizedSentence(line=no, text=sent, morphemes=morphemes, raw_text=raw_sent or sent))
+    return result
+
+
+def _strip_leading_symbols(morphemes: list) -> list:
+    """文頭の記号（Markdown の `**` `![` `*` など）を除いた実質的な先頭形態素列を返す。
+
+    sudachi はこれらをいずれも「補助記号」として切り出すため、品詞で落とせる。
+    """
+    i = 0
+    while i < len(morphemes) and morphemes[i].part_of_speech()[0] in TRAILING_SYMBOL_POS:
+        i += 1
+    return morphemes[i:]
+
+
+def _strip_trailing_symbols(morphemes: list) -> list:
+    """文末の記号（」など）を除いた実質的な最終形態素列を返す。"""
+    i = len(morphemes)
+    while i > 0 and morphemes[i - 1].part_of_speech()[0] in TRAILING_SYMBOL_POS:
+        i -= 1
+    return morphemes[:i]
+
+
+def detect_nominal_ending_and_paragraph_conjunctions(
+    lines: list[tuple[int, str]],
+    tokenized: list[TokenizedSentence],
+    raw_lines_by_no: dict[int, str] | None = None,
+    nominal_min_sentences: int = NOMINAL_ENDING_MIN_SENTENCES,
+    nominal_ratio_threshold: float = NOMINAL_ENDING_RATIO_THRESHOLD,
+    nominal_min_chars: int = NOMINAL_ENDING_MIN_CHARS,
+    conj_min_paragraphs: int = PARAGRAPH_CONJ_MIN_PARAGRAPHS,
+    conj_ratio_threshold: float = PARAGRAPH_CONJ_RATIO_THRESHOLD,
+    uniform_min_paragraphs: int = UNIFORM_PARAGRAPH_MIN_PARAGRAPHS,
+    uniform_cv_threshold: float = UNIFORM_PARAGRAPH_CV_THRESHOLD,
+) -> tuple[list[Finding], dict]:
+    """sudachipy で形態素解析し、
+    1) 体言止めの「欠如」（長文なのに体言止めが1つもない = 人間的修辞の欠如）
+    2) 段落頭の接続詞率
+    を計測する。stats も返す（JSON用）。
+
+    体言止め検出はコーパス校正（2026-07）で方向を反転した。反転前は
+    「体言止めが多い」ことを AI 臭として警告していたが、実コーパスでは
+    体言止めは人間側の方が圧倒的に多く使う修辞技法（essay同ジャンルで
+    人間60% vs AI 0%）だったため、前提が逆だった。現在は「ある程度の
+    長さの文書なのに体言止めが1つもない」ことを、人間的な修辞技法の欠如
+    （AIらしさの一側面）として info レベルで示す。
+    """
+    nominal_ending_count = 0
+    total_sentences = 0
+    total_chars = 0
+    last_line = 1
+
+    for ts in tokenized:
+        total_sentences += 1
+        total_chars += len(ts.raw_text)
+        last_line = ts.line
+        effective = _strip_trailing_symbols(ts.morphemes)
+        if not effective:
+            continue
+        last = effective[-1]
+        pos = last.part_of_speech()[0]
+        # 体言止め: 実質的な最終形態素が名詞（助動詞「だ/です」等が続かない）場合
+        if pos in NOUN_ENDING_POS:
+            nominal_ending_count += 1
+
+    ratio = nominal_ending_count / total_sentences if total_sentences else 0.0
+
+    findings = []
+    if (
+        total_sentences >= nominal_min_sentences
+        and total_chars >= nominal_min_chars
+        and ratio <= nominal_ratio_threshold
+    ):
+        # 「欠如」の検出なので、体言止めの文自体は存在しない。指摘対象の1文を
+        # 指させないため、文書末尾の行に1件だけ finding を出す（一覧性重視）。
+        findings.append(
+            Finding(
+                line=last_line,
+                category="nominal_ending",
+                excerpt=f"体言止め0件（全{total_sentences}文、約{total_chars}字）",
+                severity="info",
+                detail=(
+                    "この文書には体言止めが1つもない。ある程度の長さの文書で"
+                    "この修辞技法が皆無なのはAI文章に特徴的（コーパス実測: "
+                    "essayジャンルで人間60% vs AI 0%が体言止めを使用）。"
+                    "人間的な修辞の欠如の疑い"
+                ),
+            )
+        )
+
+    # 段落頭の接続詞率
+    # 段落を行番号付きでグルーピングすることで、段落開始行が直接分かる
+    # （re.split + テキスト検索による line_cursor 近似だと、同一内容の段落が
+    # 複数回登場したときに誤帰属していたため、行ベースの分割に置き換えた）。
+    paragraphs = iter_paragraphs_with_lines(lines)
+    conj_paragraph_count = 0
+    total_paragraphs = len(paragraphs)
+    conj_findings = []
+    sentence_counts_per_paragraph = []
+    for para_lines in paragraphs:
+        first_no, first_line_raw = para_lines[0]
+        first_line_text = first_line_raw.strip()
+        para_joined = "\n".join(t for _, t in para_lines)
+        sentence_counts_per_paragraph.append(
+            len([p for p in SENTENCE_SPLIT_RE.split(para_joined) if p.strip()])
+        )
+        for conj in PARAGRAPH_CONJUNCTIONS:
+            if first_line_text.startswith(conj):
+                conj_paragraph_count += 1
+                conj_findings.append((first_no, first_line_text, conj))
+                break
+
+    conj_ratio = conj_paragraph_count / total_paragraphs if total_paragraphs else 0.0
+    if total_paragraphs >= conj_min_paragraphs and conj_ratio >= conj_ratio_threshold:
+        conj_lines = [no for no, _, _ in conj_findings]
+        related = format_related_lines(conj_lines)
+        for no, text_line, conj in conj_findings:
+            excerpt_source = _raw_or_masked(raw_lines_by_no, no, text_line)
+            findings.append(
+                Finding(
+                    line=no,
+                    category="paragraph_lead_conjunction",
+                    excerpt=excerpt_source[:40],
+                    severity="info",
+                    detail=(
+                        f"段落頭が接続詞「{conj}」で始まる（文書全体の段落頭接続詞率={conj_ratio:.1%}、"
+                        f"閾値{conj_ratio_threshold:.0%}以上で警告）。{related}"
+                    ),
+                    related_lines=conj_lines,
+                )
+            )
+
+    # 段落構造の均質性: AI は「3文段落」を量産しがち。段落あたり文数の変動係数が
+    # 極端に低い（＝どの段落もほぼ同じ文数）場合は定型段落の疑いとして警告する。
+    para_structure_stats = {
+        "paragraph_sentence_counts": sentence_counts_per_paragraph,
+        "paragraph_sentence_count_cv": None,
+    }
+    if len(sentence_counts_per_paragraph) >= uniform_min_paragraphs:
+        p_mean = statistics.mean(sentence_counts_per_paragraph)
+        p_std = statistics.pstdev(sentence_counts_per_paragraph)
+        p_cv = (p_std / p_mean) if p_mean else 0.0
+        para_structure_stats["paragraph_sentence_count_cv"] = p_cv
+        if p_cv < uniform_cv_threshold:
+            findings.append(
+                Finding(
+                    line=1,
+                    category="uniform_paragraph_structure",
+                    excerpt=f"段落数={len(sentence_counts_per_paragraph)}, 各段落の文数={sentence_counts_per_paragraph}",
+                    severity="info",
+                    detail=(
+                        f"段落あたり文数の変動係数={p_cv:.3f}（閾値{uniform_cv_threshold}未満）。"
+                        "どの段落もほぼ同じ文数=定型段落（例: 3文段落の量産）の疑い"
+                    ),
+                )
+            )
+
+    stats = {
+        "total_sentences": total_sentences,
+        "nominal_ending_count": nominal_ending_count,
+        "nominal_ending_ratio": ratio,
+        "total_paragraphs": total_paragraphs,
+        "paragraph_lead_conjunction_count": conj_paragraph_count,
+        "paragraph_lead_conjunction_ratio": conj_ratio,
+        **para_structure_stats,
+    }
+    return findings, stats
+
+
+def detect_translationese_morph(tokenized: list[TokenizedSentence]) -> list[Finding]:
+    """品詞列で「こと（名詞）+ が/は（助詞）+ でき〜（動詞、"でき"始まりの活用形）」の並びを
+    検出する、翻訳調「〜することができる」の品詞列版。
+    表層の正規表現（TRANSLATIONESE_PATTERNS）と違い、直前の動詞部分の送り仮名や
+    活用（〜することができる/〜出来ます/〜出来た 等）の表記揺れに影響されない。
+    注意: 「こと」の前に本当に動詞（〜する）が来ているかまでは確認していない
+    （「このことができる」のような非対象ケースを完全には除外できない）。
+    """
+    findings = []
+    for ts in tokenized:
+        surfaces = [m.surface() for m in ts.morphemes]
+        poss = [m.part_of_speech()[0] for m in ts.morphemes]
+        n = len(ts.morphemes)
+        for i in range(n):
+            # 「こと」(名詞) + が/は(助詞) + でき(動詞語幹)... の並びを探す
+            if surfaces[i] == "こと" and poss[i] == "名詞":
+                j = i + 1
+                if j < n and poss[j] == "助詞" and surfaces[j] in {"が", "は"}:
+                    k = j + 1
+                    if k < n and poss[k] == "動詞" and surfaces[k].startswith("でき"):
+                        # excerptは形態素のbegin/end（マスク済みテキスト内オフセット）を使い、
+                        # 原文（raw_text）から同じ位置を切り出す（インラインコードスパンの
+                        # バッククォート内文字列が欠落しないようにするため）。
+                        span_start = ts.morphemes[max(0, i - 4)].begin()
+                        span_end = ts.morphemes[k].end()
+                        excerpt = ts.raw_text[span_start:span_end]
+                        findings.append(
+                            Finding(
+                                line=ts.line,
+                                category="translationese_morph",
+                                excerpt=excerpt,
+                                severity="info",
+                                detail="品詞列マッチ: 名詞/動詞+こと+が/は+できる型の翻訳調構文",
+                            )
+                        )
+    return findings
+
+
+# 拗音を作る小書き文字（ャュョァィゥェォヮ）。「キャ」のように直前の文字と
+# 合わせて1モーラを構成するため、単純な文字数カウントだと過大カウントになる。
+# 促音（ッ）・長音（ー）は独立した1モーラとして数えるため、ここには含めない。
+_SMALL_KANA_MERGE = set("ァィゥェォャュョヮ")
+
+
+def mora_length(morphemes: list) -> int:
+    """読み（カタカナ）を基にモーラ数の近似値を計算する。
+    拗音の小書き文字（ャュョ等）は直前の文字と合算して1モーラとして数える
+    補正を行うが、それ以外の長音・促音等の厳密な処理まではしていない。
+    """
+    total = 0
+    for m in morphemes:
+        reading = m.reading_form() or m.surface()
+        count = 0
+        for ch in reading:
+            if ch in _SMALL_KANA_MERGE and count > 0:
+                # 直前の文字と合わせて1モーラなので、追加でカウントしない
+                continue
+            count += 1
+        total += count
+    return total
+
+
+def detect_rhythm_statistics(
+    tokenized: list[TokenizedSentence],
+    min_tokenized: int = BURSTINESS_MIN_TOKENIZED,
+    burstiness_threshold: float = BURSTINESS_THRESHOLD,
+    autocorr_min_xs: int = AUTOCORR_MIN_XS,
+    autocorr_threshold: float = AUTOCORR_THRESHOLD,
+) -> tuple[list[Finding], dict]:
+    """文字数だけでなくモーラ近似長を使い、単純な変動係数に加えて
+    burstiness（(σ-μ)/(σ+μ)）と隣接文長の自己相関（lag-1）を計測する。
+    - burstiness が負に大きい ≈ 文長が均一（AI的）
+    - 自己相関が高い ≈ 「短い文の後は短い文」というリズムパターンが固定化している
+    """
+    if len(tokenized) < min_tokenized:
+        return [], {}
+
+    mora_lengths = [mora_length(ts.morphemes) for ts in tokenized]
+    mean = statistics.mean(mora_lengths)
+    std = statistics.pstdev(mora_lengths)
+
+    findings = []
+    burstiness = (std - mean) / (std + mean) if (std + mean) else 0.0
+
+    # lag-1 自己相関（ピアソン相関を1つずらした系列同士で計算）
+    xs = mora_lengths[:-1]
+    ys = mora_lengths[1:]
+    autocorr = None
+    if len(xs) >= autocorr_min_xs and statistics.pstdev(xs) > 0 and statistics.pstdev(ys) > 0:
+        mx, my = statistics.mean(xs), statistics.mean(ys)
+        cov = sum((a - mx) * (b - my) for a, b in zip(xs, ys)) / len(xs)
+        autocorr = cov / (statistics.pstdev(xs) * statistics.pstdev(ys))
+
+    # 閾値 -0.62: このスキルの原則は「自然な人間の文章で誤検知しない」こと。
+    # 人間が書いた自然な文章（fixtures/natural.md 相当）でも burstiness は
+    # -0.55 前後まで下がることが実測で分かっている（モーラ計算の拗音補正後の実測値）。
+    # -0.55 ちょうどを閾値にすると、その実測値のごく僅かな変動で人間の文章にまで
+    # 誤検知するため、マージンを取って -0.62 まで緩めている。
+    if burstiness < burstiness_threshold:
+        findings.append(
+            Finding(
+                line=tokenized[0].line,
+                category="low_burstiness",
+                excerpt=f"burstiness={burstiness:.3f} (モーラ近似長 平均={mean:.1f}, 標準偏差={std:.1f})",
+                severity="warn",
+                detail=f"burstiness が閾値({burstiness_threshold})未満。文の長短のメリハリが乏しく機械的なリズムの疑い",
+            )
+        )
+
+    if autocorr is not None and autocorr > autocorr_threshold:
+        findings.append(
+            Finding(
+                line=tokenized[0].line,
+                category="high_length_autocorrelation",
+                excerpt=f"lag-1 自己相関={autocorr:.3f}",
+                severity="info",
+                detail=f"隣接する文の長さが強く相関（閾値{autocorr_threshold}超）。文長パターンが単調に繰り返されている疑い",
+            )
+        )
+
+    stats = {
+        "mora_mean": mean,
+        "mora_stdev": std,
+        "burstiness": burstiness,
+        "length_autocorrelation_lag1": autocorr,
+    }
+    return findings, stats
+
+
+
+# 文頭反復の severity 判定: 固有名詞・製品名/技術用語（ラテン文字主体の表層）が
+# 文頭に来る場合は「そして」「また」のような定型導入の使い回しとは性質が異なり、
+# 技術文書では自然な反復（例: 「Cloudflareは」「better-authが」）なので
+# severity を warn ではなく info に下げる（検出自体は残し、判断材料として提示する）。
+_LATIN_TECH_TOKEN_RE = re.compile(r"^[A-Za-z][A-Za-z0-9\-_.]*$")
+
+
+def _is_proper_noun_or_tech_term(morpheme) -> bool:
+    """先頭形態素が固有名詞、またはラテン文字・数字主体（製品名/ライブラリ名等）かを判定する。
+    カタカナ語は一般語（「クラウド」「システム」等）も多く誤って severity を下げるリスクが
+    高いため、ここでは対象外とする（迷ったら対象外でよい、という方針）。
+    """
+    pos = morpheme.part_of_speech()
+    surface = morpheme.surface()
+    is_proper_noun = pos[0] == "名詞" and pos[1] == "固有名詞"
+    is_latin_tech = bool(_LATIN_TECH_TOKEN_RE.match(surface))
+    return is_proper_noun or is_latin_tech
+
+
+def detect_ngram_repetition(
+    tokenized: list[TokenizedSentence],
+    lead_repeat_threshold: int = NGRAM_LEAD_REPEAT_THRESHOLD,
+    template_min_count: int = NGRAM_TEMPLATE_MIN_COUNT,
+    template_ratio_threshold: float = NGRAM_TEMPLATE_RATIO_THRESHOLD,
+) -> tuple[list[Finding], dict]:
+    """
+    1) 文頭2形態素（表層形）の n-gram が3回以上繰り返される
+       → 「そして、」「また、」のような定型導入の使い回し
+       ただし先頭形態素が固有名詞・ラテン文字主体の技術用語（製品名/ライブラリ名等）の
+       場合は技術文書として自然な反復なので severity を info に下げる（検出自体は残す）。
+    2) 文頭のPOS 4-gram（品詞の粗い並び）の一致率が高い
+       → 語彙は違っても構文テンプレートが同じ（AIにありがちな構造の使い回し）
+    をそれぞれ検出する。
+    """
+    from collections import Counter
+
+    findings = []
+
+    lead_bigrams = []
+    for ts in tokenized:
+        # 文頭の補助記号を落としてから2形態素を取る。マスク処理は行単位の構造
+        # （見出し・リスト・引用・表）とインラインコード/URLしか落とさないため、
+        # インラインの強調記法（`**強調**`）や画像記法（`![alt](url)`）のマーカーが
+        # 文頭に残る。これを数えると「文頭2形態素が **」という無意味な反復が量産される。
+        # zenn-content 60本の実測で repeated_sentence_lead 236件のうち 100件（42%）が
+        # この記号由来だった（`**` 88件 / `![` 12件）。
+        lead_morphemes = _strip_leading_symbols(ts.morphemes)[:2]
+        surfaces = [m.surface() for m in lead_morphemes]
+        if len(surfaces) == 2:
+            is_tech_lead = _is_proper_noun_or_tech_term(lead_morphemes[0])
+            lead_bigrams.append((ts.line, ts.raw_text, "".join(surfaces), is_tech_lead))
+
+    bigram_counter = Counter(text for _, _, text, _ in lead_bigrams)
+    for bigram, count in bigram_counter.items():
+        if count >= lead_repeat_threshold:
+            bigram_lines = [no for no, _, text, _ in lead_bigrams if text == bigram]
+            related = format_related_lines(bigram_lines)
+            for no, sent, text, is_tech_lead in lead_bigrams:
+                if text == bigram:
+                    # コーパス校正により、人間の意図的な反復と区別できないため
+                    # severity は常に info（判断材料の提示にとどめる。detail 参照）。
+                    severity = "info"
+                    if is_tech_lead:
+                        detail = (
+                            f"文頭2形態素「{bigram}」が{count}回反復（閾値{lead_repeat_threshold}回以上）。"
+                            f"固有名詞/技術用語由来の可能性が高い。{related}"
+                        )
+                    else:
+                        detail = (
+                            f"文頭2形態素「{bigram}」が{count}回反復（閾値{lead_repeat_threshold}回以上）。"
+                            f"人間の意図的な反復技法との区別がつかないため参考情報として提示。{related}"
+                        )
+                    findings.append(
+                        Finding(
+                            line=no,
+                            category="repeated_sentence_lead",
+                            excerpt=sent[:20],
+                            severity=severity,
+                            detail=detail,
+                            related_lines=bigram_lines,
+                        )
+                    )
+
+    lead_pos_ngrams = []
+    for ts in tokenized:
+        # 文頭2形態素と同じ理由で、ここでも文頭の補助記号を落としてから品詞列を取る
+        # （落とさないと「補助記号/補助記号/名詞/助詞」が量産され一致率が跳ね上がる）。
+        pos_seq = tuple(m.part_of_speech()[0] for m in _strip_leading_symbols(ts.morphemes)[:4])
+        if len(pos_seq) == 4:
+            lead_pos_ngrams.append((ts.line, ts.raw_text, pos_seq))
+
+    total_with_ngram = len(lead_pos_ngrams)
+    pos_counter = Counter(seq for _, _, seq in lead_pos_ngrams)
+    stats = {"lead_pos_4gram_top": None, "lead_pos_4gram_ratio": None}
+    if total_with_ngram >= template_min_count and pos_counter:
+        top_seq, top_count = pos_counter.most_common(1)[0]
+        ratio = top_count / total_with_ngram
+        stats["lead_pos_4gram_top"] = "/".join(top_seq)
+        stats["lead_pos_4gram_ratio"] = ratio
+        if ratio >= template_ratio_threshold:
+            template_lines = [no for no, _, seq in lead_pos_ngrams if seq == top_seq]
+            related = format_related_lines(template_lines)
+            for no, sent, seq in lead_pos_ngrams:
+                if seq == top_seq:
+                    findings.append(
+                        Finding(
+                            line=no,
+                            category="repeated_syntax_template",
+                            excerpt=sent[:20],
+                            severity="info",
+                            detail=(
+                                f"文頭品詞4-gram「{'/'.join(top_seq)}」が全文の{ratio:.1%}で一致"
+                                f"（閾値{template_ratio_threshold:.0%}以上）。構文テンプレートの使い回しの疑い。{related}"
+                            ),
+                            related_lines=template_lines,
+                        )
+                    )
+
+    return findings, stats
+
+
+def compute_mtld(tokens: list[str], threshold: float = 0.72) -> float | None:
+    """MTLD（Measure of Textual Lexical Diversity）の簡易実装。
+    文長に依存しにくい語彙多様性指標。TTR が threshold を下回るごとに
+    「1ファクター」を数え、前方・後方2方向の平均をとる。
+    """
+    if len(tokens) < 20:
+        return None
+
+    def factors_one_direction(seq: list[str]) -> float:
+        factor_count = 0
+        types: set[str] = set()
+        token_count = 0
+        for tok in seq:
+            types.add(tok)
+            token_count += 1
+            ttr = len(types) / token_count
+            if ttr <= threshold:
+                factor_count += 1
+                types = set()
+                token_count = 0
+        # 端数分を部分ファクターとして加算
+        if token_count > 0:
+            types_ttr = len(types) / token_count if token_count else 1.0
+            partial = (1 - types_ttr) / (1 - threshold) if types_ttr < 1 else 0.0
+            factor_count += min(partial, 1.0)
+        return len(seq) / factor_count if factor_count > 0 else float(len(seq))
+
+    forward = factors_one_direction(tokens)
+    backward = factors_one_direction(list(reversed(tokens)))
+    return (forward + backward) / 2
+
+
+def detect_lexical_diversity(
+    tokenized: list[TokenizedSentence],
+    min_tokens: int = LEXDIV_MIN_TOKENS,
+    ttr_threshold: float = TTR_THRESHOLD,
+    mtld_threshold: float = MTLD_THRESHOLD,
+    min_doc_chars: int = LEXDIV_MIN_DOC_CHARS,
+) -> tuple[list[Finding], dict]:
+    """内容語（名詞/動詞/形容詞/副詞）の基本形を対象に TTR と MTLD を計測する。
+    語彙が使い回されている（AIが同じ言い回しをループしがち）と TTR/MTLD が低くなる。
+
+    2026-07 コーパス校正（corpus/reports/archive/length_analysis.md）: TTR は文書長
+    ~4000字未満のビンではhuman/aiとも一律0%で、統計として機能していない
+    ことが判明した。4000字以上のビンで初めて意味のある差（human 77%）が
+    出るため、文書全体の文字数が min_doc_chars 未満の場合は「文書が短いため
+    未評価」として明示的にスキップする（閾値ではなく適用条件でガードする、
+    という報告書の推奨に沿った実装）。
+    """
+    content_tokens = []
+    total_doc_chars = sum(len(ts.raw_text) for ts in tokenized)
+    for ts in tokenized:
+        for m in ts.morphemes:
+            if m.part_of_speech()[0] in CONTENT_WORD_POS:
+                content_tokens.append(m.dictionary_form())
+
+    findings = []
+    stats = {
+        "ttr": None,
+        "mtld": None,
+        "content_token_count": len(content_tokens),
+        "doc_char_count": total_doc_chars,
+        "skipped_too_short": False,
+    }
+    if total_doc_chars < min_doc_chars:
+        stats["skipped_too_short"] = True
+        return findings, stats
+    if len(content_tokens) >= min_tokens:
+        ttr = len(set(content_tokens)) / len(content_tokens)
+        mtld = compute_mtld(content_tokens)
+        stats["ttr"] = ttr
+        stats["mtld"] = mtld
+        if ttr < ttr_threshold:
+            findings.append(
+                Finding(
+                    line=tokenized[0].line,
+                    category="low_lexical_diversity_ttr",
+                    excerpt=f"TTR={ttr:.3f} (内容語 {len(content_tokens)} 語中 {len(set(content_tokens))} 種類)",
+                    severity="info",
+                    detail=f"TTR(Type-Token Ratio)が閾値{ttr_threshold}未満。同じ語彙の使い回しが多い疑い",
+                )
+            )
+        if mtld is not None and mtld < mtld_threshold:
+            findings.append(
+                Finding(
+                    line=tokenized[0].line,
+                    category="low_lexical_diversity_mtld",
+                    excerpt=f"MTLD={mtld:.1f}",
+                    severity="info",
+                    detail=f"MTLD が閾値{mtld_threshold}未満。文章長で正規化した語彙多様性が低い疑い",
+                )
+            )
+    return findings, stats
+
+
+def detect_low_specificity(
+    lines: list[tuple[int, str]],
+    raw_lines_by_no: dict[int, str] | None = None,
+    min_chars: int = LOW_SPECIFICITY_MIN_CHARS,
+    min_content_words: int = LOW_SPECIFICITY_MIN_CONTENT_WORDS,
+    proper_noun_weight: float = LOW_SPECIFICITY_PROPER_NOUN_WEIGHT,
+    numeric_weight: float = LOW_SPECIFICITY_NUMERIC_WEIGHT,
+    example_marker_bonus: float = LOW_SPECIFICITY_EXAMPLE_MARKER_BONUS,
+    abstract_noun_weight: float = LOW_SPECIFICITY_ABSTRACT_NOUN_WEIGHT,
+    score_threshold: float = LOW_SPECIFICITY_SCORE_THRESHOLD,
+) -> tuple[list[Finding], dict]:
+    """段落単位で「具体性の欠如（一般論臭）」を検出する。
+
+    固有名詞密度・数値/日付出現率・例示マーカーの有無を「具体性シグナル」として
+    加点し、形式名詞・抽象名詞率を減点した合成スコアが閾値未満の段落を拾う。
+    短い段落は誰が書いてもある程度抽象的になりうるため、文字数・内容語数の
+    両方が最低ラインを超えた段落だけを判定対象にする（gate）。
+
+    これは文体（言い回し）の問題ではなく、段落を支える固有名詞・数値・一次情報
+    そのものが足りていない「素材不足」のサインであるため、detail では
+    書き直しではなく情報収集を検討するよう促す
+    （references/revision-guide.md の「素材不足の分岐」参照）。
+    """
+    tokenizer = get_tokenizer()
+    from sudachipy import SplitMode
+
+    findings: list[Finding] = []
+    paragraphs = iter_paragraphs_with_lines(lines)
+    evaluated = 0
+    fired = 0
+
+    for para_lines in paragraphs:
+        first_no, _ = para_lines[0]
+        para_masked = "\n".join(t for _, t in para_lines)
+        para_chars = len(para_masked)
+        if para_chars < min_chars:
+            continue
+
+        # sudachipy は1回のtokenize呼び出しに約49KBのバイト数上限があるため、
+        # 段落が長大な場合（青空文庫の長い段落等）に備えて行単位で分割して
+        # トークナイズし、結果を連結する（行番号・オフセットは形態素解析後は
+        # 使わないため連結して問題ない）。
+        morphemes = []
+        for _, para_line in para_lines:
+            if not para_line.strip():
+                continue
+            morphemes.extend(tokenizer.tokenize(para_line, SplitMode.C))
+        content_words = [m for m in morphemes if m.part_of_speech()[0] in CONTENT_WORD_POS]
+        if len(content_words) < min_content_words:
+            continue
+
+        evaluated += 1
+
+        proper_noun_count = sum(
+            1 for m in content_words if m.part_of_speech()[0] == "名詞" and m.part_of_speech()[1] == "固有名詞"
+        )
+        abstract_noun_count = sum(
+            1
+            for m in content_words
+            if m.part_of_speech()[0] == "名詞" and m.dictionary_form() in ABSTRACT_NOUN_WORDS
+        )
+        numeric_hit_count = len(list(NUMERIC_QUANTITY_RE.finditer(para_masked)))
+        has_example_marker = any(marker in para_masked for marker in EXAMPLE_MARKER_WORDS)
+
+        n_content = len(content_words)
+        proper_noun_density = proper_noun_count / n_content
+        numeric_density = numeric_hit_count / n_content
+        abstract_noun_ratio = abstract_noun_count / n_content
+
+        score = (
+            proper_noun_density * proper_noun_weight
+            + numeric_density * numeric_weight
+            + (example_marker_bonus if has_example_marker else 0.0)
+            - abstract_noun_ratio * abstract_noun_weight
+        )
+
+        if score < score_threshold:
+            fired += 1
+            excerpt_source = _raw_or_masked(raw_lines_by_no, first_no, para_lines[0][1])
+            findings.append(
+                Finding(
+                    line=first_no,
+                    category="low_specificity",
+                    excerpt=excerpt_source.strip()[:40],
+                    severity="info",
+                    detail=(
+                        f"段落の具体性スコア={score:.3f}（閾値{score_threshold}未満）。"
+                        f"固有名詞密度={proper_noun_density:.3f}, 数値密度={numeric_density:.3f}, "
+                        f"抽象名詞率={abstract_noun_ratio:.3f}, 例示マーカー={'あり' if has_example_marker else 'なし'}。"
+                        "固有名詞・数値・実例が乏しく一般論に留まっている疑い。"
+                        "素材不足のサインであり、文体の修正でなく情報収集を検討する"
+                        "（revision-guide.md の素材不足の分岐を参照）"
+                    ),
+                )
+            )
+
+    stats = {
+        "paragraphs_evaluated": evaluated,
+        "paragraphs_fired": fired,
+    }
+    return findings, stats
+
+
+# nested_attributive（連体修飾の入れ子検出）は 2026-07 コーパス校正で削除した。
+# sweep_nested_attributive.md: 閾値1〜6のどの値でも人間FP率が5%を切らず
+# （閾値3で人間85.4%が発火、AIも100%発火。閾値6まで緩めても人間51.2%が発火）、
+# deep-analysis.md でも essay同ジャンルで人間100% vs AI 92〜100%とほぼ差がない
+# 「全発火・弁別力なし」と判定された。閾値調整では救えないノイズだったため、
+# 検出器そのものと専用ヘルパー（旧 build_line_to_paragraph_map）を削除している。
+# 経緯は references/translationese.md の該当節にも記載。
+
+# ---------------------------------------------------------------------------
+# 英語統語の検出（挑戦枠）
+# ---------------------------------------------------------------------------
+
+# 無生物主語（＋こと/事実など形式名詞化）+ 他動詞的な述語、という
+# 「英語を日本語に直訳した構文」のシグナルをまず正規表現で粗く拾う。
+# sudachipy で主語の生物性判定を厳密にやるのは困難なため、
+# 「これ/それ/この事実/〜こと/〜という事実」+ 「は/が」+ 文末近くの
+# 他動詞（〜を〜する系）という表層パターンでヒューリスティックに検出する。
+INANIMATE_SUBJECT_PATTERNS = [
+    re.compile(r"(これ|それ|この事実|そのこと)(は|が).{0,40}(もたらす|示す|意味する|証明する|生み出す|反映する)"),
+    re.compile(r".{0,20}(こと|事実)(は|が).{0,40}(もたらす|示す|意味する|証明する|生み出す|反映する)"),
+]
+
+# 「それは〜である。なぜなら〜だ」構文（隣接する2文にまたがるので
+# 文リストを走査して検出する）
+CLEFT_BECAUSE_HEAD = re.compile(r"^(それ|これ|この)は.{0,60}(である|だ)$")
+BECAUSE_HEAD = re.compile(r"^(なぜなら|というのも)")
+
+
+def detect_english_syntax_smell(
+    lines: list[tuple[int, str]], raw_lines_by_no: dict[int, str] | None = None
+) -> list[Finding]:
+    findings = []
+    for no, line in lines:
+        raw_line = _raw_or_masked(raw_lines_by_no, no, line)
+        for pat in INANIMATE_SUBJECT_PATTERNS:
+            for m in re.finditer(pat, line):
+                excerpt = raw_line[m.start() : m.end()] if len(raw_line) >= m.end() else m.group(0)
+                findings.append(
+                    Finding(
+                        line=no,
+                        category="english_syntax_inanimate_subject",
+                        excerpt=excerpt,
+                        severity="info",
+                        detail="無生物主語+他動詞的述語（表層パターン、英語統語の直訳調の可能性、要人間判断）",
+                    )
+                )
+
+    # マスク済みテキストで構文マッチしつつ、excerpt は原文の文（raw）から組み立てる
+    sentences = split_sentences_with_lines(lines, raw_lines_by_no)
+    for i in range(len(sentences) - 1):
+        no1, s1, r1 = sentences[i]
+        no2, s2, r2 = sentences[i + 1]
+        if CLEFT_BECAUSE_HEAD.match(s1) and BECAUSE_HEAD.match(s2):
+            findings.append(
+                Finding(
+                    line=no1,
+                    category="english_syntax_cleft_because",
+                    excerpt=f"{r1}。{r2}",
+                    severity="warn",
+                    detail="「それは〜である。なぜなら〜だ」型の強調構文（英語 It is ... because ... の直訳調）",
+                )
+            )
+    return findings
+
+
+def detect_inanimate_subject_morph(tokenized: list[TokenizedSentence]) -> list[Finding]:
+    """品詞列ベースで「無生物主語(抽象代名詞/形式名詞) + が/は + 他動詞的述語」を検出する。
+    厳密な生物性判定（有情/非情の意味論）は sudachipy の POS だけでは困難なため、
+    「これ/それ/この事実」等の抽象指示語、または「〜こと/〜という事実」のような
+    形式名詞化された主語に限定して、他動詞辞書（TRANSITIVE_SMELL_VERBS）とマッチする
+    述語が同一文内に現れる場合のみ検出する。表層正規表現版より活用の揺れに強い。
+    """
+    findings = []
+    for ts in tokenized:
+        surfaces = [m.surface() for m in ts.morphemes]
+        poss = [m.part_of_speech()[0] for m in ts.morphemes]
+        dict_forms = [m.dictionary_form() for m in ts.morphemes]
+        n = len(ts.morphemes)
+        # 2形態素の指示表現（例:「この事実」）を「この」で先にマッチさせた場合、
+        # 続く「事実」単体も形式名詞として再マッチしてしまい、同じ箇所が
+        # 二重に検出されてしまう。skip_until でその形態素インデックスまでの
+        # 単独マッチを抑制する。
+        skip_until = -1
+        for i in range(n):
+            if i <= skip_until:
+                continue
+            # 単一形態素で成立する指示語・形式名詞
+            is_abstract_subject = surfaces[i] in ABSTRACT_PRONOUNS or (
+                poss[i] == "名詞" and surfaces[i] in {"こと", "事実", "の"}
+            )
+            subject_end = i
+            if not is_abstract_subject:
+                # 2形態素にまたがる指示表現（「この」+「事実」等）を、
+                # 隣接する形態素を連結した表層文字列で判定する
+                if i + 1 < n and (surfaces[i] + surfaces[i + 1]) in ABSTRACT_PRONOUN_PHRASES:
+                    is_abstract_subject = True
+                    subject_end = i + 1
+            if not is_abstract_subject:
+                continue
+            skip_until = max(skip_until, subject_end)
+            j = subject_end + 1
+            if j >= n or poss[j] != "助詞" or surfaces[j] not in {"が", "は"}:
+                continue
+            # 主語マーカーの後、文末までの間に直訳調の他動詞があるか探す
+            for k in range(j + 1, n):
+                if poss[k] == "動詞" and dict_forms[k] in TRANSITIVE_SMELL_VERBS:
+                    # excerptはbegin/end（マスク済みテキスト内オフセット）を使い、
+                    # 原文（raw_text）から同じ位置を切り出す
+                    span_start = ts.morphemes[max(0, i - 3)].begin()
+                    span_end = ts.morphemes[k].end()
+                    excerpt = ts.raw_text[span_start:span_end]
+                    subject_text = "".join(surfaces[i : subject_end + 1])
+                    findings.append(
+                        Finding(
+                            line=ts.line,
+                            category="inanimate_subject_morph",
+                            excerpt=excerpt,
+                            severity="info",
+                            detail=(
+                                f"品詞列マッチ: 抽象主語「{subject_text}」+ {surfaces[j]} "
+                                f"+ 他動詞的述語「{dict_forms[k]}」（英語統語の直訳調の疑い）"
+                            ),
+                        )
+                    )
+                    break
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# 構造層検出器（2026-07 コーパス校正で新設）
+#
+# ここまでの検出器はすべて Markdown 構造をマスクした「地の文」に対して働く。
+# しかし deep-analysis.md §4c の5文書精読では、AI 生成文（特に claude-haiku-4-5
+# のtech系）に「太字の多用」「番号付きフェーズ構造」「『まとめ』『おわりに』
+# 定型見出しでの締め」といった、文章そのものではなく Markdown 構造レベルの
+# 教科書的な癖が繰り返し観測された。この一群は逆にマスク前の raw テキストを
+# 見る必要があるため、run_lint() 内で mask_markdown_structure() より前に
+# 呼び出す専用の検出器ファミリーとして新設する。
+#
+# 注意: この一群はまだ deep-analysis.md の定量コーパス計測を経ておらず、
+# 5文書の質的観察のみが根拠（暫定閾値）。EXPERIMENTAL_CATEGORIES に含めて
+# デフォルト無効化し、--experimental フラグを付けたときだけ有効にする。
+# ---------------------------------------------------------------------------
+BOLD_SPAN_RE = re.compile(r"\*\*[^*\n]+\*\*")
+BOLD_DENSITY_PER_1000_THRESHOLD = 3.0
+BULLET_LINE_RATIO_THRESHOLD = 0.35
+BULLET_LINE_MIN_LINES = 10
+# 「まとめ」「おわりに」等の定型見出し（本文の中身ではなく予告的な構成の型を示す）
+BOILERPLATE_HEADING_WORDS = {
+    "まとめ",
+    "おわりに",
+    "終わりに",
+    "さいごに",
+    "最後に",
+    "結論",
+    "総括",
+    "conclusion",
+}
+NUMBERED_PHASE_RE = re.compile(r"(フェーズ|ステップ|段階|ステージ)\s*[0-90-9１-９]")
+NUMBERED_PHASE_MIN_COUNT = 3
+# 絵文字・装飾記号（代表的なものに限定。厳密な Unicode 絵文字判定は行わない）
+EMOJI_SYMBOL_RE = re.compile(
+    "[\U0001F300-\U0001FAFF☀-➿⭐✅❌❗❓]"
+)
+EMOJI_SYMBOL_PER_1000_THRESHOLD = 2.0
+
+
+def detect_structural_ai_habits(raw_text: str) -> tuple[list[Finding], dict]:
+    """マスク前の raw テキストに対して、Markdown 構造レベルの「教科書的AI癖」を検出する。
+    太字密度・箇条書き行比率・定型見出し・番号付きフェーズ構造・絵文字/装飾記号密度の
+    5種類。すべて severity="info"、EXPERIMENTAL カテゴリ扱い（デフォルト無効）。
+    """
+    findings: list[Finding] = []
+    raw_lines = iter_lines_with_no(raw_text)
+    total_chars = len(raw_text) or 1
+
+    # 1) 太字密度
+    bold_hits = list(BOLD_SPAN_RE.finditer(raw_text))
+    bold_per_1000 = len(bold_hits) / total_chars * 1000
+    if bold_per_1000 >= BOLD_DENSITY_PER_1000_THRESHOLD and len(bold_hits) >= 3:
+        first_line = raw_text[: bold_hits[0].start()].count("\n") + 1
+        findings.append(
+            Finding(
+                line=first_line,
+                category="high_bold_density",
+                excerpt=f"太字スパン{len(bold_hits)}箇所（1000字あたり{bold_per_1000:.2f}）",
+                severity="info",
+                detail=(
+                    f"太字（**...**）の使用密度が閾値（1000字あたり{BOLD_DENSITY_PER_1000_THRESHOLD}）"
+                    "以上。強調の多用は教科書的なAI生成文に見られる傾向（実験的検出器、閾値は暫定）"
+                ),
+            )
+        )
+
+    # 2) 箇条書き行比率
+    non_blank_lines = [(no, line) for no, line in raw_lines if line.strip()]
+    bullet_lines = [no for no, line in non_blank_lines if _LIST_ITEM_RE.match(line)]
+    if len(non_blank_lines) >= BULLET_LINE_MIN_LINES:
+        bullet_ratio = len(bullet_lines) / len(non_blank_lines)
+        if bullet_ratio >= BULLET_LINE_RATIO_THRESHOLD:
+            findings.append(
+                Finding(
+                    line=bullet_lines[0] if bullet_lines else 1,
+                    category="high_bullet_ratio",
+                    excerpt=f"箇条書き行{len(bullet_lines)}/{len(non_blank_lines)}行（{bullet_ratio:.1%}）",
+                    severity="info",
+                    detail=(
+                        f"箇条書き行の比率が閾値{BULLET_LINE_RATIO_THRESHOLD:.0%}以上。"
+                        "文章より箇条書きに頼る構成は教科書的なAI生成文に見られる傾向（実験的検出器）"
+                    ),
+                    related_lines=bullet_lines if len(bullet_lines) > 1 else None,
+                )
+            )
+
+    # 3) 定型見出し（「まとめ」「おわりに」等）
+    boilerplate_lines = []
+    for no, line in iter_lines_with_no(raw_text):
+        m = _HEADING_RE.match(line)
+        if not m:
+            continue
+        heading_text = line[m.end() :].strip().lower()
+        for word in BOILERPLATE_HEADING_WORDS:
+            if heading_text.startswith(word.lower()):
+                boilerplate_lines.append((no, line.strip(), word))
+                break
+    for no, line_text, word in boilerplate_lines:
+        findings.append(
+            Finding(
+                line=no,
+                category="boilerplate_heading",
+                excerpt=line_text[:40],
+                severity="info",
+                detail=(
+                    f"定型見出し「{word}」系での締め。予告・構成の型のみで中身を語らない"
+                    "教科書的なAI生成文に見られる傾向（実験的検出器）"
+                ),
+            )
+        )
+
+    # 4) 番号付きフェーズ構造（「フェーズ1」「ステップ2」等が3回以上）
+    phase_hits = list(NUMBERED_PHASE_RE.finditer(raw_text))
+    if len(phase_hits) >= NUMBERED_PHASE_MIN_COUNT:
+        first_line = raw_text[: phase_hits[0].start()].count("\n") + 1
+        findings.append(
+            Finding(
+                line=first_line,
+                category="numbered_phase_structure",
+                excerpt=f"番号付きフェーズ表現が{len(phase_hits)}回出現",
+                severity="info",
+                detail=(
+                    f"「フェーズ/ステップ/段階+番号」の表現が閾値{NUMBERED_PHASE_MIN_COUNT}回以上。"
+                    "機械的な段階分割は教科書的なAI生成文に見られる傾向（実験的検出器）"
+                ),
+            )
+        )
+
+    # 5) 絵文字・装飾記号の密度
+    emoji_hits = list(EMOJI_SYMBOL_RE.finditer(raw_text))
+    emoji_per_1000 = len(emoji_hits) / total_chars * 1000
+    if emoji_per_1000 >= EMOJI_SYMBOL_PER_1000_THRESHOLD and len(emoji_hits) >= 3:
+        first_line = raw_text[: emoji_hits[0].start()].count("\n") + 1
+        findings.append(
+            Finding(
+                line=first_line,
+                category="high_emoji_symbol_density",
+                excerpt=f"絵文字/装飾記号{len(emoji_hits)}箇所（1000字あたり{emoji_per_1000:.2f}）",
+                severity="info",
+                detail=(
+                    f"絵文字・装飾記号の使用密度が閾値（1000字あたり{EMOJI_SYMBOL_PER_1000_THRESHOLD}）"
+                    "以上（実験的検出器、閾値は暫定）"
+                ),
+            )
+        )
+
+    stats = {
+        "bold_span_count": len(bold_hits),
+        "bold_per_1000_chars": bold_per_1000,
+        "bullet_line_count": len(bullet_lines),
+        "non_blank_line_count": len(non_blank_lines),
+        "boilerplate_heading_count": len(boilerplate_lines),
+        "numbered_phase_hit_count": len(phase_hits),
+        "emoji_symbol_count": len(emoji_hits),
+        "emoji_symbol_per_1000_chars": emoji_per_1000,
+    }
+    return findings, stats
+
+
+# ---------------------------------------------------------------------------
+# 読解負荷レーン（推敲用の指さし）
+#
+# ここに並ぶ検出器は「AI臭さ」を測らない。自然度スコアにも、by_category 集計にも、
+# --baseline 比較にも一切入らない。目的は「読みやすい文章に直す」ことだけで、
+# 出力は「この文を見ろ」という指さしに留める（severity は常に info）。
+#
+# なぜ別レーンなのか:
+#     corpus/reports/readability-sweep.md は、ここに実装した指標のほとんど
+#     （文長・読点密度・二重否定・漢字比率）を候補として検証し、すべて NO-GO と
+#     判定している。ただしその判定基準は「AI か人間かを弁別できるか」「下手な人間の
+#     文章を当てられるか」であり、分類器としての採否基準だった。文長の AI 検出率が
+#     1.0% だったのは「長い文は AI の証拠にならない」という意味であって、
+#     「長い文は読みやすい」という意味ではない。レポート自身が結論している
+#     とおり、検証した14候補は「『AIらしさ』の代理指標であり『文章の読みにくさ』の
+#     直接的な代理指標にはなっていない」。
+#
+#     したがってこのレーンの採否基準は弁別力ではなく、「指摘に従って直した文が、
+#     原文より読みやすくなるか」に置く。その基準での校正が済むまでは opt-in
+#     （--reading-load）に留め、既存の findings / stats / baseline には混ぜない。
+#     混ぜた瞬間に「AI臭さの採点」と「読みやすさの推敲」という別目的の指標が
+#     同じスコアに乗ってしまい、どちらの判断も濁る。
+#
+# このレーンが存在する理由（検出器を足すかどうかの判断基準）:
+#     lint.py 本体が機械検出を要求するのは「AI は自分の AI 臭さを認識できない」からである。
+#     しかし読解負荷は AI に見える。142字の文は、読めば長いと分かる。
+#     ではなぜ検出器が要るのか——**網羅性**のためである。15,000字の文書を読む AI は、
+#     11本ある長文のうち何本かには気づくが、全部には気づかない。機械なら全部を決定的に拾う。
+#
+#     したがって、このレーンに検出器を足してよいのは「AI が読み流すと見落とすもの」だけ。
+#     読めば確実に気づくものに検出器を足しても、指摘が増えるだけで判断は良くならない。
+#     この基準により、接続助詞「が」の連鎖を指す doubled_conjunctive_ga は削除した
+#     （AI生成9,889文で1件・人間執筆379文で0件。見落とし以前に、そもそも起きていない）。
+#
+# 各検出器は references/readability-antipatterns.md の A〜J カタログに対応する。
+# 閾値は当面 textlint-rule-preset-ja-technical-writing の既定値に合わせた暫定値で、
+# 上記の基準で校正して調整する。
+# ---------------------------------------------------------------------------
+
+READING_LOAD_SENTENCE_MAX_CHARS = 90  # B1: これを超える文を指さす
+# F1: 読点区切りの名詞句がこの個数以上連続し、かつ文がこの長さ以上なら埋もれた列挙とみなす。
+# 当初は「読点が4個以上（B4）」で実装したが、artifactshare コーパス241本の校正で
+# 62% の文書が発火し、しかも中身はほぼ全部が同格の列挙だった（「一覧、件数、絞り込み、
+# アクセス判定では〜」など）。読点の打ち方の問題ではなく列挙の構造化の問題なので、
+# カタログ B4 ではなく F1 を指す検出器に置き換えた。
+READING_LOAD_BURIED_LIST_MIN_ITEMS = 3
+READING_LOAD_BURIED_LIST_MIN_CHARS = 50
+# 同じ校正で、項目3個の指摘は精度が落ちた（括弧の中だけの列挙や、並列の条件節を
+# 列挙と誤認する例が混ざる。4個以上はほぼ全件が真の列挙だった）。3個のときだけ
+# 対象をより長い文に絞る。短い3項目は箇条書きにするまでもないことが多い。
+READING_LOAD_BURIED_LIST_3ITEM_MIN_CHARS = 80
+READING_LOAD_KANJI_RUN_MAX = 6  # C1: 連続漢字がこれを超える（7字以上）
+READING_LOAD_NO_CHAIN_MIN = 3  # C2: 格助詞「の」がこの回数以上連鎖する
+# A1/A2: 2つの否定形態素がこの距離以内に並ぶと二重否定の候補とみなす。
+# 「招かないとは言えません」（招か/ない/と/は/言え/ませ/ん = 距離5）まで拾える値。
+READING_LOAD_NEGATION_MAX_GAP = 6
+
+READING_LOAD_CATEGORIES: set[str] = {
+    "sentence_too_long",
+    "buried_list",
+    "kanji_run",
+    "double_negative",
+    "no_chain",
+}
+
+_KANJI_RUN_RE = re.compile(rf"[一-鿿々]{{{READING_LOAD_KANJI_RUN_MAX + 1},}}")
+
+# 否定を表す形態素。sudachi は形容詞の「ない」を「無い」に、助動詞の「ん」（「言えません」の
+# 「ん」）を「ず」に正規化するため、表層ではなく正規化形で判定する。
+# 「ぬ」（「知らぬ」）も同系統だが正規化形は「ぬ」のまま出るので両方持つ。
+_NEGATION_NORMALIZED = {"ない", "無い", "ぬ", "ず"}
+_NEGATION_POS = {"助動詞", "形容詞"}
+
+
+_WHITESPACE_RUN_RE = re.compile(r"\s{2,}")
+
+
+def _reading_length(text: str) -> int:
+    """読み手が実際に読む文字数の近似を返す。
+
+    mask_markdown_structure() は Markdown リンクの URL 部分とインラインコード
+    スパンを「同じ文字数の空白」に置換して行内オフセットを保つ。その空白は
+    読み手の目には映らないので、素の len() で数えると URL の長い文ほど不当に
+    長く見積もられる（実測 50字ほどの文が 90字超と判定された）。
+    2文字以上続く空白を1文字に畳んでから数えることで、URL・コードスパンの
+    見かけの長さを取り除く。英単語のあいだの単独スペースは読む対象なので残す。
+    """
+    return len(_WHITESPACE_RUN_RE.sub(" ", text).strip())
+
+
+def _span_contains_proper_noun(morphemes: list, start: int, end: int) -> bool:
+    """文字オフセット [start, end) に重なる形態素に固有名詞が含まれるか。
+
+    sudachi の Morpheme.begin()/end() は解析対象文字列上のオフセットを返すので、
+    同じ文字列に対する正規表現マッチの位置とそのまま突き合わせられる。
+    """
+    for m in morphemes:
+        if m.end() > start and m.begin() < end and m.part_of_speech()[1] == "固有名詞":
+            return True
+    return False
+
+
+def _is_negation(morpheme) -> bool:
+    return (
+        morpheme.part_of_speech()[0] in _NEGATION_POS
+        and morpheme.normalized_form() in _NEGATION_NORMALIZED
+    )
+
+
+# 形の上では否定が二重に掛かるが、義務・必然を表す語彙化した定型で、読み手が
+# 符号の反転を計算することはない表現。実測（音楽レーベル記事の「同じ顔を保たないと
+# いけません」）で誤検知したため除外する。二重否定の litotes（「ないわけではない」
+# 「ないとは言えない」）はこれらの部分文字列を含まないので取りこぼさない。
+_OBLIGATION_SPANS = (
+    "といけ",
+    "とだめ",
+    "とダメ",
+    "ばならな",
+    "ばなりま",
+    "ばいけな",
+    "てはならな",
+    "てはなりま",
+    "てはいけな",
+    "ざるを得",
+    "ざるをえ",
+)
+
+
+def _is_obligation_form(span: str) -> bool:
+    return any(s in span for s in _OBLIGATION_SPANS)
+
+
+# 「〜ないと動かない」「〜なければ意味がない」のような、条件節の否定と帰結の否定が
+# 並ぶ形。形の上では否定が2つあるが、日本語で必要条件を述べる標準的な言い方であり、
+# 読み手が符号の反転を計算することはない。artifactshare コーパス241本の校正で、
+# double_negative の誤検知のうち最大の塊がこの形だった。
+# 「〜ないとは言えない」（真の litotes）は「と」の直後に「は」が来るので除外しない。
+_CONDITIONAL_NEGATION_RE = re.compile(r"^(?:ない|なけれ|なく)(?:と(?!は)|ば|ければ)")
+
+
+def _is_conditional_negation(span: str) -> bool:
+    return bool(_CONDITIONAL_NEGATION_RE.match(span))
+
+
+_OPEN_PARENS = ("（", "(", "「", "『", "【", "［", "[")
+_CLOSE_PARENS = ("）", ")", "」", "』", "】", "］", "]")
+
+
+def _segment_ends_with_noun(segment: list) -> bool:
+    """読点で区切られた1区画が名詞で終わる（＝述語を持たない名詞句）かを判定する。
+
+    末尾の補助記号を落とすだけでは「確認ポイント（どのアプリが前面に出るか）」のような
+    括弧付きの項目を取りこぼすため、末尾の括弧グループごと遡ってから品詞を見る。
+    """
+    i = len(segment)
+    while i > 0:
+        m = segment[i - 1]
+        if m.part_of_speech()[0] not in TRAILING_SYMBOL_POS:
+            break
+        if m.surface() in _CLOSE_PARENS:
+            depth = 1
+            j = i - 1
+            while j > 0 and depth:
+                j -= 1
+                s = segment[j].surface()
+                if s in _CLOSE_PARENS:
+                    depth += 1
+                elif s in _OPEN_PARENS:
+                    depth -= 1
+            i = j
+        else:
+            i -= 1
+    return i > 0 and segment[i - 1].part_of_speech()[0] == "名詞"
+
+
+def _longest_noun_phrase_run(morphemes: list) -> tuple[int, int, int] | None:
+    """読点区切りの区画のうち、名詞で終わる区画が連続する最長の並びを返す。
+
+    戻り値は (開始形態素index, 終了形態素index, 区画数)。
+    READING_LOAD_BURIED_LIST_MIN_ITEMS 個に満たなければ None。
+    """
+    bounds: list[tuple[int, int]] = []
+    start = 0
+    for i, m in enumerate(morphemes):
+        if m.surface() == "、":
+            bounds.append((start, i))
+            start = i + 1
+    bounds.append((start, len(morphemes)))
+
+    # 列挙の最後の項目は述語に溶けるのが普通なので（「A、B、C を行います」の C）、
+    # 裸の名詞句で終わる区画は項目数より1つ少なく数えられる。連続する名詞句区画が
+    # (MIN_ITEMS - 1) 個あり、そのあとに区画が続いていれば、その続きを最後の項目
+    # とみなして列挙と判定する。
+    need = READING_LOAD_BURIED_LIST_MIN_ITEMS - 1
+    best: tuple[int, int, int] | None = None
+    run: list[tuple[int, int]] = []
+    for idx, (s, e) in enumerate(bounds):
+        if e > s and _segment_ends_with_noun(morphemes[s:e]):
+            run.append((s, e))
+        else:
+            run = []
+        has_tail = idx + 1 < len(bounds)
+        if len(run) >= need and has_tail:
+            items = len(run) + 1
+            if best is None or items > best[2]:
+                best = (run[0][0], bounds[idx + 1][1], items)
+    return best
+
+
+def _has_punctuation_between(morphemes: list, i: int, j: int) -> bool:
+    """morphemes[i] と morphemes[j] のあいだに読点などの補助記号があるか。
+
+    「行かないし、来ない」のように、読点をまたいで別々の節がそれぞれ否定されている
+    ケースを二重否定（「〜ないわけではない」）と誤認しないためのガード。
+    """
+    return any(m.part_of_speech()[0] == "補助記号" for m in morphemes[i + 1 : j])
+
+
+def detect_reading_load(
+    tokenized: list[TokenizedSentence],
+    sentence_max_chars: int = READING_LOAD_SENTENCE_MAX_CHARS,
+) -> list[Finding]:
+    """読解負荷の高い箇所を指さす（判定もスコアも出さない）。
+
+    対応カタログは references/readability-antipatterns.md。
+    """
+    findings: list[Finding] = []
+    for ts in tokenized:
+        text = ts.text
+        excerpt = (ts.raw_text or text).strip()[:40]
+
+        # --- B1: 一文が長すぎる ---
+        reading_len = _reading_length(text)
+        if reading_len > sentence_max_chars:
+            findings.append(
+                Finding(
+                    line=ts.line,
+                    category="sentence_too_long",
+                    excerpt=excerpt,
+                    severity="info",
+                    detail=(
+                        f"一文が{reading_len}字（目安{sentence_max_chars}字）。"
+                        "カタログ B1。一文一義になっているか確認する"
+                        "（分割の結果、字数が増えるのは正しい）"
+                    ),
+                )
+            )
+
+
+        # --- C1: 連続漢字 ---
+        for m in _KANJI_RUN_RE.finditer(text):
+            # 固有名詞を含む連なりは除外する（「東京地方裁判所」「特定商取引法表示」など）。
+            # 分解できない名前であって、書き手が直せる読みにくさではない。
+            # 241本の校正では、拾いたい側（「初回課金転換率」「視覚回帰受領証」のような
+            # AI が作る圧縮漢語）はいずれも普通名詞だけで構成されていた。
+            if _span_contains_proper_noun(ts.morphemes, m.start(), m.end()):
+                continue
+            findings.append(
+                Finding(
+                    line=ts.line,
+                    category="kanji_run",
+                    excerpt=m.group(0),
+                    severity="info",
+                    detail=(
+                        f"漢字が{len(m.group(0))}字連続（目安{READING_LOAD_KANJI_RUN_MAX}字）。"
+                        "カタログ C1。語の切れ目が読み取れるか確認する"
+                    ),
+                )
+            )
+
+        morphemes = ts.morphemes
+
+        # --- F1: 埋もれた列挙 ---
+        run = _longest_noun_phrase_run(morphemes)
+        if run is not None:
+            start, end, items = run
+            min_chars = (
+                READING_LOAD_BURIED_LIST_3ITEM_MIN_CHARS
+                if items <= 3
+                else READING_LOAD_BURIED_LIST_MIN_CHARS
+            )
+        if run is not None and reading_len >= min_chars:
+            findings.append(
+                Finding(
+                    line=ts.line,
+                    category="buried_list",
+                    excerpt="".join(m.surface() for m in morphemes[start:end])[:40],
+                    severity="info",
+                    detail=(
+                        f"同格の名詞句が読点で{items}個並んでいる（一文{reading_len}字）。"
+                        "カタログ F1。箇条書きに開くと並列関係を読み手が再構成せずに済む"
+                        "（「**項目**: 説明」の定型にはしない）"
+                    ),
+                )
+            )
+
+        # --- A1/A2: 二重否定・否定の入れ子 ---
+        negation_idx = [i for i, m in enumerate(morphemes) if _is_negation(m)]
+        for a, b in zip(negation_idx, negation_idx[1:]):
+            span = "".join(m.surface() for m in morphemes[a : b + 1])
+            if (
+                b - a <= READING_LOAD_NEGATION_MAX_GAP
+                and not _has_punctuation_between(morphemes, a, b)
+                and not _is_obligation_form(span)
+                and not _is_conditional_negation(span)
+            ):
+                findings.append(
+                    Finding(
+                        line=ts.line,
+                        category="double_negative",
+                        excerpt=span,
+                        severity="info",
+                        detail=(
+                            "否定が二重に掛かっている可能性。カタログ A1/A2。"
+                            "肯定に畳むなら真偽が反転していないか必ず確認する"
+                            "（「招かないとは言えない」＝「招くことがある」）。"
+                            "控えめな肯定が本質的な箇所は触らない"
+                        ),
+                    )
+                )
+                break
+
+        # --- C2: 「の」の連鎖 ---
+        no_idx = [
+            i
+            for i, m in enumerate(morphemes)
+            if m.surface() == "の" and m.part_of_speech()[:2] == ("助詞", "格助詞")
+        ]
+        for k in range(len(no_idx) - READING_LOAD_NO_CHAIN_MIN + 1):
+            window = no_idx[k : k + READING_LOAD_NO_CHAIN_MIN]
+            gaps_ok = all(y - x <= 3 for x, y in zip(window, window[1:]))
+            if gaps_ok and not _has_punctuation_between(morphemes, window[0], window[-1]):
+                findings.append(
+                    Finding(
+                        line=ts.line,
+                        category="no_chain",
+                        excerpt="".join(m.surface() for m in morphemes[window[0] : window[-1] + 1]),
+                        severity="info",
+                        detail=(
+                            f"格助詞「の」が{READING_LOAD_NO_CHAIN_MIN}連以上。カタログ C2。"
+                            "どこかを動詞・連用に開く（「上限の設定の検討」→「上限をどう設定するか検討する」）"
+                        ),
+                    )
+                )
+                break
+
+    findings.sort(key=lambda f: f.line)
+    return findings
+
+
+def run_reading_load(raw_text: str, genre: str | None = None) -> tuple[list[Finding], dict]:
+    """読解負荷レーンだけを実行する。
+
+    run_lint() とは意図的に独立した関数にしてある。既存の findings / stats /
+    baseline 比較に読解負荷の finding が混入する経路を、構造として作らないため。
+    マスク・文分割・形態素解析の手順は run_lint() と同じで、Tokenizer は
+    textcore.get_tokenizer() のシングルトンを共有する。
+    """
+    profile = GENRE_PROFILES.get(genre, {})
+    text = mask_markdown_structure(raw_text)
+    lines = iter_lines_with_no(text)
+    raw_lines_by_no = dict(iter_lines_with_no(raw_text))
+    sentences = split_sentences_with_lines(lines, raw_lines_by_no)
+    tokenized = tokenize_sentences(sentences)
+
+    findings = detect_reading_load(
+        tokenized,
+        sentence_max_chars=profile.get(
+            "reading_load_sentence_max_chars", READING_LOAD_SENTENCE_MAX_CHARS
+        ),
+    )
+    stats = {
+        "total": len(findings),
+        "sentences": len(tokenized),
+        "genre": genre,
+        "by_category": {},
+    }
+    for f in findings:
+        stats["by_category"][f.category] = stats["by_category"].get(f.category, 0) + 1
+    return findings, stats
+
+
+# ---------------------------------------------------------------------------
+# メイン処理
+# ---------------------------------------------------------------------------
+
+# 2026-07 コーパス校正で「無反応」（human/aiともにほぼ0%発火）と判定された
+# 検出器（corpus/reports/archive/deep-analysis.md §3, §5）。sweepで閾値を緩めても
+# low_burstiness 以外は弁別力を示す根拠データがまだない（sweepレポート未生成）ため、
+# 削除はせず「実験的（experimental）」としてデフォルト無効化する。
+# 加えて、新設の構造層検出器（high_bold_density 等）もまだ定量校正前なので
+# 同様に実験的カテゴリに含める。
+# --experimental フラグを付けたときだけ、これらのカテゴリの finding を残す。
+EXPERIMENTAL_CATEGORIES: set[str] = {
+    "high_length_autocorrelation",
+    "paragraph_lead_conjunction",
+    "repeated_syntax_template",
+    "english_syntax_cleft_because",
+    "high_bold_density",
+    "high_bullet_ratio",
+    "boilerplate_heading",
+    "numbered_phase_structure",
+    "high_emoji_symbol_density",
+}
+
+
+def run_lint(
+    raw_text: str, genre: str | None = None, experimental: bool = False
+) -> tuple[list[Finding], dict]:
+    """genre: "essay" | "tech" | "business" | None。指定するとジャンル別に校正した
+    閾値プロファイル（GENRE_PROFILES）を適用する。指定しない場合（デフォルト）は
+    共通の保守的な閾値（モジュール定数のデフォルト値）を使う。
+    experimental: True にすると EXPERIMENTAL_CATEGORIES（まだ定量校正前、または
+    無反応と判定された検出器）の finding も出力する。デフォルトは False で、
+    それらは stats/findings から除外される。
+    """
+    profile = GENRE_PROFILES.get(genre, {})
+
+    # --- 構造層検出器は Markdown マスクより前のテキストを解析するが、HTML コメント内の
+    # 太字・番号付きフェーズ・絵文字を誤検知しないよう、HTML コメントのみを同じ長さの
+    # 空白に置換したテキストを渡す（行番号・オフセットは raw_text と一致するため、
+    # 検出器内で raw_text から excerpt を切り出す既存ロジックはそのまま使える）。
+    structural_findings, structural_stats = detect_structural_ai_habits(mask_html_comments(raw_text))
+
+    # Markdown の構造行（見出し/リスト/コードブロック/引用/表）とインラインコードスパンは
+    # 文章として扱わず、行番号を保ったままマスクしてから解析用テキストとして使う。
+    # ただし excerpt（レポート表示）は必ず raw_text（原文）から同じオフセットで切り出す。
+    # マスクは「解析専用」であり、表示用ではないことに注意。
+    text = mask_markdown_structure(raw_text)
+    lines = iter_lines_with_no(text)
+    raw_lines_by_no = dict(iter_lines_with_no(raw_text))
+    sentences = split_sentences_with_lines(lines, raw_lines_by_no)
+    # sudachipy の形態素解析結果は複数の検出器で使い回す（トークナイズは1回だけ）。
+    tokenized = tokenize_sentences(sentences)
+
+    findings: list[Finding] = []
+    findings += structural_findings
+    # --- 表層（正規表現）ベースの検出器 ---
+    findings += detect_forbidden_phrases(lines, raw_lines_by_no)
+    findings += detect_translationese(lines, raw_lines_by_no)
+    findings += detect_antithesis_repetition(
+        lines,
+        raw_lines_by_no,
+        rate_critical_above=profile.get("antithesis_rate_critical_above", ANTITHESIS_RATE_CRITICAL_ABOVE),
+    )
+    findings += detect_low_sentence_length_variance(sentences)
+    findings += detect_english_syntax_smell(lines, raw_lines_by_no)
+
+    # --- 形態素解析ベースの検出器（拡張: 品詞列・活用形マッチ） ---
+    nominal_and_conj_findings, morph_stats = detect_nominal_ending_and_paragraph_conjunctions(
+        lines,
+        tokenized,
+        raw_lines_by_no,
+        nominal_min_chars=profile.get("nominal_min_chars", NOMINAL_ENDING_MIN_CHARS),
+    )
+    findings += nominal_and_conj_findings
+    findings += detect_translationese_morph(tokenized)
+    findings += detect_inanimate_subject_morph(tokenized)
+    # nested_attributive はコーパス校正で削除済み（上のコメント参照）。
+
+    rhythm_findings, rhythm_stats = detect_rhythm_statistics(tokenized)
+    findings += rhythm_findings
+
+    ngram_findings, ngram_stats = detect_ngram_repetition(
+        tokenized,
+        lead_repeat_threshold=profile.get("lead_repeat_threshold", NGRAM_LEAD_REPEAT_THRESHOLD),
+    )
+    findings += ngram_findings
+
+    lexdiv_findings, lexdiv_stats = detect_lexical_diversity(tokenized)
+    findings += lexdiv_findings
+
+    low_spec_findings, low_spec_stats = detect_low_specificity(lines, raw_lines_by_no)
+    findings += low_spec_findings
+
+    # EXPERIMENTAL_CATEGORIES はデフォルトでは除外する（--experimental でのみ出力）。
+    if not experimental:
+        findings = [f for f in findings if f.category not in EXPERIMENTAL_CATEGORIES]
+
+    # ジャンルプロファイルによるカテゴリ単位の無効化（現状 business のみ使用）。
+    # --experimental を付けて実験的カテゴリを表示させた場合でも、そのジャンルの
+    # 正当な文書慣習と衝突すると判定された検出器はここで確実に除外する。
+    disabled_categories = profile.get("disabled_categories", set())
+    if disabled_categories:
+        findings = [f for f in findings if f.category not in disabled_categories]
+
+    findings.sort(key=lambda f: f.line)
+
+    stats = {
+        "total_findings": len(findings),
+        "by_category": {},
+        "genre": genre,
+        "experimental": experimental,
+        **morph_stats,
+        "rhythm": rhythm_stats,
+        "ngram": ngram_stats,
+        "lexical_diversity": lexdiv_stats,
+        "structural": structural_stats,
+        "low_specificity": low_spec_stats,
+    }
+    for f in findings:
+        stats["by_category"][f.category] = stats["by_category"].get(f.category, 0) + 1
+
+    return findings, stats
+
+
+SEVERITY_LABEL = {"info": "情報", "warn": "警告", "critical": "重大"}
+
+
+STATUS_LABEL = {"new": "新規", "persisting": "継続"}
+
+
+def print_human_report(
+    path: Path,
+    findings: list[Finding],
+    stats: dict,
+    baseline_summary: dict[str, int] | None = None,
+) -> None:
+    print(f"=== lint: {path} ===")
+    print(f"検出件数: {stats['total_findings']}")
+    if stats["by_category"]:
+        print("カテゴリ別内訳:")
+        for cat, count in sorted(stats["by_category"].items(), key=lambda kv: -kv[1]):
+            print(f"  - {cat}: {count}")
+
+    # --baseline 指定時のみ、解消/新規/継続のサマリを追加表示する
+    # （--baseline なしの場合はこのブロックごと出力されず、既存の挙動と完全に同じ）。
+    if baseline_summary is not None:
+        print(
+            f"ベースライン比較: 解消: {baseline_summary['resolved']}件 / "
+            f"新規: {baseline_summary['new']}件 / "
+            f"継続: {baseline_summary['persisting']}件"
+        )
+    print()
+
+    if not findings:
+        print("検出なし。")
+        return
+
+    for f in findings:
+        label = SEVERITY_LABEL.get(f.severity, f.severity)
+        # baseline比較時は各行に新規/継続タグを付ける（比較しない場合は付けない＝従来どおり）
+        status_tag = f"[{STATUS_LABEL.get(f.status, f.status)}] " if f.status else ""
+        print(f"{status_tag}[{label}] L{f.line} ({f.category})")
+        print(f"    該当箇所: {f.excerpt}")
+        if f.detail:
+            # 「対応箇所: L12, L34, ...」（related_lines）は detail 文字列に既に
+            # 含めているため、人間可読レポートでは detail をそのまま表示すれば十分。
+            print(f"    詳細    : {f.detail}")
+        print()
+
+
+def print_reading_load_report(findings: list[Finding], stats: dict) -> None:
+    """読解負荷レーンを、AI臭さの検出結果とは視覚的にも分けて出力する。"""
+    print("=== 読解負荷（推敲用の指さし・自然度スコアには含まない） ===")
+    print(f"指摘件数: {stats.get('total', len(findings))}（本文 {stats.get('sentences', 0)} 文）")
+    if stats.get("by_category"):
+        print("カテゴリ別内訳:")
+        for cat, count in sorted(stats["by_category"].items(), key=lambda kv: -kv[1]):
+            print(f"  - {cat}: {count}")
+    print()
+
+    if not findings:
+        print("指摘なし。")
+        return
+
+    for f in findings:
+        print(f"[指さし] L{f.line} ({f.category})")
+        print(f"    該当箇所: {f.excerpt}")
+        if f.detail:
+            print(f"    詳細    : {f.detail}")
+        print()
+
+    print("※ これらは「直すべき欠陥」ではなく「見るべき箇所」。読んで引っかからない文はいじらない。")
+    print("※ 判断は references/readability-antipatterns.md の A〜J カタログに従う。")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="AI臭い日本語文章を決定的に検出する lint スクリプト（CI ゲートではない）。"
+    )
+    parser.add_argument("file", type=Path, help="lint 対象の Markdown/テキストファイル")
+    parser.add_argument("--json", action="store_true", help="機械可読な JSON で出力する")
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=None,
+        metavar="PREV.json",
+        help=(
+            "前回の --json 出力ファイルと比較し、resolved（解消）/ new（新規）/ "
+            "persisting（継続）を判定する（収束駆動の修正ループ支援。指定しない場合の"
+            "挙動は完全に不変）"
+        ),
+    )
+    parser.add_argument(
+        "--genre",
+        choices=sorted(GENRE_PROFILES),
+        default=None,
+        help=(
+            "文書のジャンルに応じてコーパス校正済みの閾値プロファイルを適用する"
+            "（essay/tech/business）。未指定時は共通の保守的閾値を使う"
+        ),
+    )
+    parser.add_argument(
+        "--experimental",
+        action="store_true",
+        help=(
+            "まだコーパスで定量校正されていない、または無反応と判定された検出器"
+            "（EXPERIMENTAL_CATEGORIES）も出力する。デフォルトでは除外される"
+        ),
+    )
+    parser.add_argument(
+        "--reading-load",
+        action="store_true",
+        help=(
+            "読解負荷レーン（一文長・埋もれた列挙・連続漢字・二重否定・「の」連鎖）を"
+            "併せて出力する。AI臭さの検出とは別目的の推敲用の指さしで、"
+            "自然度スコアにも --baseline 比較にも含まれない"
+        ),
+    )
+    args = parser.parse_args()
+
+    # 「文章の中身に関する判断」と「そもそも実行できない入力エラー」は区別する。
+    # 前者（検出結果）は exit 0（lintでありCIゲートではない）、
+    # 後者（ファイル不在/ディレクトリ指定/読み取り不可/非UTF-8等）は exit 1。
+    text, err = read_source_file(args.file)
+    if err is not None:
+        print(err, file=sys.stderr)
+        return 1
+
+    baseline_data = None
+    if args.baseline is not None:
+        if not args.baseline.exists():
+            print(f"エラー: --baseline ファイルが見つかりません: {args.baseline}", file=sys.stderr)
+            return 1
+        try:
+            loaded_baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            print(f"エラー: --baseline ファイルを読み込めません: {args.baseline} ({exc})", file=sys.stderr)
+            return 1
+
+        # JSON としては読めても、スキーマが想定外（トップレベルが配列、findings が
+        # 欠けている、findings 内の要素が dict でない等）だと compute_baseline_diff()
+        # がクラッシュしうる。lint は CI ゲートではなく、baseline はあくまで補助
+        # 情報なので、想定外の形式のときは実行全体を落とさず、baseline比較を諦めて
+        # 通常の lint 実行にフォールバックする（警告は出す）。
+        baseline_data, baseline_warnings = validate_baseline_data(loaded_baseline)
+        for w in baseline_warnings:
+            print(f"警告: {w}", file=sys.stderr)
+
+    findings, stats = run_lint(text, genre=args.genre, experimental=args.experimental)
+
+    # 読解負荷レーンは完全に別扱いにする。findings にも stats にも混ぜず、
+    # --baseline 比較（compute_baseline_diff）にも渡さない。
+    reading_load_findings: list[Finding] | None = None
+    reading_load_stats: dict | None = None
+    if args.reading_load:
+        reading_load_findings, reading_load_stats = run_reading_load(text, genre=args.genre)
+
+    resolved: list[dict] = []
+    baseline_summary: dict[str, int] | None = None
+    if baseline_data is not None:
+        resolved, baseline_summary = compute_baseline_diff(findings, baseline_data)
+
+    if args.json:
+        output = {
+            "file": str(args.file),
+            "stats": stats,
+            "findings": [f.to_dict() for f in findings],
+        }
+        # --baseline を指定したときだけ baseline セクションを追加する
+        # （指定しない場合の JSON 構造は従来と完全に同じ）。
+        if baseline_summary is not None:
+            output["baseline"] = {
+                "file": str(args.baseline),
+                "summary": baseline_summary,
+                "resolved": resolved,
+            }
+        # --reading-load を指定したときだけ独立したセクションを追加する
+        # （指定しない場合の JSON 構造は従来と完全に同じ）。
+        if reading_load_findings is not None:
+            output["reading_load"] = {
+                "stats": reading_load_stats,
+                "findings": [f.to_dict() for f in reading_load_findings],
+            }
+        print(json.dumps(output, ensure_ascii=False, indent=2))
+    else:
+        print_human_report(args.file, findings, stats, baseline_summary)
+        if reading_load_findings is not None:
+            print_reading_load_report(reading_load_findings, reading_load_stats or {})
+
+    # lint であって CI ゲートではない。文章の検出結果は件数に関わらず常に exit 0 とし、
+    # 修正するかどうかの判断は人間（または後続の AI 自己点検フロー）に委ねる。
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+```py:scripts/outline.py
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "sudachipy>=0.6.8",
+#     "sudachidict-core>=20240409",
+# ]
+# ///
+"""outline.py — 文書のスケルトン（見出し・各段落の先頭文・箇条書き）を抽出する。
+
+設計原則「検出は機械、判断はAI」に基づき、良し悪しの判断はせず、決定的な抽出のみを
+行う。SKILL.md §4 の構造レビュー（スケルトン通読）への入力として使う。
+
+スケルトンに加えて「見出し統計」も出力する（本数・レベル分布、見出し長の平均・
+変動係数、体言止め率、見出し間のPOSパターン一致率、テンプレ見出し語彙ヒット、
+連番/記号などの構造パターン率）。これらは severity 付きの検出結果（Finding）
+ではなく、AI臭いかどうかを読む側のAIが判断するための材料の提示に留める
+——見出し統計そのものが「AI臭い/自然」を断定することはしない。
+
+使い方:
+    uv run scripts/outline.py <file.md> [--json]
+
+入力エラー（ファイル不在・ディレクトリ指定・読み取り不可等）は exit code 1、
+それ以外は exit code 0（判断は人間/AIに委ねる。他の検査層エントリと同じ方針）。
+
+見出し統計の体言止め判定・POSシグネチャ化には sudachipy を使うため、
+textcore.py と同じ PEP 723 メタデータを宣言しておく。
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+from textcore import (
+    NOUN_ENDING_POS,
+    TEMPLATE_HEADING_WORDS,
+    _BLOCKQUOTE_RE,
+    _CODE_FENCE_RE,
+    _FRONT_MATTER_DELIM_RE,
+    _HEADING_RE,
+    _LIST_ITEM_RE,
+    _TABLE_DELIMITER_RE,
+    _TABLE_ROW_RE,
+    _heading_level_and_text,
+    get_tokenizer,
+    mask_html_comments,
+    read_source_file,
+    strip_trailing_symbols,
+)
+
+# ---------------------------------------------------------------------------
+# --outline（スケルトン抽出）
+#
+# 設計原則「検出は機械、判断はAI」に基づき、文書の構造（見出し・各段落の先頭文・
+# 箇条書きブロック）を決定的に抽出するだけで、良し悪しの判断はしない。
+# SKILL.md §4 の構造レビュー（スケルトン通読）への入力として使う。
+#
+# 見出し・コードブロック・引用・表のマスクには mask_markdown_structure() は使わない
+# （見出し行そのものが空文字になってしまい、スケルトンの主役である見出しテキストが
+# 消えてしまうため）。かわりに、見出し検出は生テキストに対して直接行い、
+# 段落は「空行区切りの行グループ」として独自に走査する。HTMLコメントのみ
+# mask_html_comments() で先に空白化し、コメント内の見出し風・箇条書き風の行を
+# 誤ってスケルトンに含めないようにする。
+# ---------------------------------------------------------------------------
+
+
+def build_outline(raw_text: str) -> list[dict]:
+    """文書のスケルトン（見出し・各段落の先頭文・箇条書きプレースホルダ）を
+    行番号付きで抽出する。判断はせず、決定的な抽出のみを行う。
+
+    - 見出し行（#〜######）: kind="heading", level=1-6
+    - 空行区切りの段落のうち、箇条書き・コードブロック・引用・表以外: kind="lead"
+      （段落先頭行の最初の文、句点等が無ければ先頭行全体）
+    - 箇条書きだけの段落: kind="bullets"（「(箇条書き N 項目)」プレースホルダ）
+    - コードブロック・引用・表の段落は出力しない（スキップ）
+
+    ブロックの区切りは空行だけではない。箇条書き行の直後に空行なしで通常段落行が
+    続く（またはその逆順の）場合も、そこでブロック種別が切り替わるため flush する
+    （空行がないからといって同じブロックにまとめてしまうと、後続ブロックの内容が
+    丸ごと出力から消えてしまう）。
+    """
+    text = mask_html_comments(raw_text)
+    lines = text.split("\n")
+
+    outline: list[dict] = []
+    buffer: list[tuple[int, str]] = []
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+    in_front_matter = False
+
+    def line_kind(line_text: str) -> str:
+        """flush_buffer() のブロック種別判定（buffer[0] 基準）と対応する、
+        単一行の分類。ブロック種別が切り替わったかどうかの判定に使う。"""
+        if _LIST_ITEM_RE.match(line_text):
+            return "bullets"
+        if _BLOCKQUOTE_RE.match(line_text):
+            return "blockquote"
+        if (_TABLE_ROW_RE.match(line_text) and line_text.count("|") >= 2) or _TABLE_DELIMITER_RE.match(
+            line_text
+        ):
+            return "table"
+        return "lead"
+
+    def flush_buffer() -> None:
+        if not buffer:
+            return
+        first_no, first_line = buffer[0]
+        if _LIST_ITEM_RE.match(first_line):
+            count = sum(1 for _, line_text in buffer if _LIST_ITEM_RE.match(line_text))
+            outline.append(
+                {"line": first_no, "kind": "bullets", "level": None, "text": f"(箇条書き {count} 項目)"}
+            )
+        elif _BLOCKQUOTE_RE.match(first_line):
+            pass  # 引用ブロックは段落として扱わずスキップ
+        elif (_TABLE_ROW_RE.match(first_line) and first_line.count("|") >= 2) or _TABLE_DELIMITER_RE.match(
+            first_line
+        ):
+            pass  # 表はスキップ
+        else:
+            m = re.search(r"[。！？]", first_line)
+            lead = first_line[: m.end()] if m else first_line
+            lead = lead.strip()
+            if lead:
+                outline.append({"line": first_no, "kind": "lead", "level": None, "text": lead})
+        buffer.clear()
+
+    for i, line in enumerate(lines, start=1):
+        if i == 1 and _FRONT_MATTER_DELIM_RE.match(line):
+            in_front_matter = True
+            continue
+        if in_front_matter:
+            if _FRONT_MATTER_DELIM_RE.match(line):
+                in_front_matter = False
+            continue
+
+        fence_match = _CODE_FENCE_RE.match(line)
+        if fence_match:
+            flush_buffer()
+            fence_run = fence_match.group(1)
+            fc, fl = fence_run[0], len(fence_run)
+            is_close_eligible = line[fence_match.end() :].strip() == ""
+            if not in_fence:
+                in_fence = True
+                fence_char, fence_len = fc, fl
+            elif fc == fence_char and fl >= fence_len and is_close_eligible:
+                in_fence = False
+            continue
+        if in_fence:
+            continue
+
+        if not line.strip():
+            flush_buffer()
+            continue
+
+        if _HEADING_RE.match(line):
+            flush_buffer()
+            level, heading_text = _heading_level_and_text(line)
+            outline.append({"line": i, "kind": "heading", "level": level, "text": heading_text})
+            continue
+
+        # 空行を挟まずにブロック種別（箇条書き/引用/表/通常段落）が切り替わった
+        # 場合も、そこで現在のバッファを確定させてから新しいブロックを始める。
+        # ただし箇条書きブロックの途中に現れるインデントされた継続行（折り返された
+        # 項目の2行目以降。行頭に空白がありマーカーを持たない）は、種別変化とみなさず
+        # 同じ箇条書きブロックに含める（マーカー行だけを項目数として数えるので、
+        # 継続行が項目数を水増しすることはない）。
+        if buffer:
+            cur_kind = line_kind(buffer[0][1])
+            is_indented_continuation = (
+                cur_kind == "bullets"
+                and line_kind(line) == "lead"
+                and re.match(r"^\s+\S", line) is not None
+            )
+            if cur_kind != line_kind(line) and not is_indented_continuation:
+                flush_buffer()
+
+        buffer.append((i, line))
+
+    flush_buffer()
+    return outline
+
+
+# ---------------------------------------------------------------------------
+# 見出し統計（--outline に付随する判断材料の提示）
+#
+# ここより下は「検出は機械、判断はAI」の"機械"側の追加ブロックである。ただし
+# lint.py の検出器群とは性質が異なり、severity 付きの Finding は一切生成しない。
+# 見出しの本数・長さ・構造パターンを集計するだけで、「これはAI臭い」という
+# 判定はしない（例えば体言止め率が高い見出しでも、技術文書では自然に高くなり
+# うる。閾値判断・良し悪しの判断は読む側のAIに委ねる）。
+#
+# 対象は build_outline() が抽出した kind="heading" のエントリのみ。h1（文書
+# タイトル）を含めるかどうかは呼び出し側次第だが、本文の構成パターンを見たい
+# という目的上、レベル別統計は「レベルごとの兄弟見出し群」を単位に集計する。
+# ---------------------------------------------------------------------------
+
+# POS シグネチャ化で使う粗い品詞カテゴリ。sudachipy の part_of_speech()[0] は
+# 「名詞」「動詞」「助詞」等の詳細分類だが、見出し全体の構造パターン（対称性）を
+# 見たいだけなので、意味のある大分類のみ抽出し、それ以外（助詞・助動詞・記号・
+# 空白等の機能語/記号）はシグネチャから除外する。除外しないと「◯◯の設計」
+# 「◯◯の実装」のような対称見出しでも助詞「の」の有無等で微妙にシグネチャが
+# ずれ、パターン一致率が実態より低く出てしまう。
+_SIGNATURE_POS = {"名詞", "動詞", "形容詞", "副詞", "接頭辞"}
+
+# テンプレ見出し語彙のマッチングは、単純な前方一致だと見出し先頭の記号・番号
+# （例:「1. はじめに」「## はじめに」）に引きずられて不一致になる。見出しテキスト
+# 側の先頭にある番号・記号を軽く剥がしてから判定する。
+_LEADING_NUMBERING_RE = re.compile(r"^[\s0-9０-９.．、,()（）【】\[\]#・-]+")
+
+# 構造的パターン検出用の正規表現。
+# 1) 連番: 「1. ◯◯」「1) ◯◯」「①◯◯」など見出しテキスト先頭の番号
+_NUMBERED_HEADING_RE = re.compile(r"^\s*([0-9０-９]+[.).、]|[①-⑳])\s*\S")
+# 2) 括弧見出し: 「【◯◯】」「［◯◯］」など全体または先頭を囲む記号
+_BRACKETED_HEADING_RE = re.compile(r"^\s*[【\[［(（].+[】\]］)）]\s*$")
+# 3) 「◯◯とは」型: 定義提示の定型
+_TOWA_HEADING_RE = re.compile(r".+とは[?？]?\s*$")
+
+
+def _heading_pos_signature(text: str) -> tuple[str, ...]:
+    """見出しテキストの粗い品詞列（機能語・記号を除く）をタプル化したもの。
+    同一シグネチャの兄弟見出しが多いほど、構造的に対称な（＝AIが書きがちな
+    テンプレ的な）見出し群である可能性が高い、という判断材料になる。
+    """
+    tokenizer = get_tokenizer()
+    sig = []
+    for m in tokenizer.tokenize(text):
+        pos = m.part_of_speech()[0]
+        if pos in _SIGNATURE_POS:
+            sig.append(pos)
+    return tuple(sig)
+
+
+def _is_nominal_ending(text: str) -> bool:
+    """見出し末尾の実質的な最終形態素が名詞かどうか（体言止め判定）。
+    lint.py の文末体言止め判定（detect_nominal_ending_and_paragraph_conjunctions）
+    と同じロジックを見出しテキストに適用する。空見出しは False 扱い。
+    """
+    tokenizer = get_tokenizer()
+    morphemes = list(tokenizer.tokenize(text))
+    effective = strip_trailing_symbols(morphemes)
+    if not effective:
+        return False
+    return effective[-1].part_of_speech()[0] in NOUN_ENDING_POS
+
+
+def _match_template_word(text: str) -> str | None:
+    """見出し先頭の番号・記号を除いたうえで、テンプレ見出し語彙カタログ
+    （TEMPLATE_HEADING_WORDS）の前方一致を判定する。ヒットした最初の語を返す。
+    """
+    stripped = _LEADING_NUMBERING_RE.sub("", text).strip().lower()
+    for word in TEMPLATE_HEADING_WORDS:
+        if stripped.startswith(word.lower()):
+            return word
+    return None
+
+
+def _match_structural_pattern(text: str) -> str | None:
+    """連番・括弧・「◯◯とは」型など、構造的な定型パターンに一致するか判定する。
+    複数該当しうるが、提示上は最初に一致したもの1つを採用する。
+    """
+    if _NUMBERED_HEADING_RE.match(text):
+        return "numbered"
+    if _BRACKETED_HEADING_RE.match(text):
+        return "bracketed"
+    if _TOWA_HEADING_RE.match(text):
+        return "towa"
+    return None
+
+
+def _summarize_heading_group(headings: list[dict]) -> dict:
+    """見出し群（同一レベルの兄弟、または文書全体）1つ分の統計をまとめる。
+    headings は build_outline() の kind="heading" エントリのリスト。
+    """
+    count = len(headings)
+    if count == 0:
+        return {
+            "count": 0,
+            "length_mean": 0.0,
+            "length_cv": 0.0,
+            "nominal_ending_ratio": 0.0,
+            "dominant_pos_signature_ratio": 0.0,
+            "template_hits": [],
+            "structural_pattern_ratio": 0.0,
+        }
+
+    lengths = [len(h["text"]) for h in headings]
+    mean_len = sum(lengths) / count
+    if mean_len > 0 and count > 1:
+        variance = sum((length - mean_len) ** 2 for length in lengths) / count
+        stdev = variance**0.5
+        cv = stdev / mean_len
+    else:
+        cv = 0.0
+
+    nominal_count = sum(1 for h in headings if _is_nominal_ending(h["text"]))
+
+    signatures = [_heading_pos_signature(h["text"]) for h in headings]
+    non_empty_signatures = [s for s in signatures if s]
+    if non_empty_signatures:
+        most_common = max(set(non_empty_signatures), key=non_empty_signatures.count)
+        dominant_ratio = non_empty_signatures.count(most_common) / count
+    else:
+        dominant_ratio = 0.0
+
+    template_hits = []
+    for h in headings:
+        word = _match_template_word(h["text"])
+        if word is not None:
+            template_hits.append({"line": h["line"], "text": h["text"], "matched": word})
+
+    structural_count = sum(1 for h in headings if _match_structural_pattern(h["text"]) is not None)
+
+    return {
+        "count": count,
+        "length_mean": round(mean_len, 2),
+        "length_cv": round(cv, 3),
+        "nominal_ending_ratio": round(nominal_count / count, 3),
+        "dominant_pos_signature_ratio": round(dominant_ratio, 3),
+        "template_hits": template_hits,
+        "structural_pattern_ratio": round(structural_count / count, 3),
+    }
+
+
+def build_heading_stats(outline: list[dict]) -> dict:
+    """スケルトンから見出しだけを取り出し、レベル別（h1〜h6）＋文書全体の
+    統計をまとめる。severity や良し悪しの判断は含めない（判断材料の提示のみ）。
+    """
+    headings = [e for e in outline if e["kind"] == "heading"]
+    by_level: dict[int, list[dict]] = {}
+    for h in headings:
+        by_level.setdefault(h["level"], []).append(h)
+
+    level_distribution = {str(level): len(hs) for level, hs in sorted(by_level.items())}
+
+    return {
+        "total_headings": len(headings),
+        "level_distribution": level_distribution,
+        "by_level": {
+            str(level): _summarize_heading_group(hs) for level, hs in sorted(by_level.items())
+        },
+        "overall": _summarize_heading_group(headings),
+    }
+
+
+def print_heading_stats_human(stats: dict) -> None:
+    print()
+    print("=== 見出し統計（判断材料。判定はAIが行う） ===")
+    print()
+    print(f"見出し総数: {stats['total_headings']}")
+    if stats["level_distribution"]:
+        dist = ", ".join(f"h{level}={n}" for level, n in stats["level_distribution"].items())
+        print(f"レベル分布: {dist}")
+
+    def print_group(label: str, g: dict) -> None:
+        if g["count"] == 0:
+            return
+        print(f"[{label}] 本数={g['count']}  平均長={g['length_mean']}字  "
+              f"長さの変動係数={g['length_cv']}  体言止め率={g['nominal_ending_ratio']:.0%}  "
+              f"品詞パターン一致率={g['dominant_pos_signature_ratio']:.0%}  "
+              f"構造パターン率={g['structural_pattern_ratio']:.0%}")
+        if g["template_hits"]:
+            hits = ", ".join(f"L{h['line']}:{h['text']}（{h['matched']}）" for h in g["template_hits"])
+            print(f"  テンプレ見出しヒット: {hits}")
+
+    for level, g in stats["by_level"].items():
+        print_group(f"h{level}", g)
+    print_group("全体", stats["overall"])
+
+
+def print_outline_human(path: Path, outline: list[dict]) -> None:
+    print(f"=== outline: {path} ===")
+    print()
+    if not outline:
+        print("(スケルトンなし)")
+        return
+    for entry in outline:
+        line_tag = f"L{entry['line']}"
+        if entry["kind"] == "heading":
+            indent = "  " * max(0, entry["level"] - 1)
+            prefix = "#" * entry["level"]
+            print(f"{line_tag:>6}  {indent}{prefix} {entry['text']}")
+        else:
+            print(f"{line_tag:>6}    {entry['text']}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="文書のスケルトン（見出し・各段落の先頭文・箇条書き）を抽出する（CI ゲートではない）。"
+    )
+    parser.add_argument("file", type=Path, help="対象の Markdown/テキストファイル")
+    parser.add_argument("--json", action="store_true", help="機械可読な JSON で出力する")
+    args = parser.parse_args()
+
+    # 「文章の中身に関する判断」と「そもそも実行できない入力エラー」は区別する。
+    # 前者（抽出結果）は exit 0、後者（ファイル不在/ディレクトリ指定/読み取り不可等）は exit 1。
+    text, err = read_source_file(args.file)
+    if err is not None:
+        print(err, file=sys.stderr)
+        return 1
+
+    outline = build_outline(text)
+    heading_stats = build_heading_stats(outline)
+    if args.json:
+        print(json.dumps({"outline": outline, "heading_stats": heading_stats}, ensure_ascii=False, indent=2))
+    else:
+        print_outline_human(args.file, outline)
+        print_heading_stats_human(heading_stats)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+```py:scripts/semantic.py
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "sentence-transformers>=3.0.0",
+#     "numpy",
+#     "sudachipy>=0.6.8",
+#     "sudachidict-core>=20240409",
+# ]
+# ///
+"""semantic.py — 文埋め込みによる「話題の平板さ」検出（EXPERIMENTAL・opt-in）。
+
+【重要】これは lint.py の中核パイプラインとは独立した重量級のオプトイン検出器である。
+torch + sentence-transformers（cl-nagoya/ruri-v3-310m、初回~1GB級のHFダウンロード）に
+依存するため、scripts/lint.py・.github/workflows/release.yml・scripts/check-fixtures.sh の
+どこにも組み込まない。実行したい人だけが明示的に `uv run scripts/semantic.py` を叩く。
+
+背景・設計思想（corpus/reports/nn-detector-sweep.md §B 参照）:
+    perplexity・教師あり分類器・GiNZA係り受けの3系統は、コーパス実測の結果
+    「ジャンルの文体」や「読みやすさそのもの」を罰していることが判明し不採用となった。
+    唯一生き残ったのが本検出器（文埋め込みによる話題平板性）で、表層の文体をどれだけ
+    磨いても消えにくい「一つの話題を同じ意味距離で刻み続ける」癖を捉えている。
+    ただし model 依存が重く、閾値もFP基盤（human quality:high 81文書）がまだ薄いため、
+    lint.py 本体（sudachipy のみ・数秒で完結）とは別の EXPERIMENTAL な独立エントリとする。
+
+指標定義（corpus/experiments/embedding/sweep.py と同一ロジック。すべて cos類似度、
+埋め込みは normalize_embeddings=True 済みなので内積=cos類似度）:
+    - coherence_flatness_range: 隣接文類似度(|i-j|==1)の max-min。狭い=話題の起伏が乏しい
+      （最有力指標。primary detector として採用）。
+    - semantic_repetition_max: 非隣接文ペア(|i-j|>=2)類似度の最大値。高い=言い換え反復
+      （secondary/reference。severity=info）。
+    - topic_jump_min: 隣接文類似度の最小値。高い=脈絡のない飛躍がない
+      （secondary/reference。severity=info）。
+
+文分割は corpus/experiments/embedding/embed_corpus.py と同じ経路
+（textcore.mask_markdown_structure + split_sentences_with_lines）を使い、
+実験で校正した閾値とそのまま対応するようにする。
+
+使い方:
+    uv run scripts/semantic.py <file.md> [--json] [--genre essay|tech|business]
+
+初回実行時は cl-nagoya/ruri-v3-310m（~1GB）を HuggingFace から自動ダウンロードする
+（2回目以降はHFキャッシュを再利用し、オフラインでも動作する）。
+
+終了コード: lint.py と同じ規律。文章の中身に関する判定は exit 0（検出件数に関わらず）。
+入力エラー（ファイル不在・ディレクトリ指定・読み取り不可等）のみ exit 1。
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from textcore import (
+    Finding,
+    iter_lines_with_no,
+    mask_markdown_structure,
+    read_source_file,
+    split_sentences_with_lines,
+)
+
+DEFAULT_MODEL = "cl-nagoya/ruri-v3-310m"
+
+# 短文書ガード。統計的な起伏・反復の測定は文数が少ないと意味をなさない
+# （lint.py の低分散検出器などが短文書を除外するのと同じ哲学）。
+# コーパス実験（sweep.py）は「n>=3で計算可、n>=2でvar/range計算」という緩い下限だったが、
+# 実運用の目安としては最低10文程度なければ「起伏がない」という判定自体が
+# 統計的に不安定（1〜2箇所の類似度でrange/varがほぼ決まってしまう）と判断し、
+# 10文未満はここで打ち切る。
+MIN_SENTENCES_FOR_STATS = 10
+
+# ---------------------------------------------------------------------------
+# 閾値校正（2026-07、corpus/experiments/embedding/sweep-raw.json 542文書分の
+# 生データを本スクリプト作成時に再集計して算出。算出手順は
+# corpus/experiments/embedding/sweep.py の sweep_threshold() と同じ規律
+# （FP基準集合＝human_fp_base で誤検知率<5%を保ちつつAI検出率最大の閾値を
+# value<=th / value>=th の両方向から全探索）。
+#
+# coherence_flatness_range（primary、severity=warn。隣接文類似度のレンジが
+# 狭い＝話題の起伏が乏しい）:
+#   - 全ジャンル共通（デフォルト）: threshold=0.1612 (value<=th) →
+#     n(fp_base)=81, FP率=3.7%, n(ai)=405, AI検出率=85.2%
+#     （corpus/reports/nn-detector-sweep.md §B の実験結果そのまま）
+#   - ジャンル別再校正（本スクリプト作成時に実施。essayのFP率問題への対応）:
+#     essayは共通閾値0.1612適用時にFP率6.7%（n=30中2件）とレポートで指摘された
+#     問題ジャンル。essay単体のFP基準集合(n=30)とAI(n=84)で再スイープした結果、
+#     threshold=0.1581 (value<=th) でFP率=3.3%（1/30）、AI検出率=95.2%（80/84）と
+#     大幅改善（かつ検出率はむしろ上昇）。
+#     tech: n(fp_base)=18, threshold=0.1426 (value<=th) → FP率=0%（0/18）,
+#     n(ai)=84, AI検出率=52.4%（44/84）。tech人間コーパスは見出し・箇条書き構成に
+#     寄るぶん元々flatness_rangeが高め（mean=0.2063）で、閾値を厳しく（低く）
+#     しないとFP<5%を保てない。
+#     business: n(fp_base)=29, threshold=0.1556 (value<=th) → FP率=0%（0/29）,
+#     n(ai)=84, AI検出率=73.8%（62/84）。
+#   注意: essay(0.1581) > business(0.1556) > tech(0.1426) の順で、essayが
+#   3ジャンル中もっとも「緩い」（=値が高くても発火しにくい方向に振っている
+#   わけではなく、essay固有のFP基盤分布の谷間を使って全体閾値0.1612より
+#   厳しくした結果、3ジャンル中では最も高い値になった）。数値上essayの
+#   閾値がtech/businessより高いのは、essay固有の人間分布が0.134と0.161の
+#   間に空白域を持つため、この空白の直下（0.1581）まで閾値を上げても
+#   FP<5%を保てるという、経験的な校正結果である。
+# ---------------------------------------------------------------------------
+DEFAULT_FLATNESS_THRESHOLD = 0.16122889518737793
+
+GENRE_PROFILES: dict[str, dict] = {
+    "essay": {
+        "flatness_threshold": 0.15813499689102173,
+        "flatness_calibration": "n(fp_base)=30, FP率=3.3%, n(ai)=84, AI検出率=95.2%",
+    },
+    "tech": {
+        "flatness_threshold": 0.14261949062347412,
+        "flatness_calibration": "n(fp_base)=18, FP率=0%, n(ai)=84, AI検出率=52.4%",
+    },
+    "business": {
+        "flatness_threshold": 0.15565699338912964,
+        "flatness_calibration": "n(fp_base)=29, FP率=0%, n(ai)=84, AI検出率=73.8%",
+    },
+}
+
+# secondary/reference 指標（severity=info）。全ジャンル共通閾値のみ
+# （corpus/experiments/embedding/sweep-result.md の全体スイープ結果をそのまま流用。
+# ジャンル別再校正はprimary指標のみに絞り、これらは参考情報にとどめる）。
+SEMANTIC_REPETITION_MAX_THRESHOLD = 0.9322158694267273  # value<=th → FP率4.9%(n=81), AI検出率46.4%(n=405)
+TOPIC_JUMP_MIN_THRESHOLD = 0.765757143497467  # value>=th → FP率4.9%(n=81), AI検出率62.2%(n=405)
+
+
+def doc_sentences_with_lines(raw_text: str) -> list[tuple[int, str]]:
+    """(行番号, 原文の文) のリストを返す。embed_corpus.py の doc_sentences と
+    同じ経路（マスク済みテキストで文分割→原文から同オフセットで切り出し）だが、
+    ここでは行番号も保持して Finding.line に使えるようにする。"""
+    masked = mask_markdown_structure(raw_text)
+    lines = iter_lines_with_no(masked)
+    raw_lines_by_no = dict(iter_lines_with_no(raw_text))
+    sentences = split_sentences_with_lines(lines, raw_lines_by_no)
+    out = []
+    for no, masked_s, raw_s in sentences:
+        s = raw_s.strip() if raw_s.strip() else masked_s.strip()
+        if s:
+            out.append((no, s))
+    return out
+
+
+_model_cache = {}
+
+
+def load_model(model_name: str):
+    """初回ロード時だけ ~1GB ダウンロードの可能性を stderr に警告する。"""
+    if model_name in _model_cache:
+        return _model_cache[model_name]
+
+    print(
+        f"[semantic.py] モデル読み込み中: {model_name} "
+        "（初回実行時はHuggingFaceから自動ダウンロード、~1GB級の可能性があります。"
+        "2回目以降はHFキャッシュを再利用しオフラインでも動作します）",
+        file=sys.stderr,
+    )
+    import torch
+    from sentence_transformers import SentenceTransformer
+
+    device = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
+    model = SentenceTransformer(model_name, device=device, trust_remote_code=True)
+    _model_cache[model_name] = model
+    return model
+
+
+def compute_metrics(embeddings) -> dict:
+    """corpus/experiments/embedding/sweep.py の cosine_matrix_stats と同一ロジック。"""
+    import numpy as np
+
+    n = embeddings.shape[0]
+    out = {
+        "semantic_repetition_max": None,
+        "coherence_flatness_range": None,
+        "topic_jump_min": None,
+    }
+    if n < 3:
+        return out
+    sim = embeddings @ embeddings.T
+
+    adj = np.array([sim[i, i + 1] for i in range(n - 1)])
+    if len(adj) >= 2:
+        out["coherence_flatness_range"] = float(adj.max() - adj.min())
+        out["topic_jump_min"] = float(adj.min())
+    elif len(adj) == 1:
+        out["topic_jump_min"] = float(adj[0])
+
+    iu = np.triu_indices(n, k=2)
+    non_adj = sim[iu]
+    if non_adj.size:
+        out["semantic_repetition_max"] = float(non_adj.max())
+
+    return out
+
+
+def run_semantic(
+    raw_text: str, genre: str | None = None, model_name: str = DEFAULT_MODEL
+) -> tuple[list[Finding], dict]:
+    profile = GENRE_PROFILES.get(genre, {})
+    flatness_threshold = profile.get("flatness_threshold", DEFAULT_FLATNESS_THRESHOLD)
+    flatness_calibration = profile.get(
+        "flatness_calibration",
+        "n(fp_base)=81, FP率=3.7%, n(ai)=405, AI検出率=85.2%（全ジャンル共通閾値）",
+    )
+
+    sentence_items = doc_sentences_with_lines(raw_text)
+    n_sentences = len(sentence_items)
+
+    stats: dict = {
+        "genre": genre,
+        "n_sentences": n_sentences,
+        "model": model_name,
+        "flatness_threshold": flatness_threshold,
+        "metrics": None,
+        "skipped": False,
+        "skip_reason": None,
+    }
+
+    if n_sentences < MIN_SENTENCES_FOR_STATS:
+        stats["skipped"] = True
+        stats["skip_reason"] = (
+            f"文数が{n_sentences}文と少なく（目安{MIN_SENTENCES_FOR_STATS}文未満）、"
+            "統計的な起伏・反復の測定が安定しないため意味的検出をスキップしました。"
+        )
+        return [], stats
+
+    lines_no = [no for no, _ in sentence_items]
+    sentences = [s for _, s in sentence_items]
+
+    model = load_model(model_name)
+    embeddings = model.encode(
+        sentences, convert_to_numpy=True, show_progress_bar=False, normalize_embeddings=True
+    )
+    metrics = compute_metrics(embeddings)
+    stats["metrics"] = metrics
+
+    findings: list[Finding] = []
+
+    cfr = metrics.get("coherence_flatness_range")
+    if cfr is not None and cfr <= flatness_threshold:
+        # レポート対象行はとりあえず文書冒頭（文単位ではなく文書全体集計の検出器なので、
+        # lint.py の antithesis_repetition 等の「文書全体集計型」の扱いに倣う）。
+        line = lines_no[0] if lines_no else 1
+        findings.append(
+            Finding(
+                line=line,
+                category="semantic_topic_flatness",
+                excerpt=f"隣接文類似度レンジ={cfr:.4f}（閾値{flatness_threshold:.4f}以下）",
+                severity="warn",  # 実験的検出器のため critical にはしない
+                detail=(
+                    "隣接文の意味類似度の起伏が乏しい=一つの話題を同じ歩幅で刻み続ける"
+                    "AI的な平板さの疑い。EXPERIMENTAL: コーパス校正では"
+                    f"{flatness_calibration}（corpus/experiments/embedding/sweep-raw.json "
+                    "542文書からの実測。genre指定なしはcorpus/reports/nn-detector-sweep.md "
+                    "の全体閾値をそのまま使用）。具体例への降下・視点の転換・短い脱線で"
+                    "意味的な緩急をつけることを検討してください。"
+                ),
+            )
+        )
+
+    srm = metrics.get("semantic_repetition_max")
+    if srm is not None and srm <= SEMANTIC_REPETITION_MAX_THRESHOLD:
+        line = lines_no[0] if lines_no else 1
+        findings.append(
+            Finding(
+                line=line,
+                category="semantic_repetition_max",
+                excerpt=f"非隣接文ペア類似度max={srm:.4f}（参考閾値{SEMANTIC_REPETITION_MAX_THRESHOLD:.4f}以下）",
+                severity="info",
+                detail=(
+                    "参考指標（experimental・reference）。非隣接文ペアの意味的類似度の"
+                    "最大値が低め＝同じ内容の言い換え反復が少ないことを示す（低いほどAI寄り、"
+                    "という逆説的な弁別だが、コーパス実測ではhuman_fp_base mean=0.9878 vs "
+                    "ai mean=0.9470とAI側が低い）。n(fp_base)=81, FP率=4.9%, n(ai)=405, "
+                    "AI検出率=46.4%（corpus/experiments/embedding/sweep-result.md）。"
+                ),
+            )
+        )
+
+    tjm = metrics.get("topic_jump_min")
+    if tjm is not None and tjm >= TOPIC_JUMP_MIN_THRESHOLD:
+        line = lines_no[0] if lines_no else 1
+        findings.append(
+            Finding(
+                line=line,
+                category="topic_jump_min",
+                excerpt=f"隣接文類似度最小値={tjm:.4f}（参考閾値{TOPIC_JUMP_MIN_THRESHOLD:.4f}以上）",
+                severity="info",
+                detail=(
+                    "参考指標（experimental・reference）。隣接文間で意味的に大きく飛躍する"
+                    "箇所が無い＝脈絡のない話題転換が少ないことを示す。"
+                    "n(fp_base)=81, FP率=4.9%, n(ai)=405, AI検出率=62.2%"
+                    "（corpus/experiments/embedding/sweep-result.md）。"
+                ),
+            )
+        )
+
+    return findings, stats
+
+
+SEVERITY_LABEL = {"info": "情報", "warn": "警告", "critical": "重大"}
+
+
+def print_human_report(path: Path, findings: list[Finding], stats: dict) -> None:
+    print(f"=== semantic.py (EXPERIMENTAL): {path} ===")
+    print(f"文数: {stats['n_sentences']}  モデル: {stats['model']}  genre: {stats['genre'] or '(未指定)'}")
+    if stats["skipped"]:
+        print(f"スキップ: {stats['skip_reason']}")
+        return
+    print(f"検出件数: {len(findings)}")
+    print()
+    if not findings:
+        print("検出なし。")
+        return
+    for f in findings:
+        label = SEVERITY_LABEL.get(f.severity, f.severity)
+        print(f"[{label}] L{f.line} ({f.category})")
+        print(f"    該当箇所: {f.excerpt}")
+        if f.detail:
+            print(f"    詳細    : {f.detail}")
+        print()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description=(
+            "EXPERIMENTAL: 文埋め込みによる話題平板性の検出（opt-in・重量級・"
+            "torch+sentence-transformers依存、初回~1GBダウンロード）。"
+            "lint.py とは独立したエントリポイント。"
+        )
+    )
+    parser.add_argument("file", type=Path, help="検査対象の Markdown/テキストファイル")
+    parser.add_argument("--json", action="store_true", help="機械可読な JSON で出力する")
+    parser.add_argument(
+        "--genre",
+        choices=sorted(GENRE_PROFILES),
+        default=None,
+        help="ジャンル別に校正した閾値プロファイルを適用する（essay/tech/business）。未指定時は共通閾値",
+    )
+    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"埋め込みモデル名（既定: {DEFAULT_MODEL}）")
+    args = parser.parse_args()
+
+    text, err = read_source_file(args.file)
+    if err is not None:
+        print(err, file=sys.stderr)
+        return 1
+
+    try:
+        findings, stats = run_semantic(text, genre=args.genre, model_name=args.model)
+    except Exception as exc:
+        print(
+            f"エラー: 意味モデルの読み込みまたは推論に失敗しました: {exc}",
+            file=sys.stderr,
+        )
+        return 1
+
+    if args.json:
+        output = {
+            "file": str(args.file),
+            "stats": stats,
+            "findings": [f.to_dict() for f in findings],
+        }
+        print(json.dumps(output, ensure_ascii=False, indent=2))
+    else:
+        print_human_report(args.file, findings, stats)
+
+    # lint.py と同じ規律: 文章の中身に関する判定は exit 0（件数に関わらず）。
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+```py:scripts/terms.py
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "sudachipy>=0.6.8",
+#     "sudachidict-core>=20240409",
+# ]
+# ///
+"""terms.py — 専門用語候補（カタカナ複合語・ASCII英略語・固有名詞）を初出順に抽出する。
+
+設計原則「検出は機械、判断はAI」に基づき、有用な専門用語かどうか、初出で説明済みかどうか
+の判断は行わない（has_gloss_hint はあくまでヒント）。文体憲法第4条（初出で説明すべき用語）
+の確認材料として使う。
+
+使い方:
+    uv run scripts/terms.py <file.md> [--json]
+
+入力エラー（ファイル不在・ディレクトリ指定・読み取り不可等）は exit code 1、
+それ以外は exit code 0（判断は人間/AIに委ねる。他の検査層エントリと同じ方針）。
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+from textcore import (
+    _HEADING_RE,
+    _heading_level_and_text,
+    get_tokenizer,
+    iter_lines_with_no,
+    mask_html_comments,
+    mask_markdown_structure,
+    read_source_file,
+)
+
+# ---------------------------------------------------------------------------
+# --terms（用語インベントリ）
+#
+# sudachipy の解析結果から、専門用語候補（カタカナ複合語・ASCII英略語・
+# 固有名詞らしき語）を機械的に列挙する。有用な専門用語かどうか、初出で
+# 説明済みかどうかの判断は行わない（has_gloss_hint はあくまでヒント）。
+# 文体憲法第4条（初出で説明すべき用語）の確認材料として AI に渡す素材。
+# ---------------------------------------------------------------------------
+
+_KATAKANA_CHAR_RE = re.compile(r"^[ァ-ヶー]+$")
+# Python の \b は Unicode 単語境界を使うため、日本語の文字（漢字・かな）は
+# 単語文字として扱われ、「APIとは」のように直後に日本語が続くと \b が成立せず
+# マッチしない。ASCII の英数字が前後に隣接していない（＝英略語として孤立している）
+# ことだけを見ればよいので、\b の代わりに明示的な否定先読み/後読みで判定する
+# （直前直後が日本語であることは許容し、直前直後が別の ASCII 英数字であることのみ排除）。
+_ASCII_ACRONYM_RE = re.compile(r"(?<![A-Za-z0-9])[A-Z]{2,}[0-9]*(?![A-Za-z0-9])")
+TERMS_KATAKANA_MIN_LEN = 3
+TERMS_GLOSS_CONTEXT_CHARS = 80
+TERMS_GLOSS_MARKER_WORDS = ["とは", "と呼ぶ", "という", "、つまり"]
+
+
+def _is_katakana_token(surface: str) -> bool:
+    return bool(_KATAKANA_CHAR_RE.match(surface))
+
+
+# 英字が先頭大文字で残りが英数字（"Cloudflare" "TypeScript" 等）の語。
+# sudachipy の辞書は未登録の製品名/固有名詞をしばしば「名詞,普通名詞」に倒す
+# （固有名詞タグに乗らない）ため、POS だけに頼ると製品名を取りこぼす。
+# 表層の形（先頭大文字+英数字）という単純なヒューリスティクスで補う
+# （除外辞書は作らない方針のため、あくまで形のみで判定する）。
+_CAPITALIZED_LATIN_WORD_RE = re.compile(r"^[A-Z][a-zA-Z0-9]*$")
+
+
+def _is_proper_noun_or_capitalized_latin_morpheme(morpheme) -> bool:
+    pos = morpheme.part_of_speech()
+    if pos[0] == "名詞" and pos[1] == "固有名詞":
+        return True
+    surface = morpheme.surface()
+    return len(surface) >= 2 and bool(_CAPITALIZED_LATIN_WORD_RE.match(surface))
+
+
+def _term_context_and_gloss_hint(
+    term: str, first_line_no: int, search_text: str, line_offsets: dict[int, int]
+) -> tuple[str, bool]:
+    """search_text（HTMLコメントのみ空白化済みの原文相当。文字数・行数は原文と同一）
+    全体における term の初出近傍（前後 TERMS_GLOSS_CONTEXT_CHARS 字）と、
+    説明の手掛かり（has_gloss_hint）の有無を返す。
+
+    raw_text そのものではなく HTML コメントを空白化したテキストを使うのは、
+    近傍表示にコメント内のメモ書き（校正メモ等）が紛れ込むのを防ぐため
+    （オフセット・行番号は raw_text と完全に一致するので、term の検索・切り出しは
+    この search_text に対して行っても line_offsets が raw_text 側と食い違わない）。
+    """
+    lines = search_text.split("\n")
+    line_text = lines[first_line_no - 1] if 0 < first_line_no <= len(lines) else ""
+    local_idx = line_text.find(term)
+    if local_idx == -1:
+        # 行内に見つからない場合（マスク処理の副作用等）は行全体を近傍として返す
+        return line_text.strip(), any(marker in line_text for marker in TERMS_GLOSS_MARKER_WORDS)
+
+    abs_pos = line_offsets.get(first_line_no, 0) + local_idx
+    ctx_start = max(0, abs_pos - TERMS_GLOSS_CONTEXT_CHARS)
+    ctx_end = abs_pos + len(term) + TERMS_GLOSS_CONTEXT_CHARS
+    context = search_text[ctx_start:ctx_end]
+
+    term_start_local = abs_pos - ctx_start
+    term_end_local = term_start_local + len(term)
+    after = context[term_end_local : term_end_local + 2]
+    has_gloss_hint = after.startswith("(") or after.startswith("（")
+    if not has_gloss_hint:
+        has_gloss_hint = any(marker in context for marker in TERMS_GLOSS_MARKER_WORDS)
+
+    return context.strip(), has_gloss_hint
+
+
+def build_term_inventory(raw_text: str) -> list[dict]:
+    """専門用語候補の一覧を初出順に抽出する。判断（有用な用語かどうか、
+    既に説明済みかどうか）はしない。has_gloss_hint はあくまで機械的なヒント。
+    """
+    tokenizer = get_tokenizer()
+    from sudachipy import SplitMode
+
+    masked_comments = mask_html_comments(raw_text)
+    masked_structure = mask_markdown_structure(masked_comments)
+    body_lines = iter_lines_with_no(masked_structure)
+
+    # 見出し行は mask_markdown_structure() で空文字化されるため、見出しテキストも
+    # 用語抽出の対象に含めたい場合は別途生テキストから拾って合流させる
+    # （制品名・専門用語が見出しで最初に登場するケースを取りこぼさないため）。
+    heading_lines: list[tuple[int, str]] = []
+    for no, line in iter_lines_with_no(masked_comments):
+        if _HEADING_RE.match(line):
+            _, heading_text = _heading_level_and_text(line)
+            heading_lines.append((no, heading_text))
+
+    combined_lines = sorted(body_lines + heading_lines, key=lambda t: t[0])
+
+    # masked_comments は raw_text と文字数・行数が完全に一致する（HTMLコメントの
+    # 中身のみ空白化）ため、ここで作るオフセットは raw_text 側にもそのまま使える。
+    line_offsets: dict[int, int] = {}
+    pos = 0
+    for no, line_text in enumerate(masked_comments.split("\n"), start=1):
+        line_offsets[no] = pos
+        pos += len(line_text) + 1
+
+    # term -> {"first_line": int, "first_offset": int}
+    # first_offset は初出行内での文字オフセット。カタカナ複合語・ASCII英略語・
+    # 固有名詞をそれぞれ別のパスで走査しているため、同一行内での実際の出現順は
+    # first_line だけでは判定できない（先に全行を走査するパスの語が、行内では
+    # 後ろにあっても先に登録されてしまう）。first_offset を合わせて記録し、
+    # 最後に (first_line, first_offset) の複合キーでソートすることで、
+    # 文書内の実際の出現位置の昇順にする。
+    seen: dict[str, dict] = {}
+
+    def register(term: str, no: int, offset: int) -> None:
+        term = term.strip()
+        if not term:
+            return
+        if term not in seen:
+            seen[term] = {"first_line": no, "first_offset": offset}
+
+    for no, line in combined_lines:
+        if not line.strip():
+            continue
+
+        # (b) ASCII英略語（大文字2文字以上）は表層の正規表現で拾う
+        for m in _ASCII_ACRONYM_RE.finditer(line):
+            register(m.group(0), no, m.start())
+
+        # (a) カタカナ複合語 / (c) 固有名詞・製品名らしき語（sudachiのPOSが固有名詞、
+        # または先頭大文字の英単語=製品名によくある表層形）は形態素解析で連続する
+        # 同種の形態素をまとめて1つの候補語にする（元のスパンをそのまま使い、
+        # 語間の空白等も保持する）。
+        morphemes = list(tokenizer.tokenize(line, SplitMode.C))
+        i = 0
+        n = len(morphemes)
+        while i < n:
+            m0 = morphemes[i]
+            if _is_katakana_token(m0.surface()):
+                j = i + 1
+                while j < n and _is_katakana_token(morphemes[j].surface()):
+                    j += 1
+                span_start = m0.begin()
+                span_end = morphemes[j - 1].end()
+                term = line[span_start:span_end]
+                if len(term) >= TERMS_KATAKANA_MIN_LEN:
+                    register(term, no, span_start)
+                i = j
+                continue
+            if _is_proper_noun_or_capitalized_latin_morpheme(m0):
+                j = i + 1
+                while j < n and _is_proper_noun_or_capitalized_latin_morpheme(morphemes[j]):
+                    j += 1
+                span_start = m0.begin()
+                span_end = morphemes[j - 1].end()
+                term = line[span_start:span_end]
+                register(term, no, span_start)
+                i = j
+                continue
+            i += 1
+
+    results = []
+    for term, info in seen.items():
+        # 出現回数もコメントを除いた本文（masked_comments）基準で数える
+        # （校正メモ等のコメント内言及を実際の用語出現としてカウントしないため）。
+        count = len(re.findall(re.escape(term), masked_comments))
+        context, has_gloss_hint = _term_context_and_gloss_hint(
+            term, info["first_line"], masked_comments, line_offsets
+        )
+        results.append(
+            {
+                "term": term,
+                "first_line": info["first_line"],
+                "count": count,
+                "has_gloss_hint": has_gloss_hint,
+                "context": context,
+            }
+        )
+
+    # 初出順（文書内の実際の出現位置＝(first_line, first_offset) の昇順）。
+    # first_offset は出力スキーマに含めない内部情報なので、seen から引いてソートキーに使う。
+    results.sort(key=lambda r: (r["first_line"], seen[r["term"]]["first_offset"]))
+    return results
+
+
+def print_terms_human(path: Path, terms: list[dict]) -> None:
+    print(f"=== terms: {path} ===")
+    print(
+        "has_gloss_hint は「説明済みと判定した」印ではなく、初出近傍に説明マーカーが"
+        "見つかったという機械的なヒントに過ぎない。要確認は人間/AIの判断に委ねる。"
+    )
+    print()
+    if not terms:
+        print("(用語候補なし)")
+        return
+    for t in terms:
+        hint = "あり" if t["has_gloss_hint"] else "なし"
+        print(f"L{t['first_line']} {t['term']} (出現{t['count']}回, 説明手掛かり: {hint})")
+        print(f"    近傍: {t['context']}")
+        print()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="専門用語候補（カタカナ複合語/ASCII英略語/固有名詞）を初出順に抽出する（CI ゲートではない）。"
+    )
+    parser.add_argument("file", type=Path, help="対象の Markdown/テキストファイル")
+    parser.add_argument("--json", action="store_true", help="機械可読な JSON で出力する")
+    args = parser.parse_args()
+
+    # 「文章の中身に関する判断」と「そもそも実行できない入力エラー」は区別する。
+    # 前者（抽出結果）は exit 0、後者（ファイル不在/ディレクトリ指定/読み取り不可等）は exit 1。
+    text, err = read_source_file(args.file)
+    if err is not None:
+        print(err, file=sys.stderr)
+        return 1
+
+    terms = build_term_inventory(text)
+    if args.json:
+        print(json.dumps({"terms": terms}, ensure_ascii=False, indent=2))
+    else:
+        print_terms_human(args.file, terms)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+````py:scripts/textcore.py
+"""textcore.py — 検査層3スクリプト（lint.py / outline.py / terms.py）の共有基盤。
+
+エントリポイントではない（単体実行を想定しない）ため PEP 723 インラインメタデータは
+持たない。依存（sudachipy / sudachidict-core）は各エントリスクリプト側で宣言する。
+`uv run scripts/lint.py` 等の実行時は sys.path[0] が scripts/ ディレクトリになるため、
+同ディレクトリの `import textcore` がそのまま解決できる。
+
+提供するもの:
+    - sudachipy Tokenizer の遅延初期化（get_tokenizer）
+    - 文分割（split_sentences_with_lines 等）
+    - Markdown構造のマスク処理（mask_markdown_structure / mask_html_comments）
+    - 行番号付き反復・段落分割ユーティリティ
+    - 入力ファイルの読み込みと入力エラー処理（read_source_file）
+    - 共有データ構造（Finding）
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import re
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# 共有データ構造
+# ---------------------------------------------------------------------------
+
+@dataclasses.dataclass
+class Finding:
+    line: int
+    category: str
+    excerpt: str
+    severity: str  # "info" | "warn" | "critical"
+    detail: str = ""
+    # 文書全体集計型の検出器（antithesis_repetition, repeated_sentence_lead,
+    # repeated_syntax_template, paragraph_lead_conjunction, nominal_ending 等）で、
+    # 同じ集計に基づく他の該当行番号を列挙するための任意フィールド。
+    # 単発検出（forbidden_phrase 等）では None のまま。
+    related_lines: list[int] | None = None
+    # --baseline 比較を行ったときだけ "new" | "persisting" にセットされる
+    # （比較しない通常実行では None のまま。to_dict() で省く）。
+    status: str | None = None
+
+    def __post_init__(self) -> None:
+        # JSON 出力でも detail 表記と同じく重複除去・昇順に正規化する
+        if self.related_lines is not None:
+            self.related_lines = sorted(set(self.related_lines))
+
+    def to_dict(self) -> dict:
+        d = dataclasses.asdict(self)
+        # --baseline を使わない通常実行では status は常に None なので、
+        # JSON 出力のフィールド構成を従来どおりに保つためキー自体を省く
+        # （--baseline なしの挙動は完全に不変、という要件のため）。
+        if d.get("status") is None:
+            d.pop("status", None)
+        return d
+
+
+# ---------------------------------------------------------------------------
+# sudachipy Tokenizer は生成コスト（辞書ロード）が高いので遅延・使い回し。
+# ---------------------------------------------------------------------------
+_tokenizer_obj = None
+
+
+def get_tokenizer():
+    global _tokenizer_obj
+    if _tokenizer_obj is None:
+        from sudachipy import Dictionary
+
+        _tokenizer_obj = Dictionary().create()
+    return _tokenizer_obj
+
+
+# ---------------------------------------------------------------------------
+# 体言止め判定（lint.py の nominal_ending 検出器と outline.py の見出し統計で共用）。
+#
+# TRAILING_SYMBOL_POS / NOUN_ENDING_POS / strip_trailing_symbols() は元々
+# lint.py 側だけに定義されていたが、outline.py の見出し統計（体言止め率）でも
+# 同じ判定ロジックが必要になったため、共有基盤である textcore.py に移設した。
+# lint.py は本モジュールから import して使う（値は移設前と完全に同一）。
+# ---------------------------------------------------------------------------
+NOUN_ENDING_POS = {"名詞"}
+TRAILING_SYMBOL_POS = {"補助記号", "空白"}
+
+
+def strip_trailing_symbols(morphemes: list) -> list:
+    """文末（または見出し末尾）の記号（」など）を除いた実質的な最終形態素列を返す。"""
+    i = len(morphemes)
+    while i > 0 and morphemes[i - 1].part_of_speech()[0] in TRAILING_SYMBOL_POS:
+        i -= 1
+    return morphemes[:i]
+
+
+# ---------------------------------------------------------------------------
+# テンプレ見出し語彙カタログ（outline.py の見出し統計「テンプレ見出し検出」で使用）。
+#
+# lint.py の BOILERPLATE_HEADING_WORDS（「まとめ」「おわりに」等、締めの定型句のみ）
+# より対象を広げ、書き出し側の定型（「はじめに」「背景」）も含む。outline.py は
+# severity 付きの検出器ではなく統計提示なので、ここでのヒットは「AI臭い」の
+# 断定ではなく判断材料の一つに過ぎない。拡張前提のカタログとして、見出しの
+# 前方一致で判定する（例:「まとめと今後の課題」は「まとめ」にも「今後」にも
+# 一部一致しうるが、判定は startswith のみで十分。カタログはリスト順に評価し、
+# 最初に一致した語を採用する）。
+# ---------------------------------------------------------------------------
+TEMPLATE_HEADING_WORDS: list[str] = [
+    "はじめに",
+    "背景",
+    "概要",
+    "本記事について",
+    "この記事について",
+    "まとめと今後",
+    "今後の展望",
+    "今後の課題",
+    "今後について",
+    "まとめ",
+    "おわりに",
+    "終わりに",
+    "さいごに",
+    "最後に",
+    "結論",
+    "総括",
+    "conclusion",
+    "introduction",
+    "summary",
+]
+
+
+# ---------------------------------------------------------------------------
+# Markdown構造行のマスク処理
+# 見出し・リスト項目・コードブロック内・引用ブロックは「文章」ではないため、
+# 体言止め判定や翻訳調検出などの対象から外す。行を削除すると後続行の行番号が
+# ズレてレポートの L<n> が狂うので、該当行は「内容を空文字に置き換える」ことで
+# 行番号を保ったまま解析対象外にする（マスク方式）。
+# ---------------------------------------------------------------------------
+_HEADING_RE = re.compile(r"^\s*#{1,6}(\s|$)")
+_LIST_ITEM_RE = re.compile(r"^\s*([-*+]|\d+[.)])(\s|$)")
+_BLOCKQUOTE_RE = re.compile(r"^\s*>")
+# フェンス行の検出。開始/終了の判定では「同じ文字種（`` ` `` か `~`）かつ
+# 長さが開始フェンス以上」であることを別途チェックする（``` と ~~~ の混同や、
+# フェンス内に出てくる別種・より短いフェンス様の行での誤クローズを防ぐため）。
+_CODE_FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+# 表の行判定は保守的に: 「行が `|` で始まり、`|` を2個以上含む」または
+# 区切り行（`|---|---|` 的な、`-`/`:`/`|`/空白のみで構成される行）に限定する。
+# 本文中にたまたま `|` が1個だけ出るケースを誤マスクしないための条件。
+_TABLE_ROW_RE = re.compile(r"^\s*\|.*\|")
+_TABLE_DELIMITER_RE = re.compile(r"^\s*\|?[\s:|-]+\|[\s:|-]*\|?\s*$")
+# YAML フロントマター（ファイル先頭の `---` ... `---`）。先頭行が単独の `---` の
+# ときだけフロントマターとみなし、次の単独 `---` までをまとめてマスクする。
+_FRONT_MATTER_DELIM_RE = re.compile(r"^---\s*$")
+# インラインコードスパン（`code` / ``code`` のようにバッククォート1〜2個で
+# 囲まれた範囲）。CommonMark 完全準拠までは不要だが、コード自体にバッククォートを
+# 含む場合に使われる `` code `` 記法（主用途: コード中に単一のバッククォートが
+# 含まれる場合、例: `` `code` ``）程度は拾えるようにする。そのため、ダブル
+# バッククォート側の中身は「バッククォート以外」または「直後がバッククォートでない
+# 単独のバッククォート」を許可する（`(?:[^`]|`(?!`))+`）。貪欲になりすぎないよう
+# `` の直前で止まるようにしている。
+# 文解析前に該当部分だけ同じ文字数の空白に置換する（行番号・オフセットを保つため）。
+_INLINE_CODE_SPAN_RE = re.compile(r"``(?:[^`\n]|`(?!`))+``|`[^`\n]+`")
+# インデントコードブロック（4スペース以上のインデント）はマスク対象に含めない。
+# 通常の文中でも字下げされた引用・リストの続きなど紛らわしいケースが多く、
+# 誤マスクのリスクの方が高いと判断して見送る（要検討事項として明示しておく）。
+# Markdown 内のリンク・画像 `[text](url)` / `![alt](url)` の url 部分。
+# alt/text 側は自然文の一部として残し、URL のみ空白化する。
+_MARKDOWN_LINK_URL_RE = re.compile(r"(\]\()([^)]*)(\))")
+
+
+def _mask_html_comments_in_line(line: str, in_comment: bool) -> tuple[str, bool]:
+    """行内の HTML コメント（`<!-- ... -->`）を同じ長さの空白に置換する。
+
+    複数行コメント（前の行から続いている／次の行へ続く）に対応するため、
+    現在コメント内にいるかどうかを in_comment として受け取り、更新後の状態を
+    返す。1行に複数のコメントが含まれる場合や、コメントの開始・終了が
+    同一行内で完結する場合にも対応する。閉じタグ `-->` が見つからないまま
+    行末に達した場合は、行末までを空白化しコメント継続状態のまま返す
+    （CommonMark の閉じられないコメントは EOF までコメントとみなす扱いに合わせる）。
+    """
+    out = []
+    i = 0
+    n = len(line)
+    while i < n:
+        if in_comment:
+            close = line.find("-->", i)
+            if close == -1:
+                out.append(" " * (n - i))
+                i = n
+            else:
+                end = close + 3
+                out.append(" " * (end - i))
+                i = end
+                in_comment = False
+        else:
+            start = line.find("<!--", i)
+            if start == -1:
+                out.append(line[i:])
+                i = n
+            else:
+                out.append(line[i:start])
+                i = start
+                in_comment = True
+    return "".join(out), in_comment
+
+
+def mask_html_comments(text: str) -> str:
+    """HTML コメント（`<!-- ... -->`）のみを同じ長さの空白に置換したテキストを返す。
+
+    Markdown 構造（見出し・リスト・太字など）はマスクしない点が
+    mask_markdown_structure() と異なる。構造検出器（detect_structural_ai_habits）は
+    Markdown の構造そのものを検出対象とするため、構造はマスクせず、コメント内の
+    誤検知だけを防ぐために使う。行数・行内オフセットは元のテキストと完全に一致させる。
+    """
+    lines = text.split("\n")
+    masked_lines = []
+    in_html_comment = False
+    for line in lines:
+        masked_line, in_html_comment = _mask_html_comments_in_line(line, in_html_comment)
+        masked_lines.append(masked_line)
+    return "\n".join(masked_lines)
+
+
+def _blank_inline_code_spans(line: str) -> str:
+    """行内のインラインコードスパン・Markdownリンク/画像のURL部分を
+    同じ長さの空白に置換する（オフセット保持）。"""
+    line = _INLINE_CODE_SPAN_RE.sub(lambda m: " " * len(m.group(0)), line)
+    # `](url)` の url 部分だけ空白化し、`](` と `)` はそのまま残す
+    # （text/alt 側は文章の一部として解析対象に残すため）。
+    line = _MARKDOWN_LINK_URL_RE.sub(lambda m: m.group(1) + " " * len(m.group(2)) + m.group(3), line)
+    return line
+
+
+def mask_markdown_structure(text: str) -> str:
+    """見出し・リスト項目・コードブロック内・引用ブロック・表・YAMLフロントマターの行を
+    空文字に置き換え、さらにインラインコードスパンとリンク/画像URLを空白化したテキストを返す。
+    行数・行番号（およびインラインコードスパンの行内オフセット）は元のテキストと
+    完全に一致させる（削除ではなくマスク）。
+
+    インデントコードブロック（4スペースインデント）はマスク対象に含めない。
+    箇条書きの折り返しや引用の字下げ等と見分けがつきにくく、誤マスクのリスクが
+    フェンスコードブロックより高いと判断し、プロトタイプの段階では見送っている。
+    """
+    lines = text.split("\n")
+    masked_lines = []
+    in_code_block = False
+    # 開いているフェンスの (文字種, 長さ)。``` と ~~~ の混同や、フェンス内に
+    # 出てくる別種・より短いフェンス様の行での誤クローズを防ぐため、開始フェンスと
+    # 同じ文字種かつ同じ長さ以上の行でしか閉じない（CommonMark 準拠までは行わない）。
+    open_fence: tuple[str, int] | None = None
+    # YAML フロントマターは「ファイル先頭行が単独の `---`」の場合のみ認識する。
+    in_front_matter = False
+    # HTML コメント（<!-- ... -->）。複数行にまたがる場合があるため、
+    # 行をまたいで開いているかどうかを状態として持つ。
+    in_html_comment = False
+    for idx, line in enumerate(lines):
+        if idx == 0 and _FRONT_MATTER_DELIM_RE.match(line):
+            in_front_matter = True
+            masked_lines.append("")
+            continue
+        if in_front_matter:
+            masked_lines.append("")
+            if _FRONT_MATTER_DELIM_RE.match(line):
+                in_front_matter = False
+            continue
+
+        fence_match = _CODE_FENCE_RE.match(line)
+        if fence_match:
+            fence_run = fence_match.group(1)
+            fence_char = fence_run[0]
+            fence_len = len(fence_run)
+            # CommonMark に合わせ、閉じフェンスは「フェンス文字の連続＋後続は空白のみ」の
+            # 行に限定する（開始フェンスは ```python のような info string を許容するが、
+            # 閉じ側でそれを許すと、フェンス内の地の文がたまたま ``` で始まっただけの
+            # 行を誤ってクローズ扱いしてしまう）。
+            remainder_after_fence = line[fence_match.end() :]
+            is_close_eligible = remainder_after_fence.strip() == ""
+            if open_fence is None:
+                open_fence = (fence_char, fence_len)
+            elif fence_char == open_fence[0] and fence_len >= open_fence[1] and is_close_eligible:
+                open_fence = None
+            # 種類・長さが一致しない行、あるいは後ろに文字が続く行は
+            # 「フェンス内の地の文（例: ```内で ~~ とだけ書いた行や ```これはコード）」
+            # として扱い、トグルしない。
+            masked_lines.append("")
+            continue
+        if open_fence is not None:
+            masked_lines.append("")
+            continue
+
+        line, in_html_comment = _mask_html_comments_in_line(line, in_html_comment)
+
+        if (
+            _HEADING_RE.match(line)
+            or _LIST_ITEM_RE.match(line)
+            or _BLOCKQUOTE_RE.match(line)
+            or (_TABLE_ROW_RE.match(line) and line.count("|") >= 2)
+            or _TABLE_DELIMITER_RE.match(line)
+        ):
+            masked_lines.append("")
+            continue
+        masked_lines.append(_blank_inline_code_spans(line))
+    return "\n".join(masked_lines)
+
+
+
+def iter_lines_with_no(text: str) -> list[tuple[int, str]]:
+    """1-indexed 行番号付きで行を返す。"""
+    return list(enumerate(text.splitlines(), start=1))
+
+
+def find_line_no(lines: list[tuple[int, str]], needle: str, start_hint: int = 0) -> int:
+    """needle を含む行番号を探す。
+
+    start_hint（探索を始めたい行番号、例: 対象段落の開始行）以降を優先的に走査する。
+    同一内容の段落が文書中に複数回登場する場合、常に先頭から検索すると
+    最初に出現した行に誤帰属してしまうため、start_hint 以降の一致を優先し、
+    見つからない場合のみ文書全体（start_hint より前）にフォールバックする。
+    """
+    for no, line in lines:
+        if no >= start_hint and needle in line:
+            return no
+    for no, line in lines:
+        if needle in line:
+            return no
+    return start_hint or 1
+
+
+def iter_paragraphs_with_lines(
+    lines: list[tuple[int, str]],
+) -> list[list[tuple[int, str]]]:
+    """行番号付きの行リストを、空行区切りの段落（行のグループ）に分ける。
+
+    段落の開始行が呼び出し側に正確に分かるため、re.split(r"\\n\\s*\\n", text) と
+    テキスト検索（find_line_no）による近似の line_cursor 計算に頼らずに済む。
+    同一内容の段落が複数回登場しても、行番号を直接持っているので誤帰属しない。
+    """
+    paragraphs: list[list[tuple[int, str]]] = []
+    current: list[tuple[int, str]] = []
+    for no, line in lines:
+        if line.strip():
+            current.append((no, line))
+        else:
+            if current:
+                paragraphs.append(current)
+                current = []
+    if current:
+        paragraphs.append(current)
+    return paragraphs
+
+
+# ---------------------------------------------------------------------------
+# 文分割
+# ---------------------------------------------------------------------------
+SENTENCE_SPLIT_RE = re.compile(r"[。！？\n]")
+
+
+def split_sentences_with_lines(
+    lines: list[tuple[int, str]], raw_lines_by_no: dict[int, str] | None = None
+) -> list[tuple[int, str, str]]:
+    """行番号付きで文を分割する（。！？で分割、行内に複数文があれば同じ行番号を割り当てる）。
+
+    マスク済みテキスト（見出し・表マスクやインラインコードスパンの空白置換済み）と
+    原文（raw_lines_by_no）を同じオフセットで同時に切り出し、
+    (行番号, マスク済み文, 原文の文) の3要素タプルを返す。
+    マスク処理は「行の全置換（同じ長さの空文字ではなく行そのものを""にする）」か
+    「インラインコードスパンを同じ文字数の空白に置換」のいずれかで、
+    どちらも文字位置を保つため、マスク済みテキストで見つけた区切り位置をそのまま
+    原文の同じオフセットに適用できる。
+    見出し・表・コードブロックなどマスクで丸ごと空文字になった行は、マスク済み側が
+    空になり文が生成されないため、原文にレポートに出したくない構造行の内容が
+    紛れ込むことはない。
+    """
+    sentences = []
+    for no, line in lines:
+        raw_line = raw_lines_by_no.get(no, line) if raw_lines_by_no else line
+        bounds = []
+        prev = 0
+        for m in SENTENCE_SPLIT_RE.finditer(line):
+            bounds.append((prev, m.start()))
+            prev = m.end()
+        bounds.append((prev, len(line)))
+        for s, e in bounds:
+            piece = line[s:e]
+            if piece.strip():
+                raw_piece = raw_line[s:e] if len(raw_line) >= e else piece
+                sentences.append((no, piece.strip(), raw_piece.strip()))
+    return sentences
+
+
+# ---------------------------------------------------------------------------
+# 見出し行パーサ（outline.py / terms.py で共用）
+# ---------------------------------------------------------------------------
+
+
+def _heading_level_and_text(line: str) -> tuple[int, str]:
+    """見出し行から (レベル, 見出しテキスト) を取り出す。
+
+    ATX見出しの closing sequence（末尾の `#` 列）は、CommonMark と同様に
+    「直前に空白がある場合のみ」除去する。空白なしで見出しテキストに直接続く
+    `#`（例: 「# C#」「# F#入門」）は closing sequence ではなくテキストの一部
+    なので、除去してはいけない（`(?:\\s+#+)?` で closing sequence の手前に
+    最低1文字の空白を要求することで区別する）。
+    """
+    m = re.match(r"^\s*(#{1,6})\s*(.*?)(?:\s+#+)?\s*$", line)
+    if not m:
+        return 0, line.strip()
+    return len(m.group(1)), m.group(2).strip()
+
+
+# ---------------------------------------------------------------------------
+# ファイル読み込みと入力エラー処理
+#
+# 「文章の中身に関する判断」と「そもそも実行できない入力エラー」は区別する
+# （lint.py/outline.py/terms.py 共通の方針）。前者は exit 0（判断は人間/AIに委ねる）、
+# 後者（ファイル不在・ディレクトリ指定・読み取り不可・非UTF-8等）は exit 1。
+# 3つのエントリスクリプトがまったく同じエラーメッセージ・判定順序で読み込めるよう、
+# ここに一本化する。
+# ---------------------------------------------------------------------------
+
+
+def read_source_file(path: Path) -> tuple[str | None, str | None]:
+    """path を UTF-8 テキストとして読み込む。
+
+    成功時は (text, None)、失敗時は (None, error_message) を返す。
+    呼び出し側は error_message を stderr に出力し、exit code 1 で終了する
+    （このモジュールは exit しない。呼び出し側の CLI が判断する）。
+    """
+    if not path.exists():
+        return None, f"エラー: ファイルが見つかりません: {path}"
+    if path.is_dir():
+        return None, f"エラー: ディレクトリが指定されました（ファイルを指定してください）: {path}"
+    try:
+        return path.read_text(encoding="utf-8"), None
+    except (OSError, UnicodeDecodeError) as exc:
+        return None, f"エラー: ファイルを読み込めません: {path} ({exc})"
+````
+
+```py:scripts/calibrate.py
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "sudachipy>=0.6.8",
+#     "sudachidict-core>=20240409",
+# ]
+# ///
+"""calibrate.py — corpus/ を使って scripts/lint.py の検出器を統計的に校正する。
+
+設計:
+    scripts/lint.py を subprocess で --json 実行するのではなく、importlib で
+    同ディレクトリの lint.py を直接モジュールとしてロードし、検出関数を
+    直接呼ぶ。理由: sweep サブコマンドで検出器の内部閾値パラメータ（例:
+    burstiness_threshold）を変えながら何度も評価する必要があり、subprocess 越しの
+    CLI 呼び出しではプロセス起動コストと閾値受け渡しの両方がボトルネックになる。
+    lint.py 側は、この用途のためにすべての検出関数の閾値を「デフォルト値
+    付きのキーワード引数（モジュールレベル定数がデフォルト）」として公開しており、
+    引数を渡さなければ CLI と完全に同じ挙動になる。
+    lint.py は textcore.py（sudachi トークナイザ・マスク処理・文分割等の共有基盤、
+    scripts/outline.py・scripts/terms.py とも共用）に依存する。`uv run
+    scripts/calibrate.py` 実行時は sys.path[0] が scripts/ ディレクトリになるため、
+    importlib で読み込んだ lint.py 内部の `from textcore import ...` もそのまま解決できる。
+
+使い方:
+    uv run scripts/calibrate.py report
+    uv run scripts/calibrate.py sweep --detector low_burstiness
+    uv run scripts/calibrate.py length-analysis
+
+出力は corpus/reports/ に Markdown + JSON で保存する（.gitignore 対象）。
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import json
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[2]  # scripts/ -> natural-japanese/ -> skills/ -> repo root
+CORPUS_DIR = REPO_ROOT / "corpus"
+REPORTS_DIR = CORPUS_DIR / "reports"
+
+
+def load_lint_module():
+    """scripts/lint.py をモジュールとして読み込む。
+
+    lint.py 自体はハイフンを含まない通常のモジュール名になったが、
+    calibrate.py が sweep サブコマンドで検出関数を直接呼び、実行のたびに
+    パス経由でロードし直せるようにする設計は変えていないため、
+    importlib.util.spec_from_file_location による明示ロードを維持する。
+    """
+    lint_path = SCRIPT_DIR / "lint.py"
+    spec = importlib.util.spec_from_file_location("lint", lint_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"lint.py をロードできません: {lint_path}")
+    module = importlib.util.module_from_spec(spec)
+    # dataclasses は cls.__module__ から sys.modules を引いて型解決するため、
+    # exec_module() の前に sys.modules へ登録しておく必要がある
+    # （登録しないと Finding/TokenizedSentence 等の @dataclass 定義で
+    # 「'NoneType' object has no attribute '__dict__'」になる）。
+    sys.modules["lint"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+# ---------------------------------------------------------------------------
+# コーパス読み込み
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CorpusDoc:
+    corpus_type: str  # "human_aozora" | "human_web" | "ai"
+    path: Path
+    text: str
+    char_count: int = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.char_count = len(self.text)
+
+
+def _read_texts(directory: Path, patterns: list[str]) -> list[Path]:
+    if not directory.exists():
+        return []
+    files: list[Path] = []
+    for pat in patterns:
+        files.extend(sorted(directory.rglob(pat)))
+    return files
+
+
+def _load_sources_genre_map() -> dict[str, str]:
+    """corpus/sources.json の id -> genre マップを返す（business 判定用）。
+    ファイルが無い/壊れている場合は空 dict を返す（コーパスが部分的でも動く要件）。
+    """
+    sources_path = CORPUS_DIR / "sources.json"
+    if not sources_path.exists():
+        return {}
+    try:
+        entries = json.loads(sources_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {e.get("id"): e.get("genre") for e in entries if isinstance(e, dict) and e.get("id")}
+
+
+def load_corpus() -> dict[str, list[CorpusDoc]]:
+    """corpus/human/aozora, corpus/human/web, corpus/ai/**  を読み込む。
+    存在しないディレクトリ・0件のディレクトリがあっても構わない
+    （コーパスが部分的でも動く要件）。読めないファイル（binary 等）はスキップする。
+
+    加えて、business ジャンル校正用に human_business / ai_business のサブビンも作る。
+    human 側は corpus/sources.json の genre=="business" で判定（human/web 配下の
+    biz-* ファイル）。ai 側はファイル名が "business-" で始まるかで判定
+    （corpus/ai/<model>/business-*.md の命名規則に依拠）。
+    どちらも上記の human_web / ai 集合の部分集合であり、二重集計にはならない
+    （report のマトリクスでは別列として並べて表示するだけ）。
+    """
+    groups: dict[str, list[CorpusDoc]] = {
+        "human_aozora": [],
+        "human_web": [],
+        "human_business": [],
+        "ai": [],
+        "ai_business": [],
+    }
+
+    genre_map = _load_sources_genre_map()
+
+    aozora_files = _read_texts(CORPUS_DIR / "human" / "aozora", ["*.txt", "*.md"])
+    for p in aozora_files:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if text.strip():
+            groups["human_aozora"].append(CorpusDoc("human_aozora", p, text))
+
+    web_files = _read_texts(CORPUS_DIR / "human" / "web", ["*.md", "*.txt"])
+    for p in web_files:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if text.strip():
+            groups["human_web"].append(CorpusDoc("human_web", p, text))
+            if genre_map.get(p.stem) == "business":
+                groups["human_business"].append(CorpusDoc("human_business", p, text))
+
+    ai_files = _read_texts(CORPUS_DIR / "ai", ["*.md", "*.txt"])
+    for p in ai_files:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if text.strip():
+            groups["ai"].append(CorpusDoc("ai", p, text))
+            if p.name.startswith("business-"):
+                groups["ai_business"].append(CorpusDoc("ai_business", p, text))
+
+    return groups
+
+
+# ---------------------------------------------------------------------------
+# 前処理: 1文書につき1回だけ lines/sentences/tokenized を作る
+# （sweep で同じ文書に対して何度も検出関数を呼ぶため、形態素解析等の重い処理を
+# 使い回すためのキャッシュ）。
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PreparedDoc:
+    doc: CorpusDoc
+    lines: list
+    raw_lines_by_no: dict
+    sentences: list
+    tokenized: list
+    findings: list = field(default_factory=list)
+    stats: dict = field(default_factory=dict)
+
+
+def prepare_doc(mod, doc: CorpusDoc) -> PreparedDoc:
+    text = mod.mask_markdown_structure(doc.text)
+    lines = mod.iter_lines_with_no(text)
+    raw_lines_by_no = dict(mod.iter_lines_with_no(doc.text))
+    sentences = mod.split_sentences_with_lines(lines, raw_lines_by_no)
+    tokenized = mod.tokenize_sentences(sentences)
+    return PreparedDoc(
+        doc=doc, lines=lines, raw_lines_by_no=raw_lines_by_no, sentences=sentences, tokenized=tokenized
+    )
+
+
+def run_full_lint(mod, prepared: PreparedDoc) -> None:
+    """通常の run_lint() 相当を、既に prepare_doc() 済みの中間データを使って実行し、
+    prepared.findings / prepared.stats を埋める（report / length-analysis 用）。
+    run_lint() 自体は文書全体を再度 mask/split/tokenize してしまうため、
+    ここでは中間データを再利用する軽量版として組み立て直す。
+    """
+    findings = []
+    findings += mod.detect_forbidden_phrases(prepared.lines, prepared.raw_lines_by_no)
+    findings += mod.detect_translationese(prepared.lines, prepared.raw_lines_by_no)
+    findings += mod.detect_antithesis_repetition(prepared.lines, prepared.raw_lines_by_no)
+    findings += mod.detect_low_sentence_length_variance(prepared.sentences)
+    findings += mod.detect_english_syntax_smell(prepared.lines, prepared.raw_lines_by_no)
+
+    nominal_and_conj_findings, morph_stats = mod.detect_nominal_ending_and_paragraph_conjunctions(
+        prepared.lines, prepared.tokenized, prepared.raw_lines_by_no
+    )
+    findings += nominal_and_conj_findings
+    findings += mod.detect_translationese_morph(prepared.tokenized)
+    findings += mod.detect_inanimate_subject_morph(prepared.tokenized)
+    # nested_attributive は 2026-07 コーパス校正で削除済み（弁別力なし）。
+
+    rhythm_findings, rhythm_stats = mod.detect_rhythm_statistics(prepared.tokenized)
+    findings += rhythm_findings
+
+    ngram_findings, ngram_stats = mod.detect_ngram_repetition(prepared.tokenized)
+    findings += ngram_findings
+
+    lexdiv_findings, lexdiv_stats = mod.detect_lexical_diversity(prepared.tokenized)
+    findings += lexdiv_findings
+
+    low_spec_findings, low_spec_stats = mod.detect_low_specificity(prepared.lines, prepared.raw_lines_by_no)
+    findings += low_spec_findings
+
+    # 構造層検出器（2026-07新設）はマスク前の raw テキストに対して働く。
+    # calibrate.py は run_lint() の EXPERIMENTAL_CATEGORIES フィルタを経由しない
+    # （個別の detect_* を直接呼ぶ設計）ため、実験的カテゴリの生の発火率もそのまま
+    # report/length-analysis に出る。これは意図的（校正のためにこそ実データが要る）。
+    structural_findings, structural_stats = mod.detect_structural_ai_habits(prepared.doc.text)
+    findings += structural_findings
+
+    prepared.findings = findings
+    prepared.stats = {
+        **morph_stats,
+        "rhythm": rhythm_stats,
+        "ngram": ngram_stats,
+        "lexical_diversity": lexdiv_stats,
+        "structural": structural_stats,
+        "low_specificity": low_spec_stats,
+    }
+
+
+# 検出器カテゴリの一覧（report のマトリクス行に使う）。lint.py の
+# run_lint() が生成しうる category と対応させている。
+# nested_attributive は 2026-07 コーパス校正で検出器ごと削除（弁別力なし）。
+ALL_CATEGORIES = [
+    "forbidden_phrase",
+    "translationese",
+    "translationese_morph",
+    "antithesis_repetition",
+    "low_sentence_variance",
+    "english_syntax_inanimate_subject",
+    "english_syntax_cleft_because",
+    "inanimate_subject_morph",
+    "nominal_ending",
+    "paragraph_lead_conjunction",
+    "uniform_paragraph_structure",
+    "low_burstiness",
+    "high_length_autocorrelation",
+    "repeated_sentence_lead",
+    "repeated_syntax_template",
+    "low_lexical_diversity_ttr",
+    "low_lexical_diversity_mtld",
+    # 構造層検出器（2026-07新設、マスク前の raw テキストが対象）
+    "high_bold_density",
+    "high_bullet_ratio",
+    "boilerplate_heading",
+    "numbered_phase_structure",
+    "high_emoji_symbol_density",
+    "low_specificity",
+]
+
+# 統計指標系検出器（文書長に応じて弁別力が変わるもの。length-analysis の対象）。
+STATISTICAL_CATEGORIES = [
+    "low_sentence_variance",
+    "low_burstiness",
+    "high_length_autocorrelation",
+    "nominal_ending",
+    "paragraph_lead_conjunction",
+    "uniform_paragraph_structure",
+    "repeated_syntax_template",
+    "low_lexical_diversity_ttr",
+    "low_lexical_diversity_mtld",
+    "low_specificity",
+]
+
+
+# ---------------------------------------------------------------------------
+# report サブコマンド
+# ---------------------------------------------------------------------------
+
+
+def cmd_report(mod) -> None:
+    groups = load_corpus()
+    prepared_by_type: dict[str, list[PreparedDoc]] = {}
+    for corpus_type, docs in groups.items():
+        prepared_list = []
+        for doc in docs:
+            prepared = prepare_doc(mod, doc)
+            run_full_lint(mod, prepared)
+            prepared_list.append(prepared)
+        prepared_by_type[corpus_type] = prepared_list
+
+    sample_counts = {k: len(v) for k, v in prepared_by_type.items()}
+
+    # マトリクス: category x corpus_type -> (文書発火率, 1000字あたり件数)
+    matrix: dict[str, dict[str, dict]] = {}
+    for category in ALL_CATEGORIES:
+        matrix[category] = {}
+        for corpus_type, prepared_list in prepared_by_type.items():
+            n_docs = len(prepared_list)
+            if n_docs == 0:
+                matrix[category][corpus_type] = {
+                    "doc_fire_rate": None,
+                    "per_1000_chars": None,
+                    "n_docs": 0,
+                }
+                continue
+            fired_docs = 0
+            total_hits = 0
+            total_chars = 0
+            for p in prepared_list:
+                hits = [f for f in p.findings if f.category == category]
+                if hits:
+                    fired_docs += 1
+                total_hits += len(hits)
+                total_chars += p.doc.char_count
+            doc_fire_rate = fired_docs / n_docs
+            per_1000 = (total_hits / total_chars * 1000) if total_chars else 0.0
+            matrix[category][corpus_type] = {
+                "doc_fire_rate": doc_fire_rate,
+                "per_1000_chars": per_1000,
+                "n_docs": n_docs,
+                "fired_docs": fired_docs,
+            }
+
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    json_path = REPORTS_DIR / "report.json"
+    md_path = REPORTS_DIR / "report.md"
+
+    json_path.write_text(
+        json.dumps(
+            {"sample_counts": sample_counts, "matrix": matrix},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    lines_out = []
+    lines_out.append("# calibrate.py report — 検出器×コーパス種別ヒット率マトリクス")
+    lines_out.append("")
+    lines_out.append(
+        f"標本数: human_aozora={sample_counts['human_aozora']}件, "
+        f"human_web={sample_counts['human_web']}件（うち business={sample_counts['human_business']}件）, "
+        f"ai={sample_counts['ai']}件（うち business={sample_counts['ai_business']}件）"
+    )
+    lines_out.append("")
+    lines_out.append(
+        "各セルは「文書発火率（1件以上検出した文書の割合）／1000字あたり件数」。"
+        "標本0件の種別は `-` 表記。human_business/ai_business はそれぞれ "
+        "human_web/ai の部分集合（business ジャンルのみ）で、二重集計ではなく参考列。"
+    )
+    lines_out.append("")
+    lines_out.append("| 検出器 | human_aozora | human_web | human_business | ai | ai_business |")
+    lines_out.append("| --- | --- | --- | --- | --- | --- |")
+    for category in ALL_CATEGORIES:
+        row = [category]
+        for corpus_type in ("human_aozora", "human_web", "human_business", "ai", "ai_business"):
+            cell = matrix[category][corpus_type]
+            if cell["n_docs"] == 0:
+                row.append("-")
+            else:
+                row.append(f"{cell['doc_fire_rate']:.0%} / {cell['per_1000_chars']:.2f}")
+        lines_out.append("| " + " | ".join(row) + " |")
+
+    lines_out.append("")
+    lines_out.append(
+        "注意: human_aozora は現在12本、human_web/ai はコーパス収集・生成が"
+        "進行中のため標本数が少ない場合がある。標本数が少ないカテゴリの数値は"
+        "参考値として扱うこと。"
+    )
+
+    md_path.write_text("\n".join(lines_out) + "\n", encoding="utf-8")
+    print(f"書き出し: {md_path}")
+    print(f"書き出し: {json_path}")
+    print()
+    print("\n".join(lines_out))
+
+
+# ---------------------------------------------------------------------------
+# sweep サブコマンド
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class DetectorSweepSpec:
+    category: str
+    param_name: str
+    default: float
+    values: list[float]
+    # prepared: PreparedDoc, value: float -> bool（そのカテゴリが1件以上検出されたか）
+    run: object
+
+
+def _fired(findings: list, category: str) -> bool:
+    return any(f.category == category for f in findings)
+
+
+def build_sweep_registry(mod) -> dict[str, DetectorSweepSpec]:
+    def run_low_burstiness(p: PreparedDoc, value: float) -> bool:
+        findings, _ = mod.detect_rhythm_statistics(p.tokenized, burstiness_threshold=value)
+        return _fired(findings, "low_burstiness")
+
+    def run_high_length_autocorrelation(p: PreparedDoc, value: float) -> bool:
+        findings, _ = mod.detect_rhythm_statistics(p.tokenized, autocorr_threshold=value)
+        return _fired(findings, "high_length_autocorrelation")
+
+    def run_low_sentence_variance(p: PreparedDoc, value: float) -> bool:
+        findings = mod.detect_low_sentence_length_variance(p.sentences, threshold=value)
+        return _fired(findings, "low_sentence_variance")
+
+    def run_nominal_ending(p: PreparedDoc, value: float) -> bool:
+        findings, _ = mod.detect_nominal_ending_and_paragraph_conjunctions(
+            p.lines, p.tokenized, p.raw_lines_by_no, nominal_ratio_threshold=value
+        )
+        return _fired(findings, "nominal_ending")
+
+    def run_paragraph_lead_conjunction(p: PreparedDoc, value: float) -> bool:
+        findings, _ = mod.detect_nominal_ending_and_paragraph_conjunctions(
+            p.lines, p.tokenized, p.raw_lines_by_no, conj_ratio_threshold=value
+        )
+        return _fired(findings, "paragraph_lead_conjunction")
+
+    def run_uniform_paragraph_structure(p: PreparedDoc, value: float) -> bool:
+        findings, _ = mod.detect_nominal_ending_and_paragraph_conjunctions(
+            p.lines, p.tokenized, p.raw_lines_by_no, uniform_cv_threshold=value
+        )
+        return _fired(findings, "uniform_paragraph_structure")
+
+    def run_antithesis_repetition(p: PreparedDoc, value: float) -> bool:
+        findings = mod.detect_antithesis_repetition(p.lines, p.raw_lines_by_no, threshold=int(value))
+        return _fired(findings, "antithesis_repetition")
+
+    # nested_attributive は 2026-07 コーパス校正で削除済み（弁別力なし、sweep対象外）。
+
+    def run_repeated_sentence_lead(p: PreparedDoc, value: float) -> bool:
+        findings, _ = mod.detect_ngram_repetition(p.tokenized, lead_repeat_threshold=int(value))
+        return _fired(findings, "repeated_sentence_lead")
+
+    def run_repeated_syntax_template(p: PreparedDoc, value: float) -> bool:
+        findings, _ = mod.detect_ngram_repetition(p.tokenized, template_ratio_threshold=value)
+        return _fired(findings, "repeated_syntax_template")
+
+    def run_low_lexical_diversity_ttr(p: PreparedDoc, value: float) -> bool:
+        findings, _ = mod.detect_lexical_diversity(p.tokenized, ttr_threshold=value)
+        return _fired(findings, "low_lexical_diversity_ttr")
+
+    def run_low_lexical_diversity_mtld(p: PreparedDoc, value: float) -> bool:
+        findings, _ = mod.detect_lexical_diversity(p.tokenized, mtld_threshold=value)
+        return _fired(findings, "low_lexical_diversity_mtld")
+
+    def run_low_specificity(p: PreparedDoc, value: float) -> bool:
+        findings, _ = mod.detect_low_specificity(p.lines, p.raw_lines_by_no, score_threshold=value)
+        return _fired(findings, "low_specificity")
+
+    def frange(lo: float, hi: float, step: float) -> list[float]:
+        n = round((hi - lo) / step)
+        return [round(lo + i * step, 6) for i in range(n + 1)]
+
+    return {
+        "low_burstiness": DetectorSweepSpec(
+            "low_burstiness", "burstiness_threshold", mod.BURSTINESS_THRESHOLD,
+            frange(-0.9, -0.2, 0.02), run_low_burstiness,
+        ),
+        "high_length_autocorrelation": DetectorSweepSpec(
+            "high_length_autocorrelation", "autocorr_threshold", mod.AUTOCORR_THRESHOLD,
+            frange(0.1, 0.95, 0.05), run_high_length_autocorrelation,
+        ),
+        "low_sentence_variance": DetectorSweepSpec(
+            "low_sentence_variance", "threshold", mod.SENTENCE_VARIANCE_CV_THRESHOLD,
+            frange(0.05, 0.6, 0.02), run_low_sentence_variance,
+        ),
+        "nominal_ending": DetectorSweepSpec(
+            "nominal_ending", "nominal_ratio_threshold", mod.NOMINAL_ENDING_RATIO_THRESHOLD,
+            frange(0.05, 0.6, 0.02), run_nominal_ending,
+        ),
+        "paragraph_lead_conjunction": DetectorSweepSpec(
+            "paragraph_lead_conjunction", "conj_ratio_threshold", mod.PARAGRAPH_CONJ_RATIO_THRESHOLD,
+            frange(0.05, 0.7, 0.02), run_paragraph_lead_conjunction,
+        ),
+        "uniform_paragraph_structure": DetectorSweepSpec(
+            "uniform_paragraph_structure", "uniform_cv_threshold", mod.UNIFORM_PARAGRAPH_CV_THRESHOLD,
+            frange(0.02, 0.5, 0.02), run_uniform_paragraph_structure,
+        ),
+        "antithesis_repetition": DetectorSweepSpec(
+            "antithesis_repetition", "threshold", mod.ANTITHESIS_REPETITION_THRESHOLD,
+            [1, 2, 3, 4, 5, 6, 7, 8], run_antithesis_repetition,
+        ),
+        # nested_attributive は 2026-07 コーパス校正で削除済み（弁別力なし、sweep登録も削除）。
+        "repeated_sentence_lead": DetectorSweepSpec(
+            "repeated_sentence_lead", "lead_repeat_threshold", mod.NGRAM_LEAD_REPEAT_THRESHOLD,
+            [1, 2, 3, 4, 5, 6, 7, 8], run_repeated_sentence_lead,
+        ),
+        "repeated_syntax_template": DetectorSweepSpec(
+            "repeated_syntax_template", "template_ratio_threshold", mod.NGRAM_TEMPLATE_RATIO_THRESHOLD,
+            frange(0.1, 0.9, 0.05), run_repeated_syntax_template,
+        ),
+        "low_lexical_diversity_ttr": DetectorSweepSpec(
+            "low_lexical_diversity_ttr", "ttr_threshold", mod.TTR_THRESHOLD,
+            frange(0.2, 0.7, 0.02), run_low_lexical_diversity_ttr,
+        ),
+        "low_lexical_diversity_mtld": DetectorSweepSpec(
+            "low_lexical_diversity_mtld", "mtld_threshold", mod.MTLD_THRESHOLD,
+            frange(10, 90, 2), run_low_lexical_diversity_mtld,
+        ),
+        "low_specificity": DetectorSweepSpec(
+            "low_specificity", "score_threshold", mod.LOW_SPECIFICITY_SCORE_THRESHOLD,
+            frange(-0.3, 0.6, 0.02), run_low_specificity,
+        ),
+    }
+
+
+def cmd_sweep(mod, detector_name: str) -> None:
+    registry = build_sweep_registry(mod)
+    if detector_name not in registry:
+        print(f"エラー: 未知の検出器名: {detector_name}", file=sys.stderr)
+        print(f"利用可能: {', '.join(sorted(registry))}", file=sys.stderr)
+        sys.exit(1)
+    spec = registry[detector_name]
+
+    groups = load_corpus()
+    human_docs = groups["human_aozora"] + groups["human_web"]
+    ai_docs = groups["ai"]
+
+    human_prepared = [prepare_doc(mod, d) for d in human_docs]
+    ai_prepared = [prepare_doc(mod, d) for d in ai_docs]
+
+    curve = []
+    for value in spec.values:
+        human_fp = 0
+        for p in human_prepared:
+            try:
+                if spec.run(p, value):
+                    human_fp += 1
+            except Exception:
+                # 統計系検出器は最低サンプル数未満だと空リストを返すだけで例外は
+                # 起きない設計だが、想定外の入力（極端な閾値等）でも1文書の
+                # 失敗でスイープ全体を落とさないよう保険を掛けておく。
+                pass
+        ai_hit = 0
+        for p in ai_prepared:
+            try:
+                if spec.run(p, value):
+                    ai_hit += 1
+            except Exception:
+                pass
+        human_fp_rate = human_fp / len(human_prepared) if human_prepared else None
+        ai_detect_rate = ai_hit / len(ai_prepared) if ai_prepared else None
+        curve.append(
+            {
+                "value": value,
+                "human_fp_rate": human_fp_rate,
+                "human_fp_count": human_fp,
+                "ai_detect_rate": ai_detect_rate,
+                "ai_detect_count": ai_hit,
+            }
+        )
+
+    # 「人間FP率5%未満でAI検出率最大」の推奨閾値
+    candidates = [c for c in curve if c["human_fp_rate"] is not None and c["human_fp_rate"] < 0.05]
+    recommended = None
+    if candidates:
+        recommended = max(candidates, key=lambda c: (c["ai_detect_rate"] or 0.0))
+
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    json_path = REPORTS_DIR / f"sweep_{detector_name}.json"
+    md_path = REPORTS_DIR / f"sweep_{detector_name}.md"
+
+    json_path.write_text(
+        json.dumps(
+            {
+                "detector": detector_name,
+                "param_name": spec.param_name,
+                "default": spec.default,
+                "n_human": len(human_prepared),
+                "n_ai": len(ai_prepared),
+                "curve": curve,
+                "recommended": recommended,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    lines_out = []
+    lines_out.append(f"# calibrate.py sweep — {detector_name}")
+    lines_out.append("")
+    lines_out.append(f"パラメータ: `{spec.param_name}`（現行デフォルト値: {spec.default}）")
+    lines_out.append(f"標本数: human={len(human_prepared)}件, ai={len(ai_prepared)}件")
+    lines_out.append("")
+    lines_out.append("| 値 | 人間FP率 | AI検出率 |")
+    lines_out.append("| --- | --- | --- |")
+    for c in curve:
+        hr = f"{c['human_fp_rate']:.1%}" if c["human_fp_rate"] is not None else "-"
+        ar = f"{c['ai_detect_rate']:.1%}" if c["ai_detect_rate"] is not None else "-"
+        lines_out.append(f"| {c['value']} | {hr} | {ar} |")
+    lines_out.append("")
+    if recommended is not None:
+        lines_out.append(
+            f"**推奨閾値**: `{spec.param_name}={recommended['value']}`"
+            f"（人間FP率={recommended['human_fp_rate']:.1%}, AI検出率={recommended['ai_detect_rate']:.1%}）"
+        )
+    else:
+        lines_out.append(
+            "**推奨閾値**: 人間FP率5%未満を満たす値が見つからなかった"
+            "（標本数不足、または検出器がこのコーパスでは常に人間側にも反応する可能性）"
+        )
+    lines_out.append("")
+    lines_out.append(
+        "注意: human/ai の標本数が少ないうちは1件の増減でFP率/検出率が大きく動く。"
+        "コーパス規模が拡充されるまでは参考値として扱うこと。"
+    )
+
+    md_path.write_text("\n".join(lines_out) + "\n", encoding="utf-8")
+    print(f"書き出し: {md_path}")
+    print(f"書き出し: {json_path}")
+    print()
+    print("\n".join(lines_out))
+
+
+# ---------------------------------------------------------------------------
+# length-analysis サブコマンド
+# ---------------------------------------------------------------------------
+
+LENGTH_BINS = [
+    ("~1000字", 0, 1000),
+    ("~2000字", 1000, 2000),
+    ("~4000字", 2000, 4000),
+    ("4000字~", 4000, None),
+]
+
+
+def _bin_for_length(n: int) -> str:
+    for label, lo, hi in LENGTH_BINS:
+        if hi is None:
+            if n >= lo:
+                return label
+        elif lo <= n < hi:
+            return label
+    return LENGTH_BINS[-1][0]
+
+
+def cmd_length_analysis(mod) -> None:
+    groups = load_corpus()
+    human_docs = groups["human_aozora"] + groups["human_web"]
+    ai_docs = groups["ai"]
+
+    human_prepared = [prepare_doc(mod, d) for d in human_docs]
+    ai_prepared = [prepare_doc(mod, d) for d in ai_docs]
+    for p in human_prepared + ai_prepared:
+        run_full_lint(mod, p)
+
+    # bin -> category -> {"human": {fired, total}, "ai": {fired, total}}
+    result: dict[str, dict[str, dict]] = {}
+    for label, _, _ in LENGTH_BINS:
+        result[label] = {cat: {"human_fired": 0, "human_total": 0, "ai_fired": 0, "ai_total": 0} for cat in STATISTICAL_CATEGORIES}
+
+    def tally(prepared_list: list[PreparedDoc], key: str) -> None:
+        for p in prepared_list:
+            b = _bin_for_length(p.doc.char_count)
+            for cat in STATISTICAL_CATEGORIES:
+                result[b][cat][f"{key}_total"] += 1
+                if _fired(p.findings, cat):
+                    result[b][cat][f"{key}_fired"] += 1
+
+    tally(human_prepared, "human")
+    tally(ai_prepared, "ai")
+
+    # 各指標の「最低有効文書長」推定: そのbinで human_total>=3 かつ ai_total>=1 の
+    # 最小binのうち、弁別力(ai_rate - human_rate)が正になる最小のbin下限を採用する。
+    # データが薄い場合は「判定不能」とする。
+    min_effective_length: dict[str, str | None] = {}
+    for cat in STATISTICAL_CATEGORIES:
+        found_bin = None
+        for label, lo, _ in LENGTH_BINS:
+            cell = result[label][cat]
+            if cell["human_total"] == 0 and cell["ai_total"] == 0:
+                continue
+            human_rate = cell["human_fired"] / cell["human_total"] if cell["human_total"] else None
+            ai_rate = cell["ai_fired"] / cell["ai_total"] if cell["ai_total"] else None
+            if human_rate is not None and ai_rate is not None and ai_rate > human_rate:
+                found_bin = label
+                break
+        min_effective_length[cat] = found_bin
+
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    json_path = REPORTS_DIR / "length_analysis.json"
+    md_path = REPORTS_DIR / "length_analysis.md"
+
+    json_path.write_text(
+        json.dumps(
+            {
+                "n_human": len(human_prepared),
+                "n_ai": len(ai_prepared),
+                "bins": result,
+                "min_effective_length_bin": min_effective_length,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    lines_out = []
+    lines_out.append("# calibrate.py length-analysis — 統計指標系検出器の文書長別弁別力")
+    lines_out.append("")
+    lines_out.append(f"標本数: human={len(human_prepared)}件, ai={len(ai_prepared)}件")
+    lines_out.append("")
+    for label, _, _ in LENGTH_BINS:
+        lines_out.append(f"## {label}")
+        lines_out.append("")
+        lines_out.append("| 検出器 | human発火率(n) | ai発火率(n) |")
+        lines_out.append("| --- | --- | --- |")
+        for cat in STATISTICAL_CATEGORIES:
+            cell = result[label][cat]
+            h = (
+                f"{cell['human_fired']/cell['human_total']:.0%} (n={cell['human_total']})"
+                if cell["human_total"]
+                else "- (n=0)"
+            )
+            a = (
+                f"{cell['ai_fired']/cell['ai_total']:.0%} (n={cell['ai_total']})"
+                if cell["ai_total"]
+                else "- (n=0)"
+            )
+            lines_out.append(f"| {cat} | {h} | {a} |")
+        lines_out.append("")
+
+    lines_out.append("## 推定「最低有効文書長」")
+    lines_out.append("")
+    lines_out.append(
+        "ai発火率がhuman発火率を上回り始める最小の文書長ビン（弁別力が正になる最小ビン）。"
+        "両側とも標本があるビンのみ判定対象。"
+    )
+    lines_out.append("")
+    lines_out.append("| 検出器 | 最低有効文書長ビン |")
+    lines_out.append("| --- | --- |")
+    for cat in STATISTICAL_CATEGORIES:
+        b = min_effective_length[cat]
+        lines_out.append(f"| {cat} | {b if b else '判定不能（標本不足）'} |")
+    lines_out.append("")
+    lines_out.append(
+        "注意: コーパスが小規模なうちはビンごとの標本数が非常に少なく、"
+        "結果は暫定値。コーパス拡充後に再実行して確定させること。"
+    )
+
+    md_path.write_text("\n".join(lines_out) + "\n", encoding="utf-8")
+    print(f"書き出し: {md_path}")
+    print(f"書き出し: {json_path}")
+    print()
+    print("\n".join(lines_out))
+
+
+# ---------------------------------------------------------------------------
+# メイン
+# ---------------------------------------------------------------------------
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="lint.py 検出器の統計校正スクリプト")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("report", help="検出器×コーパス種別のヒット率マトリクスを出力")
+
+    sweep_parser = sub.add_parser("sweep", help="指定検出器の閾値を範囲スイープする")
+    sweep_parser.add_argument("--detector", required=True, help="検出器名（例: low_burstiness）")
+
+    sub.add_parser("length-analysis", help="統計指標系検出器の文書長別弁別力を分析する")
+
+    args = parser.parse_args()
+
+    mod = load_lint_module()
+
+    if args.command == "report":
+        cmd_report(mod)
+    elif args.command == "sweep":
+        cmd_sweep(mod, args.detector)
+    elif args.command == "length-analysis":
+        cmd_length_analysis(mod)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
 ```
 
 ## japanese-tech-writing
