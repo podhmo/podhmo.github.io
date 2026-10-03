@@ -33,7 +33,12 @@ export function AppRootComponent({ breadcrumbsVNode, mainContentView, currentSou
             <footer>
                 <small>Powered by Vanilla JS, Preact & Pico.css</small>
                 <br />
-                <p><a href="https://github.com/podhmo/podhmo.github.io/blob/master/chatgpt/Template.md">Template.md</a>を読み込んで表示してる</p>
+                <p>
+                    <a href="?source=./Template.md">Template.md</a> /
+                    <a href="?source=./Skills.md">Skills.md</a>
+                    を読み込んで表示してる (
+                    <a href="https://github.com/podhmo/podhmo.github.io/tree/master/chatgpt">GitHub</a>)
+                </p>
                 <label htmlFor="sourceUrlInput_approot">Load from URL:</label>
                 <input
                     type="text"
