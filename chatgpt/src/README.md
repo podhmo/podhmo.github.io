@@ -13,7 +13,7 @@ This application allows users to:
 -   **Categorized Templates**: Prompts are organized by `# Category` and `## Template Name` from a Markdown source.
 -   **Placeholder Support**: Templates can use `{{placeholder_name}}` syntax for dynamic input.
 -   **Clipboard Copy**: Easily copy the generated prompt.
--   **Download**: Download the finalized prompt as a `.md` file. When a template has multiple prompt blocks, they are merged into a single file (each part wrapped in `<file name="...">` when the block has a title).
+-   **Download**: Download the merged prompt as a `.md` file. Unlike the clipboard copy, the file contains only the prompt bodies — a single block is downloaded as-is, and multiple blocks are merged into one file with each part wrapped in `<file name="...">` (the block title, or `part-N` when untitled).
 -   **Custom Markdown Source**: Load templates from any accessible Markdown URL via a query parameter (`?source=URL_TO_MARKDOWN`). Defaults to `./Template.md`.
 
 ### style

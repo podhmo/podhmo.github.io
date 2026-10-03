@@ -106,22 +106,22 @@ ${instruction}
     };
 
     const handleDownload = () => {
+        // The downloaded file is the merged prompt itself, without the
+        // chat-oriented decorations (title, <details> wrapper, target text)
+        // that buildFinalPrompt adds for the copy button.
         const processedBodies = template.prompts.map(prompt => getProcessedPromptBody(prompt.body));
-        const isRaw = template.prompts.length === 1 && template.prompts[0].language.toLowerCase() === 'raw';
 
-        let instruction;
+        let content;
         if (template.prompts.length === 1) {
-            instruction = processedBodies[0];
+            content = processedBodies[0];
         } else {
-            instruction = template.prompts.map((prompt, index) => {
+            content = template.prompts.map((prompt, index) => {
                 const name = prompt.title || `part-${index + 1}`;
                 return `<file name="${name}">\n${processedBodies[index]}\n</file>`;
             }).join('\n\n');
         }
 
-        const finalPrompt = buildFinalPrompt(instruction, isRaw);
-
-        const blob = new Blob([finalPrompt], { type: 'text/markdown;charset=utf-8' });
+        const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
         const objectUrl = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = objectUrl;
