@@ -111,8 +111,7 @@ async function main(): Promise<void> {
 
 https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14 で取り上げられた writing skill をプロンプトテンプレートにしたもの。
 
-- ブロック単位でコピーするか、「Download (.md)」で全ブロックを合成した1つのプロンプトとして取り出せる
-- このファイルは tools/sync-writing-skills.ts で生成している (手編集しない)。再生成: node tools/sync-writing-skills.ts WritingSkills.md (chatgpt/ から。Node 24+ 必須)
+ℹ️ このファイルは tools/sync-writing-skills.ts で生成している
 `);
 
   for (const skill of SKILLS) {
