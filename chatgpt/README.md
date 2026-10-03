@@ -4,6 +4,7 @@
 
 - https://podhmo.github.io/chatgpt/
 - https://podhmo.github.io/chatgpt/?source=./WritingSkills.md (WritingSkills.md -- 日本語推敲スキル集)
+- https://podhmo.github.io/chatgpt/lint/ (yomiyasu lint -- ブラウザ内 pyodide 実行)
   
 
 ## tools
