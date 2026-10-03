@@ -72,7 +72,7 @@ export function TemplateDetailView(template, router, appState, requestRender) {
         }
     };
 
-    const handleCopy = async (instruction, isRaw, buttonElement) => {
+    const buildFinalPrompt = (instruction, isRaw) => {
         const title = document.getElementById('prompt-title').value;
         const targetText = document.getElementById('prompt-target-text').value;
 
@@ -92,8 +92,44 @@ ${instruction}
 </details>`;
             finalPrompt += createTargetDocumentSection(targetText);
         }
+        return finalPrompt;
+    };
 
+    const handleCopy = async (instruction, isRaw, buttonElement) => {
+        const finalPrompt = buildFinalPrompt(instruction, isRaw);
         await copyToClipboard(finalPrompt, buttonElement);
+    };
+
+    const buildDownloadFilename = () => {
+        const sanitized = template.templateName.replace(/[\\/:*?"<>|]/g, '-').trim();
+        return `${sanitized || 'prompt'}.md`;
+    };
+
+    const handleDownload = () => {
+        const processedBodies = template.prompts.map(prompt => getProcessedPromptBody(prompt.body));
+        const isRaw = template.prompts.length === 1 && template.prompts[0].language.toLowerCase() === 'raw';
+
+        let instruction;
+        if (template.prompts.length === 1) {
+            instruction = processedBodies[0];
+        } else {
+            instruction = template.prompts.map((prompt, index) => {
+                const name = prompt.title || `part-${index + 1}`;
+                return `<file name="${name}">\n${processedBodies[index]}\n</file>`;
+            }).join('\n\n');
+        }
+
+        const finalPrompt = buildFinalPrompt(instruction, isRaw);
+
+        const blob = new Blob([finalPrompt], { type: 'text/markdown;charset=utf-8' });
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = buildDownloadFilename();
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(objectUrl);
     };
     
     // Testable version of getProcessedPromptBody
@@ -201,6 +237,14 @@ ${instruction}
                         placeholder="Enter target text, a URL, or leave blank for chat history..."
                     ></textarea>
                 </div>
+                <button
+                    class="download-button"
+                    title=${template.prompts.length > 1
+                        ? `${template.prompts.length}個のプロンプトを1つのファイルに合成してダウンロード`
+                        : 'プロンプトをファイルとしてダウンロード'}
+                    onClick=${handleDownload}>
+                    Download (.md)
+                </button>
             </section>
 
             <h4>Prompt Template(s):</h4>
@@ -209,7 +253,7 @@ ${instruction}
                 const processedBody = getProcessedPromptBody(prompt.body);
                 return html`
                     <div class="template-body-container">
-                        ${prompt.language ? html`<small>Language: ${prompt.language}</small>` : null}
+                        ${(prompt.language || prompt.title) ? html`<small>${prompt.language}${prompt.title ? ` — ${prompt.title}` : ''}</small>` : null}
                         <button
                             class="copy-button"
                             onClick=${async (e) => await handleCopy(processedBody, isRaw, e.target)}>

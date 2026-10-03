@@ -352,6 +352,71 @@ prompt for 次のテンプレート
     });
 });
 
+Deno.test("Markdown Parser: Code block titles (info string)", async (t) => {
+    await t.step("should capture title from 'lang:title' info string", () => {
+        const md = `
+# Category T
+## Template T1
+\`\`\`md:SKILL.md
+prompt body
+\`\`\`
+        `;
+        const result = parseMarkdown(md);
+        const prompt = result[0].templates[0].prompts[0];
+        assertEquals(prompt.language, "md");
+        assertEquals(prompt.title, "SKILL.md");
+        assertEquals(prompt.body, "prompt body");
+    });
+
+    await t.step("should capture title from 'lang title' info string", () => {
+        const md = `
+# Category T
+## Template T1
+\`\`\`md references/slop-catalog.md
+prompt body
+\`\`\`
+        `;
+        const result = parseMarkdown(md);
+        const prompt = result[0].templates[0].prompts[0];
+        assertEquals(prompt.language, "md");
+        assertEquals(prompt.title, "references/slop-catalog.md");
+    });
+
+    await t.step("should capture path-like title from 'lang:path' (llm-scaffold style)", () => {
+        const md = `
+# Category T
+## Template T1
+\`\`\`\`typescript:src/components/Button.tsx
+const x = 1;
+\`\`\`\`
+        `;
+        const result = parseMarkdown(md);
+        const prompt = result[0].templates[0].prompts[0];
+        assertEquals(prompt.language, "typescript");
+        assertEquals(prompt.title, "src/components/Button.tsx");
+        assertEquals(prompt.body, "const x = 1;");
+    });
+
+    await t.step("should leave title empty for plain language info strings", () => {
+        const md = `
+# Category T
+## Template T1
+\`\`\`js
+console.log(1);
+\`\`\`
+\`\`\`
+no language
+\`\`\`
+        `;
+        const result = parseMarkdown(md);
+        const prompts = result[0].templates[0].prompts;
+        assertEquals(prompts[0].language, "js");
+        assertEquals(prompts[0].title, "");
+        assertEquals(prompts[1].language, "");
+        assertEquals(prompts[1].title, "");
+    });
+});
+
 Deno.test("Markdown Parser: Edge Cases", async (t) => {
     await t.step("should return empty array for markdown with only non-header text", () => {
         const md = `

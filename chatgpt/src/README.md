@@ -13,6 +13,7 @@ This application allows users to:
 -   **Categorized Templates**: Prompts are organized by `# Category` and `## Template Name` from a Markdown source.
 -   **Placeholder Support**: Templates can use `{{placeholder_name}}` syntax for dynamic input.
 -   **Clipboard Copy**: Easily copy the generated prompt.
+-   **Download**: Download the finalized prompt as a `.md` file. When a template has multiple prompt blocks, they are merged into a single file (each part wrapped in `<file name="...">` when the block has a title).
 -   **Custom Markdown Source**: Load templates from any accessible Markdown URL via a query parameter (`?source=URL_TO_MARKDOWN`). Defaults to `./Template.md`.
 
 ### style
@@ -53,6 +54,7 @@ The application expects a specific Markdown structure:
 -   **Code Blocks** (e.g., ` ``` ` or ` ```` `): The content of code blocks is treated as the prompt template body.
     -   The parser attempts to handle varying numbers of backticks for code block fences.
     -   The language identifier (e.g., ` ```js`) is captured.
+    -   An optional **title** can follow the language identifier, either as ` ```lang:title` (llm-scaffold style, e.g., ` ```md:SKILL.md`) or ` ```lang title` (e.g., ` ```md SKILL.md`). The title is shown next to the block and is used as the file name when merging multiple blocks into one download.
 -   Any text outside of these structures, within a category or template scope, is treated as a description for that scope.
 
 Example `Template.md`:
