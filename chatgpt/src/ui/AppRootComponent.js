@@ -39,6 +39,9 @@ export function AppRootComponent({ breadcrumbsVNode, mainContentView, currentSou
                     を読み込んで表示してる (
                     <a href="https://github.com/podhmo/podhmo.github.io/tree/master/chatgpt">GitHub</a>)
                 </p>
+                <p>
+                    <a href="./lint/">lint</a>: yomiyasu_lint.py をブラウザ内で実行 (pyodide)
+                </p>
                 <label htmlFor="sourceUrlInput_approot">Load from URL:</label>
                 <input
                     type="text"
