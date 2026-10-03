@@ -1,6 +1,6 @@
 # 日本語推敲スキル
 
-[Qiita の比較記事](https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14)で取り上げられた Agent Skill を、コピペ/Download 可能なプロンプトテンプレートにしたもの。
+https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14 で取り上げられた writing skill をプロンプトテンプレートにしたもの。
 
 - ブロック単位でコピーするか、「Download (.md)」で全ブロックを合成した1つのプロンプトとして取り出せる
 - このファイルは tools/sync-writing-skills.ts で生成している (手編集しない)。再生成: node tools/sync-writing-skills.ts WritingSkills.md (chatgpt/ から。Node 24+ 必須)
@@ -8,10 +8,10 @@
 
 ## yomiyasu
 
-AIが生成した不自然な日本語を読みやすく直す Agent Skill。文の骨格(誰が・何を・どうした)や比喩動詞を具体化するタイプ。
+AIが生成した不自然な日本語を読みやすく直す writing skill。文の骨格(誰が・何を・どうした)や比喩動詞を具体化するタイプ。
 
 - 出典: https://github.com/nanaism/yomiyasu (MIT)
-- 参考: [Qiita の比較記事](https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14)
+- 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
 - scripts/ の lint 系 python スクリプトはプロンプトには含めていない。Python が使えない環境では SKILL.md 記載の目視点検で代替する
 
 
@@ -638,10 +638,10 @@ Qiita 7万件調査（逆瀬川 2026）の実証データに基づき、読者�
 
 ## natural-japanese
 
-仕事の日本語文書を読みやすく書く・直す Agent Skill。「設計 → 執筆 → 検査 → 収束」の工程を持ち、文書タイプ別の型 (references/doctypes/) を含む。
+仕事の日本語文書を読みやすく書く・直す writing skill。「設計 → 執筆 → 検査 → 収束」の工程を持ち、文書タイプ別の型 (references/doctypes/) を含む。
 
 - 出典: https://github.com/coji/natural-japanese (MIT)
-- 参考: [Qiita の比較記事](https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14)
+- 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
 - scripts/ の lint.py 等 (uv 前提) はプロンプトには含めていない。実行できない環境では references/manual-checklist.md を使う
 
 
@@ -2522,7 +2522,7 @@ After は「案件情報の二重入力」という具体的な課題に対し�
 日本語の技術文書・書籍原稿の文章規範。パラグラフライティング、論証の厳密さ、読み手の負荷、LLM っぽい空句の禁止などを定める。
 
 - 出典: https://gist.github.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d (Unlicense)
-- 参考: [Qiita の比較記事](https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14)
+- 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
 
 
 ```md:SKILL.md
