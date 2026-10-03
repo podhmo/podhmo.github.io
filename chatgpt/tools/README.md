@@ -4,7 +4,7 @@
 - ai-studio-download    -- Google AI Studioの対話履歴をダウンロードするツール(JSON形式)
 - llm-scaffold          -- llmの生成結果をそのままディレクトリに転写したい
 - normalize-text        -- テキストのエスケープシーケンス変換とホームディレクトリの正規化
-- sync-skills           -- Agent Skill (github/gist) の markdown を取り寄せて ../Skills.md を生成
+- sync-writing-skills   -- 文章推敲系 Agent Skill (github/gist) の markdown を取り寄せて ../WritingSkills.md を生成
 
 ## install
 

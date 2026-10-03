@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Agent Skill リポジトリ/gist から markdown 群を取り寄せ、
-// Prompt Template Clipper 形式 (chatgpt/Template.md と同じ) の Skills.md を生成する。
+// Prompt Template Clipper 形式 (chatgpt/Template.md と同じ) の WritingSkills.md を生成する。
 //
 // 使い方 (Node 24+ 必須: .ts を直接実行する):
-//   node sync-skills.ts [output.md]
-//   # またはリポジトリルートから: node chatgpt/tools/sync-skills.ts chatgpt/Skills.md
+//   node sync-writing-skills.ts [output.md]
+//   # またはリポジトリルートから: node chatgpt/tools/sync-writing-skills.ts chatgpt/WritingSkills.md
 //
 
 // 各スキルの構成ファイルは ` ```md:<path> ` 形式のタイトル付きコードブロックとして
@@ -104,7 +104,7 @@ function fenceFor(body: string): string {
 }
 
 async function main(): Promise<void> {
-  const output = process.argv[2] ?? "../Skills.md";
+  const output = process.argv[2] ?? "../WritingSkills.md";
   const chunks: string[] = [];
 
   chunks.push(`# 日本語推敲スキル
@@ -112,7 +112,7 @@ async function main(): Promise<void> {
 [Qiita の比較記事](https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14)で取り上げられた Agent Skill を、コピペ/Download 可能なプロンプトテンプレートにしたもの。
 
 - ブロック単位でコピーするか、「Download (.md)」で全ブロックを合成した1つのプロンプトとして取り出せる
-- このファイルは tools/sync-skills.ts で生成している (手編集しない)。再生成: node tools/sync-skills.ts Skills.md (chatgpt/ から。Node 24+ 必須)
+- このファイルは tools/sync-writing-skills.ts で生成している (手編集しない)。再生成: node tools/sync-writing-skills.ts WritingSkills.md (chatgpt/ から。Node 24+ 必須)
 `);
 
   for (const skill of SKILLS) {

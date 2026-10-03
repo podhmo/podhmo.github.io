@@ -35,7 +35,7 @@ export function AppRootComponent({ breadcrumbsVNode, mainContentView, currentSou
                 <br />
                 <p>
                     <a href="?source=./Template.md">Template.md</a> /
-                    <a href="?source=./Skills.md">Skills.md</a>
+                    <a href="?source=./WritingSkills.md">WritingSkills.md</a>
                     を読み込んで表示してる (
                     <a href="https://github.com/podhmo/podhmo.github.io/tree/master/chatgpt">GitHub</a>)
                 </p>
