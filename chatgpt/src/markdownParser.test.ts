@@ -1,5 +1,8 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { test } from "node:test";
+import assert from "node:assert/strict";
 import { parseMarkdown } from "./markdownParser.js";
+
+const assertEquals = assert.deepStrictEqual;
 
 // JSDocの型定義を元にテスト用の型を定義 (実際のアサーションは構造で行います)
 /**
@@ -23,15 +26,15 @@ import { parseMarkdown } from "./markdownParser.js";
  * @property {ParsedTemplate[]} templates
  */
 
-Deno.test("Markdown Parser: Core Functionality", async (t) => {
+test("Markdown Parser: Core Functionality", async (t) => {
 
-    await t.step("should return empty array for empty markdown", () => {
+    await t.test("should return empty array for empty markdown", () => {
         const md = "";
         const result = parseMarkdown(md);
         assertEquals(result, []);
     });
 
-    await t.step("should parse a single category with only a name", () => {
+    await t.test("should parse a single category with only a name", () => {
         const md = "# Category 1";
         const result = parseMarkdown(md);
         assertEquals(result.length, 1);
@@ -40,7 +43,7 @@ Deno.test("Markdown Parser: Core Functionality", async (t) => {
         assertEquals(result[0].templates, []);
     });
 
-    await t.step("should parse a single category with description", () => {
+    await t.test("should parse a single category with description", () => {
         const md = `
 # Category 1
 Description for category 1.
@@ -54,7 +57,7 @@ Line 2.
         assertEquals(result[0].templates, []);
     });
 
-    await t.step("should parse a category and a template with no descriptions or prompts", () => {
+    await t.test("should parse a category and a template with no descriptions or prompts", () => {
         const md = `
 # Category A
 ## Template A1
@@ -71,7 +74,7 @@ Line 2.
         assertEquals(templateA1.categoryName, "Category A");
     });
 
-    await t.step("should parse category, template, description, and one prompt", () => {
+    await t.test("should parse category, template, description, and one prompt", () => {
         const md = `
 # Category B
 Cat B desc.
@@ -94,7 +97,7 @@ console.log("Hello");
         assertEquals(templateB1.prompts[0].body, 'console.log("Hello");');
     });
 
-    await t.step("should parse multiple prompts in one template with descriptions in between", () => {
+    await t.test("should parse multiple prompts in one template with descriptions in between", () => {
         const md = `
 # Category C
 ## Template C1
@@ -123,7 +126,7 @@ Template C1 desc second part.
         assertEquals(templateC1.prompts[1].body, '{ "key": "value" }');
     });
 
-    await t.step("should handle code blocks with different fence lengths (3, 4, 5 backticks)", () => {
+    await t.test("should handle code blocks with different fence lengths (3, 4, 5 backticks)", () => {
         const md = `
 # Category D
 ## Template D1
@@ -145,7 +148,7 @@ Block with 5 backticks
         assertEquals(templateD1.prompts[2].body, "Block with 5 backticks");
     });
 
-    await t.step("should ignore '#' and '##' inside code blocks", () => {
+    await t.test("should ignore '#' and '##' inside code blocks", () => {
         const md = `
 # Category E
 ## Template E1
@@ -160,7 +163,7 @@ Block with 5 backticks
         assertEquals(templateE1.prompts[0].body, "# This is not a category\n## This is not a template");
     });
 
-    await t.step("should handle multiple categories and templates", () => {
+    await t.test("should handle multiple categories and templates", () => {
         const md = `
 # Category X
 Desc X
@@ -204,7 +207,7 @@ Prompt Y2
         assertEquals(result[1].templates[1].prompts[0].body, "Prompt Y2");
     });
 
-    await t.step("should correctly assign descriptions appearing after prompts to the current template", () => {
+    await t.test("should correctly assign descriptions appearing after prompts to the current template", () => {
         const md = `
 # Category F
 ## Template F1
@@ -221,7 +224,7 @@ Description after prompt, but before next template or category. This should belo
         assertEquals(templateF1.prompts.length, 1);
     });
     
-    await t.step("should handle template with no prompts but with description", () => {
+    await t.test("should handle template with no prompts but with description", () => {
         const md = `
 # Category G
 ## Template G1
@@ -235,7 +238,7 @@ Line 2 of description.
         assertEquals(templateG1.prompts, []);
     });
 
-    await t.step("should handle code block using tildes (~~~)", () => {
+    await t.test("should handle code block using tildes (~~~)", () => {
         const md = `
 # Category H
 ## Template H1
@@ -250,7 +253,7 @@ let a = 1;
         assertEquals(templateH1.prompts[0].body, "let a = 1;");
     });
 
-    await t.step("should correctly parse a simplified grok-like template structure", () => {
+    await t.test("should correctly parse a simplified grok-like template structure", () => {
         const mdSimpleGrokTemplate = `
 # grok
 Some category description for grok.
@@ -275,7 +278,7 @@ POST URL: {{post_url}}
     });
 });
 
-Deno.test("Markdown Parser: Complex ChatGPT-like structure from Template.md", async (t) => {
+test("Markdown Parser: Complex ChatGPT-like structure from Template.md", async (t) => {
     // This test uses a structure similar to the ChatGPT example in Template.md
     const md = `
 # ChatGPT
@@ -313,7 +316,7 @@ prompt for 次のテンプレート
 \`\`\`
 `;
 
-    await t.step("ChatGPT category and '良さそうなプロンプト集' template details", () => {
+    await t.test("ChatGPT category and '良さそうなプロンプト集' template details", () => {
         const result = parseMarkdown(md);
         assertEquals(result.length, 1);
         const chatGptCategory = result[0];
@@ -340,7 +343,7 @@ prompt for 次のテンプレート
         assertEquals(promptTemplate.prompts[1].body, "文章表現は一切変えずに...\n{{target_text}}");
     });
 
-    await t.step("Next template ('次のテンプレート') in ChatGPT category", () => {
+    await t.test("Next template ('次のテンプレート') in ChatGPT category", () => {
         const result = parseMarkdown(md); // Re-parse or use from previous step if stateful
         const chatGptCategory = result[0];
         const nextTemplate = chatGptCategory.templates[1];
@@ -352,8 +355,73 @@ prompt for 次のテンプレート
     });
 });
 
-Deno.test("Markdown Parser: Edge Cases", async (t) => {
-    await t.step("should return empty array for markdown with only non-header text", () => {
+test("Markdown Parser: Code block titles (info string)", async (t) => {
+    await t.test("should capture title from 'lang:title' info string", () => {
+        const md = `
+# Category T
+## Template T1
+\`\`\`md:SKILL.md
+prompt body
+\`\`\`
+        `;
+        const result = parseMarkdown(md);
+        const prompt = result[0].templates[0].prompts[0];
+        assertEquals(prompt.language, "md");
+        assertEquals(prompt.title, "SKILL.md");
+        assertEquals(prompt.body, "prompt body");
+    });
+
+    await t.test("should capture title from 'lang title' info string", () => {
+        const md = `
+# Category T
+## Template T1
+\`\`\`md references/slop-catalog.md
+prompt body
+\`\`\`
+        `;
+        const result = parseMarkdown(md);
+        const prompt = result[0].templates[0].prompts[0];
+        assertEquals(prompt.language, "md");
+        assertEquals(prompt.title, "references/slop-catalog.md");
+    });
+
+    await t.test("should capture path-like title from 'lang:path' (llm-scaffold style)", () => {
+        const md = `
+# Category T
+## Template T1
+\`\`\`\`typescript:src/components/Button.tsx
+const x = 1;
+\`\`\`\`
+        `;
+        const result = parseMarkdown(md);
+        const prompt = result[0].templates[0].prompts[0];
+        assertEquals(prompt.language, "typescript");
+        assertEquals(prompt.title, "src/components/Button.tsx");
+        assertEquals(prompt.body, "const x = 1;");
+    });
+
+    await t.test("should leave title empty for plain language info strings", () => {
+        const md = `
+# Category T
+## Template T1
+\`\`\`js
+console.log(1);
+\`\`\`
+\`\`\`
+no language
+\`\`\`
+        `;
+        const result = parseMarkdown(md);
+        const prompts = result[0].templates[0].prompts;
+        assertEquals(prompts[0].language, "js");
+        assertEquals(prompts[0].title, "");
+        assertEquals(prompts[1].language, "");
+        assertEquals(prompts[1].title, "");
+    });
+});
+
+test("Markdown Parser: Edge Cases", async (t) => {
+    await t.test("should return empty array for markdown with only non-header text", () => {
         const md = `
 This is some text.
 But no category or template headers.
@@ -362,7 +430,7 @@ But no category or template headers.
         assertEquals(result, []);
     });
 
-    await t.step("should handle text at the very beginning before any headers", () => {
+    await t.test("should handle text at the very beginning before any headers", () => {
         const md = `
 Preface text.
 # Category 1

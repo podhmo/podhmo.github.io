@@ -1,6 +1,7 @@
 /**
  * @typedef {object} ParsedPrompt
  * @property {string} language - コードブロックの言語指定 (例: "js", "md", "")
+ * @property {string} title - コードブロックのinfo文字列の残り (例: "```md:SKILL.md" なら "SKILL.md")。未指定の場合は ""
  * @property {string} body - プロンプトのテンプレート本体
  */
 
@@ -41,6 +42,7 @@ export function parseMarkdown(markdownText) {
     let currentDescriptionLines = [];
     let inCodeBlock = false;
     let codeBlockLang = '';
+    let codeBlockTitle = '';
     let codeBlockLines = [];
     let codeBlockFence = ''; // ``` or ```` etc.
 
@@ -51,12 +53,14 @@ export function parseMarkdown(markdownText) {
                 if (currentTemplate) {
                     currentTemplate.prompts.push({
                         language: codeBlockLang,
+                        title: codeBlockTitle,
                         body: codeBlockLines.join('\n')
                     });
                 }
                 inCodeBlock = false;
                 codeBlockLines = [];
                 codeBlockLang = '';
+                codeBlockTitle = '';
                 codeBlockFence = '';
             } else {
                 codeBlockLines.push(line);
@@ -64,11 +68,24 @@ export function parseMarkdown(markdownText) {
             continue;
         }
 
-        const codeBlockMatch = line.match(/^(`{3,}|~{3,})(\w*)/); // ```lang or ````lang
+        const codeBlockMatch = line.match(/^(`{3,}|~{3,})(.*)/); // ```lang or ````lang or ```lang:title
         if (codeBlockMatch) {
             inCodeBlock = true;
             codeBlockFence = codeBlockMatch[1]; // ``` or ````
-            codeBlockLang = codeBlockMatch[2] || '';
+            // info文字列を language と title に分解する。
+            // "lang:path" (llm-scaffold 互換) または "lang title" の形を受け付ける。
+            const infoString = (codeBlockMatch[2] || '').trim();
+            const firstSpace = infoString.search(/\s/);
+            const firstToken = firstSpace === -1 ? infoString : infoString.slice(0, firstSpace);
+            const restAfterToken = firstSpace === -1 ? '' : infoString.slice(firstSpace).trim();
+            const colonIndex = firstToken.indexOf(':');
+            if (colonIndex !== -1) {
+                codeBlockLang = firstToken.slice(0, colonIndex);
+                codeBlockTitle = firstToken.slice(colonIndex + 1) + (restAfterToken ? ' ' + restAfterToken : '');
+            } else {
+                codeBlockLang = firstToken;
+                codeBlockTitle = restAfterToken;
+            }
             // 現在のdescriptionをtemplateに割り当て
             if (currentTemplate && currentDescriptionLines.length > 0) {
                 currentTemplate.description += currentDescriptionLines.join('\n').trim() + '\n\n';
