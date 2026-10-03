@@ -1,0 +1,11 @@
+{
+  "name": "ai-studio-download",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "google-auth-library": "9.15.1"
+  }
+}

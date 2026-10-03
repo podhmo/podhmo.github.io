@@ -1,4 +1,4 @@
 # install individual tools
 setup:
-	grep "deno install" README.md | bash -xe
+	./install.sh
 .PHONY: setup

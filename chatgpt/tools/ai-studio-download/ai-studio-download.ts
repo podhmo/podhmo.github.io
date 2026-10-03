@@ -1,7 +1,11 @@
-import { parse } from "jsr:@std/flags@0.224.0";
-import { GoogleAuth } from "npm:google-auth-library@9.0.0";
-import { join } from "jsr:@std/path@0.224.0";
-import { Select } from "jsr:@cliffy/prompt@1.0.0-rc.7/select"; // Updated to rc.4 as per jsr.io
+#!/usr/bin/env node
+// Usage: node ai-studio-download.ts [-o output_dir] [--keyFile path] (Node 24+ 必須)
+// 依存: このディレクトリで `npm install` 済みであること (google-auth-library)
+import { parseArgs } from "node:util";
+import { GoogleAuth } from "google-auth-library";
+import { join } from "node:path";
+import { mkdir, stat, writeFile } from "node:fs/promises";
+import * as readline from "node:readline/promises";
 
 const DRIVE_API_URL = "https://www.googleapis.com/drive/v3";
 const AI_STUDIO_FOLDER_NAME = "Google AI Studio";
@@ -29,8 +33,8 @@ async function getAuthenticatedClient() {
     console.error(
       "認証クライアントの取得に失敗しました。環境変数 GOOGLE_APPLICATION_CREDENTIALS が正しく設定されているか、サービスアカウントキーファイルへのアクセス権限があるか確認してください。",
     );
-    console.error("エラー詳細:", error.message);
-    Deno.exit(1);
+    console.error("エラー詳細:", (error as Error).message);
+    process.exit(1);
   }
 }
 
@@ -54,7 +58,7 @@ async function findAiStudioFolderId(client: any): Promise<string | null> {
   } catch (error) {
     console.error(
       `"${AI_STUDIO_FOLDER_NAME}" フォルダの検索中にエラーが発生しました:`,
-      error.message,
+      (error as Error).message,
     );
     return null;
   }
@@ -83,7 +87,7 @@ async function listFiles(client: any, folderId: string): Promise<DriveFile[]> {
       pageToken = response.data.nextPageToken;
     } while (pageToken);
   } catch (error) {
-    console.error("ファイル一覧の取得中にエラーが発生しました:", error.message);
+    console.error("ファイル一覧の取得中にエラーが発生しました:", (error as Error).message);
     // エラーが発生した場合は空の配列を返すか、nullを返して呼び出し元で処理する
     return [];
   }
@@ -125,7 +129,7 @@ async function downloadFileInteractive(
         },
     });
 
-    if (!fetchResponse.ok || !fetchResponse.body) {
+    if (!fetchResponse.ok) {
       const errorText = await fetchResponse.text();
       console.error(
         `ファイルのダウンロードに失敗しました (ID: ${fileId})。ステータス: ${fetchResponse.status}`,
@@ -141,51 +145,84 @@ async function downloadFileInteractive(
 
     if (outputDir) {
         try {
-            await Deno.mkdir(outputDir, { recursive: true });
+            await mkdir(outputDir, { recursive: true });
         } catch (e) {
-            if (!(e instanceof Deno.errors.AlreadyExists)) {
-                console.error(`出力ディレクトリの作成に失敗しました: ${outputDir}`, e.message);
-                return;
-            }
+            console.error(`出力ディレクトリの作成に失敗しました: ${outputDir}`, (e as Error).message);
+            return;
         }
     }
 
-    const file = await Deno.open(outputPath, { write: true, create: true });
-    await fetchResponse.body.pipeTo(file.writable);
+    const buffer = Buffer.from(await fetchResponse.arrayBuffer());
+    await writeFile(outputPath, buffer);
 
     console.log(`ファイル "${originalName}" を "${outputPath}" としてダウンロードしました。`);
   } catch (error) {
     console.error(
       `ファイルのダウンロード中にエラーが発生しました (ID: ${fileId}):`,
-      error.message,
+      (error as Error).message,
     );
   }
 }
 
+/** 番号入力 + 絞り込み文字列で候補を1つ選ぶ (cliffy の Select.prompt の簡易代替) */
+async function selectPrompt(
+  message: string,
+  options: { name: string; value: string }[],
+): Promise<string | undefined> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    let candidates = options;
+    for (;;) {
+      candidates.forEach((opt, i) => console.log(`  ${i + 1}) ${opt.name}`));
+      const answer = (
+        await rl.question(`${message}\n番号または絞り込み文字列を入力 (空Enterでキャンセル): `)
+      ).trim();
+      if (!answer) return undefined;
+      const num = Number.parseInt(answer, 10);
+      if (Number.isInteger(num) && num >= 1 && num <= candidates.length) {
+        return candidates[num - 1].value;
+      }
+      const filtered = options.filter((o) => o.name.includes(answer));
+      if (filtered.length === 1) return filtered[0].value;
+      if (filtered.length === 0) {
+        console.log("該当する項目がありません。");
+        candidates = options;
+      } else {
+        candidates = filtered;
+      }
+    }
+  } finally {
+    rl.close();
+  }
+}
 
 async function main() {
-  const flags = parse(Deno.args, {
-    string: ["output", "keyFile"],
-    boolean: ["help"],
-    alias: { "h": "help", "o": "output" },
+  const { values: flags } = parseArgs({
+    args: process.argv.slice(2),
+    options: {
+      help: { type: "boolean", short: "h", default: false },
+      output: { type: "string", short: "o" },
+      keyFile: { type: "string" },
+    },
+    allowPositionals: true,
   });
 
   if (flags.help) {
     printUsage();
-    Deno.exit(0);
+    process.exit(0);
   }
 
   if (flags.keyFile) {
     try {
-        await Deno.stat(flags.keyFile);
-        Deno.env.set("GOOGLE_APPLICATION_CREDENTIALS", flags.keyFile);
+        await stat(flags.keyFile);
+        process.env.GOOGLE_APPLICATION_CREDENTIALS = flags.keyFile;
     } catch (error) {
-        if (error instanceof Deno.errors.NotFound) {
+        if ((error as { code?: string }).code === "ENOENT") {
             console.error(`指定されたサービスアカウントキーファイルが見つかりません: ${flags.keyFile}`);
         } else {
-            console.error(`サービスアカウントキーファイルの読み込み中にエラーが発生しました: ${flags.keyFile}`, error.message);
+            console.error(`サービスアカウントキーファイルの読み込み中にエラーが発生しました: ${flags.keyFile}`, (error as Error).message);
         }
-        Deno.exit(1);
+        process.exit(1);
     }
   }
 
@@ -193,14 +230,14 @@ async function main() {
   const folderId = await findAiStudioFolderId(client);
 
   if (!folderId) {
-    Deno.exit(1);
+    process.exit(1);
   }
 
   const files = await listFiles(client, folderId);
 
   if (files.length === 0) {
     console.log(`"${AI_STUDIO_FOLDER_NAME}" フォルダ内にダウンロード可能なファイルが見つかりませんでした。`);
-    Deno.exit(0);
+    process.exit(0);
   }
 
   const options = files.map(file => {
@@ -215,29 +252,21 @@ async function main() {
   });
 
   try {
-    const selectedFileValue: string = await Select.prompt({
-        message: `ダウンロードする対話履歴を選択してください (↑↓キーで選択, Enterで決定):`,
-        options: options,
-        search: true, // 候補が多い場合に検索できるようにする
-        // pageSize: 10, // 1ページに表示するアイテム数
-    });
+    const selectedFileValue: string | undefined = await selectPrompt(
+        `ダウンロードする対話履歴を選択してください:`,
+        options,
+    );
 
     if (selectedFileValue) {
         const [fileId, originalName] = selectedFileValue.split('|');
         console.log(`\n"${originalName}" (ID: ${fileId}) をダウンロードします...`);
-        await downloadFileInteractive(client, fileId, originalName, flags.output as string);
+        await downloadFileInteractive(client, fileId, originalName, flags.output);
     } else {
         console.log("ファイルが選択されませんでした。処理を終了します。");
     }
   } catch (error) {
-    // Select.prompt が Ctrl+C などで中断された場合、エラーを投げる可能性がある
-    // cliffy/prompt の場合、通常は undefined を返すか、特定の SignalError を投げる
-    if (error.message.includes("Prompt was aborted")) { // cliffy v0.25.x の場合。rc版は挙動確認
-        console.log("\n選択がキャンセルされました。処理を終了します。");
-    } else {
-        console.error("\n選択処理中に予期せぬエラーが発生しました:", error.message);
-    }
-    Deno.exit(0); // キャンセルまたはエラー時は正常終了(0)かエラー終了(1)か検討
+    console.error("\n選択処理中に予期せぬエラーが発生しました:", (error as Error).message);
+    process.exit(0); // キャンセルまたはエラー時は正常終了(0)かエラー終了(1)か検討
   }
 }
 
@@ -246,8 +275,8 @@ function printUsage() {
 Google AI Studio 対話履歴ダウンローダー
 
 スクリプトを実行すると、"${AI_STUDIO_FOLDER_NAME}" フォルダ内の対話履歴が
-更新日時順に一覧表示されます。カーソルキーでダウンロードしたいファイルを選択し、
-Enterキーで決定してください。
+更新日時順に一覧表示されます。番号(または絞り込み文字列)を入力して
+ダウンロードしたいファイルを選択してください。
 
 オプション:
   -o, --output <パス> ダウンロード先のディレクトリを指定します。
@@ -266,6 +295,4 @@ Enterキーで決定してください。
 `);
 }
 
-if (import.meta.main) {
-  await main();
-}
+await main();

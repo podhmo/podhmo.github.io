@@ -1,8 +1,8 @@
-#!/usr/bin/env -S deno run --allow-read --allow-env
+#!/usr/bin/env node
 
 /*
 
-1つのファイルで完結したdenoのスクリプトを作成したいです。テキストファイルのフィルターを作りたいです。まず入力としてはコマンドライン引数が指定されてない場合は標準入力を読みコマンドライン引数が指定されてる場合はコマンドライン引数を読むようにしてください。
+1つのファイルで完結したnodeのスクリプトを作成したいです。テキストファイルのフィルターを作りたいです。まず入力としてはコマンドライン引数が指定されてない場合は標準入力を読みコマンドライン引数が指定されてる場合はコマンドライン引数を読むようにしてください。
 そして以下のような変換をしてください
 
 - \tをタブに変換
@@ -13,41 +13,31 @@
 
 ----
 
-- https://deno.land/x のimportは絶対にしないでください
-- jsr:@std/*  のimportを利用してください
-- 可能な限りjsrのみでimportするようにして無理なら `npm:` のimportをしてください
-- 出力が1ファイルだけの場合はdeno.jsonを作らずimport時に直接バージョンを指定してください
+- Node 24+ 必須 (.ts を直接実行する)。外部依存は使わず node: のbuiltinモジュールのみを利用してください
 
 */
+
+import { readFile } from "node:fs/promises";
 
 async function main() {
   let input: string;
 
-  if (Deno.args.length === 0) {
+  const args = process.argv.slice(2);
+  if (args.length === 0) {
     // Read from stdin
-    const reader = Deno.stdin.readable.getReader();
-    const chunks: Uint8Array[] = [];
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(chunk as Buffer);
     }
-    const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-    const bytes = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.length;
-    }
-    input = new TextDecoder().decode(bytes);
+    input = Buffer.concat(chunks).toString("utf-8");
   } else {
     // Read from all files specified in command-line arguments
-    const fileContents = await Promise.all(Deno.args.map((filePath) => Deno.readTextFile(filePath)));
+    const fileContents = await Promise.all(args.map((filePath) => readFile(filePath, "utf-8")));
     input = fileContents.join('\n');
   }
 
   // Get home directory (cross-platform)
-  const home = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || "";
+  const home = process.env.HOME || process.env.USERPROFILE || "";
 
   let output = input;
 
@@ -65,6 +55,4 @@ async function main() {
   console.log(output);
 }
 
-if (import.meta.main) {
-  await main();
-}
+await main();

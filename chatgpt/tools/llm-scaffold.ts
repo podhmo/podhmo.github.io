@@ -1,5 +1,7 @@
-import { ensureDir } from "jsr:@std/fs@1.0.17";
-import { dirname, join, extname, relative, basename } from "jsr:@std/path@1.0.9";
+#!/usr/bin/env node
+// Usage: node llm-scaffold.ts <command> [options] (Node 24+ 必須)
+import { mkdir, readFile, writeFile, readdir, stat } from "node:fs/promises";
+import { dirname, join, extname, relative, basename } from "node:path";
 
 const TRIGGER_WORD_GENERATE = "##SCAFFOLD_GENERATE##";
 const TRIGGER_WORD_PLAN = "##SCAFFOLD_PLAN##";
@@ -213,8 +215,7 @@ LLMへの指示の最後に以下のトリガーワードを含めることで�
 これらのトリガーワードの後のLLMの応答を、各コマンドの入力として与えてください。
 ---
   `;
-    const encoder = new TextEncoder();
-    await Deno.stderr.write(encoder.encode(triggerExplanation));
+    process.stderr.write(triggerExplanation);
 }
 
 async function handlePlan(inputFile: string) { // Renamed from handleParse
@@ -223,10 +224,10 @@ async function handlePlan(inputFile: string) { // Renamed from handleParse
             "Error: Input file path is required for 'plan' command.",
         );
         printHelp();
-        Deno.exit(1);
+        process.exit(1);
     }
     try {
-        const llmOutputText = (await Deno.readTextFile(inputFile)).trim();
+        const llmOutputText = (await readFile(inputFile, "utf-8")).trim();
         const planItems = parseScaffoldPlan(llmOutputText);
         const filesToGenerate = parseScaffoldGenerate(llmOutputText);
 
@@ -260,7 +261,7 @@ async function handlePlan(inputFile: string) { // Renamed from handleParse
         }
     } catch (e) {
         handleFileError(e, inputFile);
-        Deno.exit(1);
+        process.exit(1);
     }
 }
 
@@ -273,12 +274,12 @@ async function handleApply( // Renamed from handleExecute
             "Error: Input file path is required for 'apply' command.",
         );
         printHelp();
-        Deno.exit(1);
+        process.exit(1);
     }
-    const projectRoot = targetDirectory || Deno.cwd();
+    const projectRoot = targetDirectory || process.cwd();
 
     try {
-        const llmOutputText = (await Deno.readTextFile(inputFile)).trim();
+        const llmOutputText = (await readFile(inputFile, "utf-8")).trim();
         const filesToGenerate = parseScaffoldGenerate(llmOutputText);
 
         if (filesToGenerate.length === 0) {
@@ -295,7 +296,7 @@ async function handleApply( // Renamed from handleExecute
             return;
         }
 
-        await ensureDir(projectRoot);
+        await mkdir(projectRoot, { recursive: true });
         console.log(
             `\n⚙️  Applying scaffold generation in "${projectRoot}"...`,
         );
@@ -310,9 +311,9 @@ async function handleApply( // Renamed from handleExecute
 
             try {
                 if (dir && dir !== "." && dir !== projectRoot) {
-                    await ensureDir(dir);
+                    await mkdir(dir, { recursive: true });
                 }
-                await Deno.writeTextFile(targetPath, file.content);
+                await writeFile(targetPath, file.content, "utf-8");
                 console.log(
                     `  ✅ Created: ${relative(projectRoot, targetPath) || basename(targetPath)}`,
                 );
@@ -326,13 +327,13 @@ async function handleApply( // Renamed from handleExecute
         console.log("\nScaffold application complete.");
     } catch (e) {
         handleFileError(e, inputFile, projectRoot);
-        Deno.exit(1);
+        process.exit(1);
     }
 }
 
 async function encodeFileToString(actualFilePath: string, displayPath: string): Promise<string> {
     try {
-        const content = await Deno.readTextFile(actualFilePath);
+        const content = await readFile(actualFilePath, "utf-8");
         const language = getLanguageIdentifier(actualFilePath);
         
         let normalizedDisplayPath = displayPath.replace(/\\/g, "/"); // Convert backslashes for consistency
@@ -359,15 +360,15 @@ async function encodeDirectoryRecursive(
     let dirOutput = "";
     const ignoredDirs = [".git", "node_modules", ".vscode", ".idea", "dist", "build", "target", "out"];
     try {
-        for await (const entry of Deno.readDir(currentActualDir)) {
+        for (const entry of await readdir(currentActualDir, { withFileTypes: true })) {
             const actualEntryPath = join(currentActualDir, entry.name);
             const displayEntryPath = currentDisplayBase ? join(currentDisplayBase, entry.name) : entry.name;
 
             try {
-                const stat = await Deno.stat(actualEntryPath);
-                if (stat.isFile) {
+                const st = await stat(actualEntryPath);
+                if (st.isFile()) {
                     dirOutput += await encodeFileToString(actualEntryPath, displayEntryPath);
-                } else if (stat.isDirectory) {
+                } else if (st.isDirectory()) {
                     if (ignoredDirs.includes(entry.name)) {
                         console.warn(`  ℹ️ Skipping directory: ${displayEntryPath}`);
                         continue;
@@ -375,11 +376,11 @@ async function encodeDirectoryRecursive(
                     dirOutput += await encodeDirectoryRecursive(actualEntryPath, displayEntryPath);
                 }
             } catch (statError) {
-                 console.warn(`  ⚠️ Could not stat ${actualEntryPath}, skipping: ${statError.message}`);
+                 console.warn(`  ⚠️ Could not stat ${actualEntryPath}, skipping: ${(statError as Error).message}`);
             }
         }
     } catch (e) {
-        console.error(`Error reading directory "${currentActualDir}" for encoding: ${e.message}`);
+        console.error(`Error reading directory "${currentActualDir}" for encoding: ${(e as Error).message}`);
     }
     return dirOutput;
 }
@@ -388,7 +389,7 @@ async function handleEncode(paths: string[]) {
     if (paths.length === 0) {
         console.error("Error: At least one file or directory path is required for 'encode' command.");
         printHelp();
-        Deno.exit(1);
+        process.exit(1);
     }
 
     let fullOutput = "";
@@ -396,13 +397,13 @@ async function handleEncode(paths: string[]) {
     for (const pathArg of paths) {
         let normalizedPathArg = pathArg.replace(/\\/g, "/"); // Normalize once at the start
         try {
-            const stat = await Deno.stat(pathArg);
-            if (stat.isFile) {
+            const st = await stat(pathArg);
+            if (st.isFile()) {
                 if (normalizedPathArg.startsWith("./")) {
                      normalizedPathArg = normalizedPathArg.substring(2);
                 }
                 fullOutput += await encodeFileToString(pathArg, normalizedPathArg);
-            } else if (stat.isDirectory) {
+            } else if (st.isDirectory()) {
                 // For a directory argument, its own name (or "" if ".") becomes the base for display paths inside it.
                 let displayBaseForDirItems = basename(normalizedPathArg);
                 if (normalizedPathArg === "." || normalizedPathArg === "./") {
@@ -420,10 +421,10 @@ async function handleEncode(paths: string[]) {
                 fullOutput += await encodeDirectoryRecursive(pathArg, displayBaseForDirItems);
             }
         } catch (e) {
-            if (e instanceof Deno.errors.NotFound) {
+            if ((e as { code?: string }).code === "ENOENT") {
                 console.error(`Error: Path not found "${pathArg}"`);
             } else {
-                console.error(`Error processing path "${pathArg}" for encoding: ${e.message}`);
+                console.error(`Error processing path "${pathArg}" for encoding: ${(e as Error).message}`);
             }
         }
     }
@@ -431,7 +432,7 @@ async function handleEncode(paths: string[]) {
     if (fullOutput.length > 0) {
         // Ensure single trailing newline
         const outputToWrite = fullOutput.endsWith('\n\n') ? fullOutput.substring(0, fullOutput.length - 1) : fullOutput;
-        await Deno.stdout.write(new TextEncoder().encode(outputToWrite));
+        process.stdout.write(outputToWrite);
     } else {
         console.warn("No files found or processed for encoding.");
     }
@@ -439,17 +440,18 @@ async function handleEncode(paths: string[]) {
 
 
 function handleFileError(e: unknown, inputFile: string, targetDir?: string) {
-    if (e instanceof Deno.errors.NotFound) {
+    const code = (e as { code?: string }).code;
+    if (code === "ENOENT") {
         console.error(`Error: Input file not found at "${inputFile}"`);
-    } else if (e instanceof Deno.errors.PermissionDenied) {
+    } else if (code === "EACCES" || code === "EPERM") {
         let pathInfo = `"${inputFile}"`;
         if (targetDir) pathInfo += ` or target directory "${targetDir}"`;
         console.error(
             `Error: Permission denied. Check read/write access for ${pathInfo}.`,
         );
     } else {
-        console.error("An unexpected error occurred:", e.message);
-        if (e.stack) console.error(e.stack);
+        console.error("An unexpected error occurred:", (e as Error).message);
+        if ((e as Error).stack) console.error((e as Error).stack);
     }
 }
 
@@ -458,7 +460,7 @@ function printHelp() {
 llm-scaffold: A tool to scaffold projects from LLM outputs and prepare inputs for LLMs.
 
 Usage:
-  deno run --allow-read --allow-write llm-scaffold.ts <command> [options]
+  node llm-scaffold.ts <command> [options]
 
 Commands:
   init                      Prints the recommended prompt for LLM interaction and
@@ -492,24 +494,24 @@ Commands:
 
 Example Workflow:
 1. Get the prompt for instructing the LLM:
-   deno run llm-scaffold.ts init > my_prompt.txt
+   node llm-scaffold.ts init > my_prompt.txt
    (Review trigger word explanations on stderr)
 2. Use 'my_prompt.txt' with your LLM.
    - For planning: End your request with ${TRIGGER_WORD_PLAN}.
    - For direct generation: End your request with ${TRIGGER_WORD_GENERATE}.
 3. Save LLM's response to a file (e.g., llm_plan_output.txt or llm_generate_output.txt).
 4. Preview the LLM's plan or proposed file generation:
-   deno run --allow-read llm-scaffold.ts plan llm_generate_output.txt
+   node llm-scaffold.ts plan llm_generate_output.txt
 5. Apply the scaffold (if output was for generation):
-   deno run --allow-read --allow-write llm-scaffold.ts apply llm_generate_output.txt ./my_new_project
+   node llm-scaffold.ts apply llm_generate_output.txt ./my_new_project
 6. To provide existing code to LLM (e.g., for modification):
-   deno run --allow-read llm-scaffold.ts encode ./src/existing_module README.md > for_llm_input.txt
+   node llm-scaffold.ts encode ./src/existing_module README.md > for_llm_input.txt
    (Then, paste content of for_llm_input.txt into your LLM prompt)
 `);
 }
 
 async function main() {
-    const args = Deno.args;
+    const args = process.argv.slice(2);
     const command = args[0];
 
     if (
@@ -517,7 +519,7 @@ async function main() {
         command === "--help"
     ) {
         printHelp();
-        Deno.exit(0);
+        process.exit(0);
     }
 
     switch (command) {
@@ -536,10 +538,8 @@ async function main() {
         default:
             console.error(`Error: Unknown command "${command}"`);
             printHelp();
-            Deno.exit(1);
+            process.exit(1);
     }
 }
 
-if (import.meta.main) {
-    main();
-}
+await main();

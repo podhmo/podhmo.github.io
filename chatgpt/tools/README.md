@@ -7,11 +7,18 @@
 
 ## install
 
+Node 24+ が必要 (`.ts` をそのまま実行するため)。`make setup` (= `./install.sh`) で
+各スクリプトに実行ビットを付けて `~/.local/bin` にリンクします:
+
 ```bash
-deno install -f --global --allow-read ./ai-studio-to-markdown.ts
-deno install -f --global --allow-read --allow-write -n llm-scaffold ./llm-scaffold.ts
-deno install -f --global --allow-sys --allow-read --allow-write --allow-env=GOOGLE_APPLICATION_CREDENTIALS,GOOGLE_SDK_NODE_LOGGING,GOOGLE_CLOUD_QUOTA_PROJECT,google_application_credentials,HOME,CLOUD_RUN_JOB,FUNCTION_NAME,K_SERVICE,METADATA_SERVER_DETECTION,DETECT_GCP_RETRIES,GCE_METADATA_IP,GCE_METADATA_HOST,HTTPS_PROXY,https_proxy,HTTP_PROXY,http_proxy,NO_PROXY,no_proxy,DEBUG_AUTH,GCLOUD_PROJECT,GOOGLE_CLOUD_PROJECT,gcloud_project,google_cloud_project --allow-net=metadata.google.internal:80,169.254.169.254:80,www.googleapis.com:443 -n ai-studio-download ./ai-studio-download/ai-studio-download.ts
+make setup
+# ~/.local/bin/ai-studio-to-markdown -> ./ai-studio-to-markdown.ts など
+# ai-studio-download のみ追加で npm install (google-auth-library) も実行される
+```
+
+旧来の `deno install -f --global ...` に相当する仕組みです。
+`ai-studio-download` 利用時は引き続き `GOOGLE_APPLICATION_CREDENTIALS` 環境変数を設定してください:
+
+```bash
 alias ai-studio-download="GOOGLE_APPLICATION_CREDENTIALS=~/.config/google/service-account-key.json ai-studio-download"
-deno install -f --global --allow-read --allow-env -n normalize-text ./normalize-text.ts
-deno install -f --global --allow-read ./github-copilot-cli-to-markdown.ts
 ```

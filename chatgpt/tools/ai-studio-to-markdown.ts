@@ -1,5 +1,6 @@
-// deno run --allow-read --allow-env <your_script_name>.ts <path_to_your_json_file.json> [--with-thoughts] [--user-name <name>] [--ai-name <name>] [--only-user-inputs]
-import { parseArgs } from "jsr:@std/cli@1.0.17/parse-args";
+// node <your_script_name>.ts <path_to_your_json_file.json> [--with-thoughts] [--user-name <name>] [--ai-name <name>] [--only-user-inputs] (Node 24+ 必須)
+import { parseArgs } from "node:util";
+import { readFile } from "node:fs/promises";
 
 interface SafetySetting {
     category: string;
@@ -169,27 +170,24 @@ function formatChatHistoryToMarkdown(
 }
 
 async function main() {
-    const flags = parseArgs(Deno.args, {
-        boolean: ["with-thoughts", "only-user-inputs"],
-        string: ["user-name", "ai-name"],
-        default: {
-            "with-thoughts": false,
-            "only-user-inputs": false,
-            "user-name": "User",
-            "ai-name": "AI",
+    const { values: flags, positionals } = parseArgs({
+        args: process.argv.slice(2),
+        options: {
+            "with-thoughts": { type: "boolean", short: "t", default: false },
+            "only-user-inputs": { type: "boolean", default: false },
+            "ou": { type: "boolean", default: false }, // --only-user-inputs のエイリアス
+            "user-name": { type: "string", default: "User" },
+            "ai-name": { type: "string", default: "AI" },
         },
-        alias: {
-            "t": "with-thoughts",
-            "ou": "only-user-inputs",
-        },
+        allowPositionals: true,
     });
 
-    if (flags._.length === 0 || typeof flags._[0] !== "string") {
+    if (positionals.length === 0) {
         console.error(
             "エラー: JSONファイルへのパスを引数として指定してください。",
         );
         console.error(
-            "使用法: deno run --allow-read --allow-env <script.ts> <file.json> [options]",
+            "使用法: node <script.ts> <file.json> [options]",
         );
         console.error("オプション:");
         console.error(
@@ -204,22 +202,22 @@ async function main() {
         console.error(
             "      --ou, --only-user-inputs ユーザー入力のみを表示します",
         );
-        Deno.exit(1);
+        process.exit(1);
     }
 
-    const filePath = flags._[0] as string;
+    const filePath = positionals[0];
     const withThoughts = flags["with-thoughts"];
     const userName = flags["user-name"];
     const aiName = flags["ai-name"];
-    const onlyUserInputs = flags["only-user-inputs"];
+    const onlyUserInputs = flags["only-user-inputs"] || flags["ou"];
 
     let jsonString: string;
 
     try {
-        jsonString = await Deno.readTextFile(filePath);
+        jsonString = await readFile(filePath, "utf-8");
     } catch (error) {
         console.error(`ファイル読み込みエラー ${filePath}:`, error);
-        Deno.exit(1);
+        process.exit(1);
     }
 
     try {
@@ -233,10 +231,8 @@ async function main() {
         console.log(markdownResult);
     } catch (error) {
         console.error("JSONデータの処理中にエラーが発生しました:", error);
-        Deno.exit(1);
+        process.exit(1);
     }
 }
 
-if (import.meta.main) {
-    main();
-}
+await main();

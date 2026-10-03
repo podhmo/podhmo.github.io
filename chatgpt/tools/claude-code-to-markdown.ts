@@ -1,5 +1,6 @@
-// deno run --allow-read <your_script_name>.ts <path_to_file.json|.jsonl> [--with-tool-calls] [--user-name <name>] [--assistant-name <name>] [--only-user-inputs]
-import { parseArgs } from "jsr:@std/cli@1.0.17/parse-args";
+// node <your_script_name>.ts <path_to_file.json|.jsonl> [--with-tool-calls] [--user-name <name>] [--assistant-name <name>] [--only-user-inputs] (Node 24+ 必須)
+import { parseArgs } from "node:util";
+import { readFile } from "node:fs/promises";
 
 // Claude Code JSONL エントリの型定義
 //
@@ -264,25 +265,22 @@ function formatToMarkdown(
 }
 
 async function main() {
-    const flags = parseArgs(Deno.args, {
-        boolean: ["with-tool-calls", "only-user-inputs"],
-        string: ["user-name", "assistant-name"],
-        default: {
-            "with-tool-calls": false,
-            "only-user-inputs": false,
-            "user-name": "User",
-            "assistant-name": "Assistant",
+    const { values: flags, positionals } = parseArgs({
+        args: process.argv.slice(2),
+        options: {
+            "with-tool-calls": { type: "boolean", short: "t", default: false },
+            "only-user-inputs": { type: "boolean", default: false },
+            "ou": { type: "boolean", default: false }, // --only-user-inputs のエイリアス
+            "user-name": { type: "string", default: "User" },
+            "assistant-name": { type: "string", default: "Assistant" },
         },
-        alias: {
-            "t": "with-tool-calls",
-            "ou": "only-user-inputs",
-        },
+        allowPositionals: true,
     });
 
-    if (flags._.length === 0 || typeof flags._[0] !== "string") {
+    if (positionals.length === 0) {
         console.error("エラー: ファイルへのパスを引数として指定してください。");
         console.error(
-            "使用法: deno run --allow-read <script.ts> <file.json|file.jsonl> [options]",
+            "使用法: node <script.ts> <file.json|file.jsonl> [options]",
         );
         console.error("オプション:");
         console.error("  -t, --with-tool-calls       ツール呼び出しを表示します");
@@ -295,21 +293,21 @@ async function main() {
         console.error(
             "      --ou, --only-user-inputs  ユーザー入力のみを表示します",
         );
-        Deno.exit(1);
+        process.exit(1);
     }
 
-    const filePath = flags._[0] as string;
+    const filePath = positionals[0];
     const withToolCalls = flags["with-tool-calls"];
     const userName = flags["user-name"];
     const assistantName = flags["assistant-name"];
-    const onlyUserInputs = flags["only-user-inputs"];
+    const onlyUserInputs = flags["only-user-inputs"] || flags["ou"];
 
     let fileContent: string;
     try {
-        fileContent = await Deno.readTextFile(filePath);
+        fileContent = await readFile(filePath, "utf-8");
     } catch (error) {
         console.error(`ファイル読み込みエラー ${filePath}:`, error);
-        Deno.exit(1);
+        process.exit(1);
     }
 
     try {
@@ -324,10 +322,8 @@ async function main() {
         console.log(markdown);
     } catch (error) {
         console.error("ファイルの処理中にエラーが発生しました:", error);
-        Deno.exit(1);
+        process.exit(1);
     }
 }
 
-if (import.meta.main) {
-    main();
-}
+await main();
