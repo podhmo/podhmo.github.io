@@ -159,7 +159,7 @@ AIが生成した文章は、文同士の接続関係が曖昧であったり、
 python3 <スキル配置ディレクトリ>/scripts/yomiyasu_lint.py <対象ファイル>
 ```
 
-検出結果は機械的な見直し候補の位置づけです。文脈上正当な専門用語や事実の記述であれば無理に言い換えず保持します。また、「大事です」のように評価を担う語や、主張上必要な否定（AではなくB）も、リンターの指摘があっても無理に消さず残します。ただし、bold_not_rendered（太字にならない書き方）は見直し候補ではなく必ず直すものとして扱い、案のとおりに直します。修正試行は最大2回とし、警告を消すためだけの過剰な言い換えループを防止します。
+検出結果は機械的な見直し候補の位置づけです。文脈上正当な専門用語や事実の記述であれば無理に言い換えず保持します。また、「大事です」のように評価を担う語や、主張上必要な否定（AではなくB）も、リンターの指摘があっても無理に消さず残します。ただし、bold_not_rendered（太字にならない書き方）が出た場合は、元の太字が正しく表示される書き方になっているかを確認します。すでに正しく表示される書き方であれば変更しません。修正が必要な場合も、案によって太字の範囲や前後の文が崩れないかを確認したうえで適用し、不確かな案はそのまま適用せず目視で整えます。修正試行は最大2回とし、警告を消すためだけの過剰な言い換えループを防止します。
 
 ### Step 4: 足したもの・削ったものの点検（Diff検査）
 
@@ -178,7 +178,7 @@ python3 <スキル配置ディレクトリ>/scripts/yomiyasu_diff.py 元の文.t
 - 元にない語や消えた語: 勝手な情報の付け足しや、必要な前提の脱落がないか確認します。
 - 箇条書きや段落の変化: 箇条書きを地の文にした際に余計な評価や義務が足されていないか、段落統合によって話題が混ざっていないかを確認します。
 - つながりの確認箇所: つなぎ言葉や指示語が前後の文と論理的につながっているかを確認します。
-- 太字の表示: 「太字にならない書き方」が出たら、案のとおりに直します（「変えたところ」には書きません）。
+- 太字の表示: 「太字にならない書き方」が出たら、元の太字の表示可否と案の範囲を確認し、適切であれば案に従って直します（すでに正しく表示される場合や不確かな案はそのまま適用せず、意味が変わらないため「変えたところ」には書きません）。
 
 修正は1回のみ行い、スクリプトの再実行を繰り返す往復は行いません。Pythonが実行できない環境では、上記と同じ観点（文末が立場にそろっているか、言い回しの増減、元にない語、消えた語、段落・箇条書きの変化、接続関係、太字が表示される書き方か）を目視で点検します。
 
@@ -887,9 +887,9 @@ def _bold_can_close(prev: str, nxt: str) -> bool:
     return all(not _bold_ws(prev) and (not p(prev) or _bold_ws(nxt) or p(nxt)) for p in (_bold_punct_gfm, _bold_punct_new))
 
 
-def _bold_code_spans(line: str):
+def _bold_code_spans(text: str):
     """インラインコード（同じ数のバッククォートで閉じたもの）の範囲"""
-    runs = [(m.start(), m.end()) for m in re.finditer(r"`+", line)]
+    runs = [(m.start(), m.end()) for m in re.finditer(r"`+", text)]
     spans, k = [], 0
     while k < len(runs):
         s, e = runs[k]
@@ -902,15 +902,70 @@ def _bold_code_spans(line: str):
     return spans
 
 
-def _bold_pairs(line: str):
-    code = _bold_code_spans(line)
-    pos = [m.start() for m in re.finditer(r"(?<![*\\])\*\*(?!\*)", line)
-           if not any(a <= m.start() < b for a, b in code)]
-    return [(pos[k], pos[k + 1]) for k in range(0, len(pos) - 1, 2)]
+def _bold_pairs(text: str):
+    """後方互換用: テキスト内の太字ペアを返す"""
+    return _bold_pairs_in_block(text)
 
 
-def _bold_pair_ok(line: str, i: int, j: int) -> bool:
-    ch = lambda p: line[p] if 0 <= p < len(line) else ""
+def _bold_pairs_in_block(block_text: str):
+    code = _bold_code_spans(block_text)
+    pos = []
+    for m in re.finditer(r"(?<!\*)\*\*(?!\*)", block_text):
+        p = m.start()
+        if any(a <= p < b for a, b in code):
+            continue
+        bs_match = re.search(r"\\*$", block_text[:p])
+        bs_count = len(bs_match.group(0)) if bs_match else 0
+        if bs_count % 2 == 1:
+            continue
+        pos.append(p)
+
+    pairs = []
+    used = set()
+
+    # 第1段: 強調開閉の基本条件（前後の空白判定）によるスタック照合
+    stack = []
+    for p in pos:
+        prev = block_text[p - 1] if p > 0 else ""
+        nxt = block_text[p + 2] if p + 2 < len(block_text) else ""
+
+        can_open = not _bold_ws(nxt)
+        can_close = not _bold_ws(prev)
+
+        if can_close and stack:
+            opener = stack.pop()
+            if opener + 2 < p:
+                pairs.append((opener, p))
+                used.add(opener)
+                used.add(p)
+        elif can_open:
+            stack.append(p)
+
+    # 第2段: 内側空白によって開閉条件から外れた太字候補のペアリング
+    unpaired = [p for p in pos if p not in used]
+    idx = 0
+    while idx < len(unpaired) - 1:
+        p1 = unpaired[idx]
+        p2 = unpaired[idx + 1]
+        if any(p1 < a < p2 or p1 < b < p2 for a, b in pairs):
+            idx += 1
+            continue
+        inner = block_text[p1 + 2:p2]
+        if inner.strip() != "":
+            if _bold_ws(inner[0]) or _bold_ws(inner[-1]):
+                pairs.append((p1, p2))
+                used.add(p1)
+                used.add(p2)
+                idx += 2
+                continue
+        idx += 1
+
+    pairs.sort(key=lambda x: x[0])
+    return pairs
+
+
+def _bold_pair_ok(text: str, i: int, j: int) -> bool:
+    ch = lambda p: text[p] if 0 <= p < len(text) else ""
     return _bold_can_open(ch(i - 1), ch(i + 2)) and _bold_can_close(ch(j - 1), ch(j + 2))
 
 
@@ -927,15 +982,15 @@ def _bold_close_of(s: str) -> int:
     return -1
 
 
-def _bold_fix(line: str, i: int, j: int, k: int):
+def _bold_fix(text: str, i: int, j: int, k: int):
     """k 番目の太字（i と j の **）の直し方の案。(直したあとの部分, 直し方) を返す"""
-    inner = line[i + 2:j]
+    inner = text[i + 2:j]
     tries = []
     if len(inner) >= 3 and inner[0] in BOLD_BRACKETS and _bold_close_of(inner) == len(inner) - 1:
         tries.append((inner[0] + "**" + inner[1:-1] + "**" + inner[-1], "かっこの内側だけを太字にする"))
     if len(inner) >= 2 and inner[-1] in "。、．，！？!?":
         tries.append(("**" + inner[:-1] + "**" + inner[-1], "句読点を太字の外に出す"))
-    ch = lambda p: line[p] if 0 <= p < len(line) else ""
+    ch = lambda p: text[p] if 0 <= p < len(text) else ""
     body = inner
     if _bold_ws(ch(i + 2)) or _bold_ws(ch(j - 1)):
         body = inner.strip()
@@ -944,43 +999,173 @@ def _bold_fix(line: str, i: int, j: int, k: int):
     tries.append((left + "**" + body + "**" + right, "太字の内側の空白を取る" if body != inner and not (left or right)
                   else "文字に接する側に半角スペースを入れる"))
     for middle, how in tries:
-        cand = line[:i] + middle + line[j + 2:]
-        pairs = _bold_pairs(cand)
+        cand = text[:i] + middle + text[j + 2:]
+        pairs = _bold_pairs_in_block(cand)
         if k < len(pairs) and _bold_pair_ok(cand, *pairs[k]):
             return middle, how
     return None, "手で直す"
 
 
+def _line_containers(line: str):
+    """行のコンテナ（リストマーカー、引用の深さ）と、内部のコンテンツを簡易解析する"""
+    is_list = False
+    m_list = re.match(r"^\s{0,3}(?:[*+-]|\d+[.)])\s+", line)
+    if m_list:
+        is_list = True
+        rem = line[m_list.end():]
+    else:
+        rem = line
+
+    depth = 0
+    p = 0
+    while True:
+        m_sp = re.match(r"^\s{0,3}", rem[p:])
+        if m_sp:
+            p += m_sp.end()
+        if p < len(rem) and rem[p] == ">":
+            depth += 1
+            p += 1
+            if p < len(rem) and rem[p] == " ":
+                p += 1
+        else:
+            break
+    content = rem[p:]
+    return is_list, depth, content
+
+
 def bold_problems(text: str, skip_frontmatter: bool = True):
-    """太字にならない ** の場所と、直し方の案。コードブロック・インラインコード・HTML の行・先頭の設定部分は見ない"""
-    out, fence = [], None
+    """太字にならない ** の場所と、直し方の案。
+    コードブロック・インラインコード・HTML の行・先頭の設定部分は見ない。
+    段落・リスト・引用などのブロック単位で複数行太字を正しく扱う。
+    """
+    out = []
     lines = text.split("\n")
     start = 0
-    if skip_frontmatter and lines and lines[0].strip() == "---":
+    if skip_frontmatter and lines and lines[0].rstrip("\r") == "---":
         for n in range(1, len(lines)):
-            if lines[n].strip() == "---":
+            if lines[n].rstrip("\r") == "---":
                 start = n + 1
                 break
+
+    blocks = []
+    curr_lines = []
+    fence = None
+    curr_depth = 0
+    in_table = False
+
+    def flush():
+        nonlocal curr_lines, curr_depth, in_table
+        if curr_lines:
+            blocks.append(curr_lines)
+            curr_lines = []
+        curr_depth = 0
+        in_table = False
+
     for no in range(start, len(lines)):
-        line = lines[no].rstrip("\r")
-        m = re.match(r"\s{0,3}(`{3,}|~{3,})(.*)$", line)
+        raw_line = lines[no]
+        line = raw_line.rstrip("\r")
+        line_no = no + 1
+
+        is_list, depth, content = _line_containers(line)
+
+        # フェンスコードブロックの開始・終了
+        m = re.match(r"^\s{0,3}(`{3,}|~{3,})(.*)$", content)
         if fence:
             if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= fence[1] and not m.group(2).strip():
                 fence = None
             continue
         if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+            flush()
             fence = (m.group(1)[0], len(m.group(1)))
             continue
-        if line.lstrip().startswith("<"):
+
+        if not content.strip():
+            flush()
             continue
-        for k, (i, j) in enumerate(_bold_pairs(line)):
-            if _bold_pair_ok(line, i, j):
+
+        if content.lstrip().startswith("<"):
+            flush()
+            continue
+
+        if re.match(r"^\s{0,3}(?:(\*)\s*(?:\1\s*){2,}|(-)\s*(?:\2\s*){2,}|(_)\s*(?:\3\s*){2,})\s*$", content):
+            flush()
+            continue
+
+        # GFM 表の区切り行（-- | -- など、外周パイプなしを含む）
+        m_tbl_sep = re.match(r"^\s{0,3}\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)+\|?\s*$", content)
+        if m_tbl_sep:
+            if curr_lines:
+                hdr = curr_lines.pop()
+                flush()
+                blocks.append([hdr])
+            else:
+                flush()
+            in_table = True
+            continue
+
+        # Setext 見出し下線（=== または ---）
+        if curr_lines and re.match(r"^\s{0,3}(=+|-+)\s*$", content):
+            flush()
+            continue
+
+        # ATX 見出し
+        if re.match(r"^\s{0,3}#{1,6}(\s+|$)", content):
+            flush()
+            blocks.append([(line_no, line)])
+            continue
+
+        # 表の行（外周パイプあり、または表の継続行）
+        if content.startswith("|") or (in_table and "|" in content):
+            flush()
+            blocks.append([(line_no, line)])
+            in_table = True
+            continue
+        else:
+            in_table = False
+
+        # リスト項目の開始
+        if is_list or re.match(r"^\s{0,3}(?:[*+-]|\d+[.)])\s+", content):
+            flush()
+            curr_depth = depth
+            curr_lines.append((line_no, line))
+            continue
+
+        # 引用深度の変更（lazy continuation: 直前の深さ>0 かつ 現在の深さ0 の場合は許容）
+        if curr_lines:
+            if depth != curr_depth:
+                if not (curr_depth > 0 and depth == 0):
+                    flush()
+                    curr_depth = depth
+
+        if not curr_lines:
+            curr_depth = depth
+
+        curr_lines.append((line_no, line))
+
+    flush()
+
+    for block in blocks:
+        block_text = "\n".join(l for _, l in block)
+        offsets = [0]
+        for _, l in block[:-1]:
+            offsets.append(offsets[-1] + len(l) + 1)
+
+        def get_line_no(char_idx: int) -> int:
+            import bisect
+            l_idx = bisect.bisect_right(offsets, char_idx) - 1
+            return block[l_idx][0]
+
+        pairs = _bold_pairs_in_block(block_text)
+        for k, (i, j) in enumerate(pairs):
+            if _bold_pair_ok(block_text, i, j):
                 continue
-            middle, how = _bold_fix(line, i, j, k)
-            pre, post = line[max(0, i - 4):i], line[j + 2:j + 6]
-            found = pre + _bold_short(line[i:j + 2]) + post
+            middle, how = _bold_fix(block_text, i, j, k)
+            pre, post = block_text[max(0, i - 4):i], block_text[j + 2:j + 6]
+            found = pre + _bold_short(block_text[i:j + 2]) + post
             suggest = pre + _bold_short(middle) + post if middle is not None else ""
-            out.append({"line": no + 1, "found": found, "suggest": suggest, "how": how})
+            line_no = get_line_no(i)
+            out.append({"line": line_no, "found": found, "suggest": suggest, "how": how})
+
     return out
 
 
@@ -1504,9 +1689,9 @@ def _bold_can_close(prev: str, nxt: str) -> bool:
     return all(not _bold_ws(prev) and (not p(prev) or _bold_ws(nxt) or p(nxt)) for p in (_bold_punct_gfm, _bold_punct_new))
 
 
-def _bold_code_spans(line: str):
+def _bold_code_spans(text: str):
     """インラインコード（同じ数のバッククォートで閉じたもの）の範囲"""
-    runs = [(m.start(), m.end()) for m in re.finditer(r"`+", line)]
+    runs = [(m.start(), m.end()) for m in re.finditer(r"`+", text)]
     spans, k = [], 0
     while k < len(runs):
         s, e = runs[k]
@@ -1519,15 +1704,70 @@ def _bold_code_spans(line: str):
     return spans
 
 
-def _bold_pairs(line: str):
-    code = _bold_code_spans(line)
-    pos = [m.start() for m in re.finditer(r"(?<![*\\])\*\*(?!\*)", line)
-           if not any(a <= m.start() < b for a, b in code)]
-    return [(pos[k], pos[k + 1]) for k in range(0, len(pos) - 1, 2)]
+def _bold_pairs(text: str):
+    """後方互換用: テキスト内の太字ペアを返す"""
+    return _bold_pairs_in_block(text)
 
 
-def _bold_pair_ok(line: str, i: int, j: int) -> bool:
-    ch = lambda p: line[p] if 0 <= p < len(line) else ""
+def _bold_pairs_in_block(block_text: str):
+    code = _bold_code_spans(block_text)
+    pos = []
+    for m in re.finditer(r"(?<!\*)\*\*(?!\*)", block_text):
+        p = m.start()
+        if any(a <= p < b for a, b in code):
+            continue
+        bs_match = re.search(r"\\*$", block_text[:p])
+        bs_count = len(bs_match.group(0)) if bs_match else 0
+        if bs_count % 2 == 1:
+            continue
+        pos.append(p)
+
+    pairs = []
+    used = set()
+
+    # 第1段: 強調開閉の基本条件（前後の空白判定）によるスタック照合
+    stack = []
+    for p in pos:
+        prev = block_text[p - 1] if p > 0 else ""
+        nxt = block_text[p + 2] if p + 2 < len(block_text) else ""
+
+        can_open = not _bold_ws(nxt)
+        can_close = not _bold_ws(prev)
+
+        if can_close and stack:
+            opener = stack.pop()
+            if opener + 2 < p:
+                pairs.append((opener, p))
+                used.add(opener)
+                used.add(p)
+        elif can_open:
+            stack.append(p)
+
+    # 第2段: 内側空白によって開閉条件から外れた太字候補のペアリング
+    unpaired = [p for p in pos if p not in used]
+    idx = 0
+    while idx < len(unpaired) - 1:
+        p1 = unpaired[idx]
+        p2 = unpaired[idx + 1]
+        if any(p1 < a < p2 or p1 < b < p2 for a, b in pairs):
+            idx += 1
+            continue
+        inner = block_text[p1 + 2:p2]
+        if inner.strip() != "":
+            if _bold_ws(inner[0]) or _bold_ws(inner[-1]):
+                pairs.append((p1, p2))
+                used.add(p1)
+                used.add(p2)
+                idx += 2
+                continue
+        idx += 1
+
+    pairs.sort(key=lambda x: x[0])
+    return pairs
+
+
+def _bold_pair_ok(text: str, i: int, j: int) -> bool:
+    ch = lambda p: text[p] if 0 <= p < len(text) else ""
     return _bold_can_open(ch(i - 1), ch(i + 2)) and _bold_can_close(ch(j - 1), ch(j + 2))
 
 
@@ -1544,15 +1784,15 @@ def _bold_close_of(s: str) -> int:
     return -1
 
 
-def _bold_fix(line: str, i: int, j: int, k: int):
+def _bold_fix(text: str, i: int, j: int, k: int):
     """k 番目の太字（i と j の **）の直し方の案。(直したあとの部分, 直し方) を返す"""
-    inner = line[i + 2:j]
+    inner = text[i + 2:j]
     tries = []
     if len(inner) >= 3 and inner[0] in BOLD_BRACKETS and _bold_close_of(inner) == len(inner) - 1:
         tries.append((inner[0] + "**" + inner[1:-1] + "**" + inner[-1], "かっこの内側だけを太字にする"))
     if len(inner) >= 2 and inner[-1] in "。、．，！？!?":
         tries.append(("**" + inner[:-1] + "**" + inner[-1], "句読点を太字の外に出す"))
-    ch = lambda p: line[p] if 0 <= p < len(line) else ""
+    ch = lambda p: text[p] if 0 <= p < len(text) else ""
     body = inner
     if _bold_ws(ch(i + 2)) or _bold_ws(ch(j - 1)):
         body = inner.strip()
@@ -1561,43 +1801,173 @@ def _bold_fix(line: str, i: int, j: int, k: int):
     tries.append((left + "**" + body + "**" + right, "太字の内側の空白を取る" if body != inner and not (left or right)
                   else "文字に接する側に半角スペースを入れる"))
     for middle, how in tries:
-        cand = line[:i] + middle + line[j + 2:]
-        pairs = _bold_pairs(cand)
+        cand = text[:i] + middle + text[j + 2:]
+        pairs = _bold_pairs_in_block(cand)
         if k < len(pairs) and _bold_pair_ok(cand, *pairs[k]):
             return middle, how
     return None, "手で直す"
 
 
+def _line_containers(line: str):
+    """行のコンテナ（リストマーカー、引用の深さ）と、内部のコンテンツを簡易解析する"""
+    is_list = False
+    m_list = re.match(r"^\s{0,3}(?:[*+-]|\d+[.)])\s+", line)
+    if m_list:
+        is_list = True
+        rem = line[m_list.end():]
+    else:
+        rem = line
+
+    depth = 0
+    p = 0
+    while True:
+        m_sp = re.match(r"^\s{0,3}", rem[p:])
+        if m_sp:
+            p += m_sp.end()
+        if p < len(rem) and rem[p] == ">":
+            depth += 1
+            p += 1
+            if p < len(rem) and rem[p] == " ":
+                p += 1
+        else:
+            break
+    content = rem[p:]
+    return is_list, depth, content
+
+
 def bold_problems(text: str, skip_frontmatter: bool = True):
-    """太字にならない ** の場所と、直し方の案。コードブロック・インラインコード・HTML の行・先頭の設定部分は見ない"""
-    out, fence = [], None
+    """太字にならない ** の場所と、直し方の案。
+    コードブロック・インラインコード・HTML の行・先頭の設定部分は見ない。
+    段落・リスト・引用などのブロック単位で複数行太字を正しく扱う。
+    """
+    out = []
     lines = text.split("\n")
     start = 0
-    if skip_frontmatter and lines and lines[0].strip() == "---":
+    if skip_frontmatter and lines and lines[0].rstrip("\r") == "---":
         for n in range(1, len(lines)):
-            if lines[n].strip() == "---":
+            if lines[n].rstrip("\r") == "---":
                 start = n + 1
                 break
+
+    blocks = []
+    curr_lines = []
+    fence = None
+    curr_depth = 0
+    in_table = False
+
+    def flush():
+        nonlocal curr_lines, curr_depth, in_table
+        if curr_lines:
+            blocks.append(curr_lines)
+            curr_lines = []
+        curr_depth = 0
+        in_table = False
+
     for no in range(start, len(lines)):
-        line = lines[no].rstrip("\r")
-        m = re.match(r"\s{0,3}(`{3,}|~{3,})(.*)$", line)
+        raw_line = lines[no]
+        line = raw_line.rstrip("\r")
+        line_no = no + 1
+
+        is_list, depth, content = _line_containers(line)
+
+        # フェンスコードブロックの開始・終了
+        m = re.match(r"^\s{0,3}(`{3,}|~{3,})(.*)$", content)
         if fence:
             if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= fence[1] and not m.group(2).strip():
                 fence = None
             continue
         if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+            flush()
             fence = (m.group(1)[0], len(m.group(1)))
             continue
-        if line.lstrip().startswith("<"):
+
+        if not content.strip():
+            flush()
             continue
-        for k, (i, j) in enumerate(_bold_pairs(line)):
-            if _bold_pair_ok(line, i, j):
+
+        if content.lstrip().startswith("<"):
+            flush()
+            continue
+
+        if re.match(r"^\s{0,3}(?:(\*)\s*(?:\1\s*){2,}|(-)\s*(?:\2\s*){2,}|(_)\s*(?:\3\s*){2,})\s*$", content):
+            flush()
+            continue
+
+        # GFM 表の区切り行（-- | -- など、外周パイプなしを含む）
+        m_tbl_sep = re.match(r"^\s{0,3}\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)+\|?\s*$", content)
+        if m_tbl_sep:
+            if curr_lines:
+                hdr = curr_lines.pop()
+                flush()
+                blocks.append([hdr])
+            else:
+                flush()
+            in_table = True
+            continue
+
+        # Setext 見出し下線（=== または ---）
+        if curr_lines and re.match(r"^\s{0,3}(=+|-+)\s*$", content):
+            flush()
+            continue
+
+        # ATX 見出し
+        if re.match(r"^\s{0,3}#{1,6}(\s+|$)", content):
+            flush()
+            blocks.append([(line_no, line)])
+            continue
+
+        # 表の行（外周パイプあり、または表の継続行）
+        if content.startswith("|") or (in_table and "|" in content):
+            flush()
+            blocks.append([(line_no, line)])
+            in_table = True
+            continue
+        else:
+            in_table = False
+
+        # リスト項目の開始
+        if is_list or re.match(r"^\s{0,3}(?:[*+-]|\d+[.)])\s+", content):
+            flush()
+            curr_depth = depth
+            curr_lines.append((line_no, line))
+            continue
+
+        # 引用深度の変更（lazy continuation: 直前の深さ>0 かつ 現在の深さ0 の場合は許容）
+        if curr_lines:
+            if depth != curr_depth:
+                if not (curr_depth > 0 and depth == 0):
+                    flush()
+                    curr_depth = depth
+
+        if not curr_lines:
+            curr_depth = depth
+
+        curr_lines.append((line_no, line))
+
+    flush()
+
+    for block in blocks:
+        block_text = "\n".join(l for _, l in block)
+        offsets = [0]
+        for _, l in block[:-1]:
+            offsets.append(offsets[-1] + len(l) + 1)
+
+        def get_line_no(char_idx: int) -> int:
+            import bisect
+            l_idx = bisect.bisect_right(offsets, char_idx) - 1
+            return block[l_idx][0]
+
+        pairs = _bold_pairs_in_block(block_text)
+        for k, (i, j) in enumerate(pairs):
+            if _bold_pair_ok(block_text, i, j):
                 continue
-            middle, how = _bold_fix(line, i, j, k)
-            pre, post = line[max(0, i - 4):i], line[j + 2:j + 6]
-            found = pre + _bold_short(line[i:j + 2]) + post
+            middle, how = _bold_fix(block_text, i, j, k)
+            pre, post = block_text[max(0, i - 4):i], block_text[j + 2:j + 6]
+            found = pre + _bold_short(block_text[i:j + 2]) + post
             suggest = pre + _bold_short(middle) + post if middle is not None else ""
-            out.append({"line": no + 1, "found": found, "suggest": suggest, "how": how})
+            line_no = get_line_no(i)
+            out.append({"line": line_no, "found": found, "suggest": suggest, "how": how})
+
     return out
 
 
@@ -1663,7 +2033,7 @@ def diff(orig_raw: str, rw_raw: str, stance=None) -> dict:
 
 
 def bold_head(where: str = "") -> str:
-    return f"■ 太字にならない書き方（{where}GitHub などで ** がそのまま表示される。案のとおりに直す）"
+    return f"■ 太字にならない書き方（{where}GitHub などで ** がそのまま表示される。表示可否と案の範囲を確認して直す）"
 
 
 def bold_lines(problems):
@@ -8484,3 +8854,156 @@ LLM は、日本語として存在しない言い回しを、次の三つの経�
 - その根拠は、著者の断定（「十分あり得る状況だ」）ではなく、読者自身の経験に訴える一般的事実や通説に求める（「この症状は珍しくないだろう」「〜という言い方もよく耳にする」）。
 - 確認していないことを、確認したかのように滑らかに書かない。
 ```
+
+## i-have-adhd
+
+コーディングエージェントの応答を ADHD フレンドリーにする output style skill。回答を先に出し、手順を番号付きにし、脱線を抑えるタイプ。日本語推敲ではなく応答スタイルのルール集。
+
+- 出典: https://github.com/ayghri/i-have-adhd (MIT)
+- SKILL.md のみで動作。リポジトリの python 群は評価ハーネス用でありチャット利用では不要
+
+
+````md:SKILL.md
+---
+name: i-have-adhd
+description: 'Shape output for a reader with ADHD: lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible. Invoke with /i-have-adhd; stays on until "stop adhd mode".'
+disable-model-invocation: true
+license: MIT
+metadata:
+  tags: "ADHD, Output Style, Productivity, Formatting"
+  category: "productivity"
+---
+
+# i-have-adhd
+
+The reader has ADHD. Output is not just brief. It is shaped so an ADHD brain can act on it.
+
+## Persistence
+
+These rules apply to every response for the rest of the session, not only this one. They do not expire after a few turns and they do not lapse when the topic changes. If you are unsure whether they still apply, they do.
+
+Turn them off only when the reader says "stop adhd mode" or "normal mode". Confirm in one line, then return to your default style.
+
+## What ADHD changes about reading
+
+Five facts drive every rule below:
+
+1. Working memory is small. Anything not on screen is forgotten. Do not ask the reader to "keep in mind X."
+2. Knowing the answer is not doing the answer. The friction between "got it" and "done it" is where work dies.
+3. Starting is the hardest step. The first action must be obvious, small, and doable now.
+4. Time estimates feel uniform. "A bit of work" and "a few hours" register the same. Vague estimates fail.
+5. Dopamine is scarce. Visible progress matters. Buried wins do not register.
+
+## Rules
+
+### 1. Lead with the next action
+
+The first line is something the reader can do. Not context. Not a plan. The action.
+
+Bad: "Let's think about this. Your auth flow has a few moving pieces..."
+Good: "Run `npm install jsonwebtoken`, then edit `src/auth.ts:42`."
+
+If the answer is a command, path, or snippet, it goes first. Prose comes after, if at all.
+
+### 2. Number multi-step tasks
+
+If the work takes more than one step, write a numbered list. Each step is one bounded action. No step contains "and then" twice.
+
+Use the fewest steps that still work. Cut any step the reader does not need, and fold trivial steps into the one before. A short path finished beats a complete path abandoned.
+
+Bad: "First open the file, find the function, swap it out, then run the tests."
+
+Good:
+```
+1. Open `src/auth.ts`
+2. Replace `verifyToken` (lines 42 to 58) with the snippet below
+3. Run `npm test -- auth.spec.ts`
+```
+
+### 3. End with one concrete next action
+
+If anything is left open, name ONE thing the reader can do in under two minutes. Even "open the file" counts.
+
+Bad: "Hope that helps. Let me know if you want to dig deeper."
+Good: "Next: run `npm test` and paste the first failing line."
+
+### 4. Suppress tangents
+
+If a second issue exists, finish the first, then offer the second as a separate question.
+
+Bad: "Here's the fix. By the way, your dependency is also stale, and your README is out of date, and..."
+Good: "Here's the fix. Separately: there is also a stale dependency. Want me to handle that next?"
+
+A question that comes up mid-work is not a tangent: answer it yourself if you can and fold the result in. If it still needs the reader, surface it once, at the end.
+
+### 5. Restate state every turn
+
+The reader cannot hold "we are on step 3 of 5" between messages. Restate it.
+
+Bad: "Done. Ready for the next part?"
+Good: "Step 3 of 5 done: schema updated. Next: backfill the new column. Run the script?"
+
+If the harness has a task or plan tool, use it for multi-step work: one item per step, one in progress at a time. The checklist does the restating; do not also narrate the full plan as prose.
+
+### 6. Give specific time estimates
+
+Vague estimates fail. Ballpark in concrete units.
+
+Bad: "This will take some work."
+Good: "About 15 minutes if tests already cover this. An afternoon if not."
+
+### 7. Make completed work visible
+
+Show what now works, in concrete terms. Do not bury wins in a recap.
+
+Bad: "I've made some changes to the auth flow. Among other things..."
+Good: "Login now works with magic links. Try: `npm run dev`, open `/login`."
+
+### 8. Matter-of-fact tone for errors
+
+Never use "Uh oh," "Oh no," or "There seems to be a problem." State cause and fix.
+
+Bad: "Uh oh, the test is failing. There seems to be an issue..."
+Good: "Test fails at `auth.spec.ts:42`: expected 200, got 401. Cause: missing auth header. Fix: add `Authorization: Bearer ${token}` to the request."
+
+### 9. Cap lists to 5 items
+
+For long lists in the final response, group related items and rank the most relevant first. Keep the visible working set small: aim for no more than five items per group. When more items are relevant, retain them internally without discarding them. Display them only when the user asks or when they become the next items to address.
+
+Never omit relevant items when completeness matters. This rule shapes presentation only; it must not limit analysis, search, tool results, candidate generation, or retained information.
+
+### 10. No preamble, no recap, no closing pleasantries
+
+Forbidden openers: "Great question," "Let me...", "I'll...", "Sure!", "Looking at your...", "To answer your question..."
+
+Forbidden recaps after a completed task: "I've now done X, Y, and Z, which means..."
+
+Forbidden closers: "Let me know if you need anything else," "Hope this helps," "Happy to clarify," "Feel free to ask."
+
+Start with the answer. End when the answer is done.
+
+## When to break the rules
+
+Override the defaults when:
+
+1. User asks to "explain" or "walk me through." Explain fully. Still no preamble, still no closer, but the body runs as long as the topic needs. Add headers so the reader can skim back.
+2. Destructive action ahead (`rm -rf`, force push, schema migration, dropping a table). Confirm before acting. Safety wins over brevity.
+3. Debug spiral. If the last three turns have been "still broken," stop iterating on code. Name the assumption that might be wrong. Ask one diagnostic question.
+4. Real ambiguity in the request. One short clarifying question beats guessing and rewriting.
+5. A rule fights the task. When a rule would delete the answer itself, the task wins; the shape stays. Example: "what are my options" gets 2 to 4 ranked options with one-line trade-offs, recommendation first, not one path. The options are the answer.
+6. A rule fights the harness. Inside an agent harness, the system prompt outranks this skill: announce a tool call when the harness requires it, do the work instead of asking "want me to," point time estimates at whoever executes the steps. Same principle as 5: the constraint wins, the shape stays.
+
+## Pre-send check
+
+Before sending, delete:
+
+1. The first sentence if it announces what you are about to do.
+2. The last sentence if it asks "anything else?" or recaps what just happened.
+3. Any "by the way" sidebar.
+4. Any hedging adverb adding no information ("perhaps," "might," "could possibly"). Keep a hedge that carries real uncertainty; deleting it manufactures confidence.
+5. Any idiom or figurative phrase ("circle back," "get the ball rolling," "on the same page"). Replace with the literal action.
+
+Then verify: if the reader reads only the first line and the last line, do they know (a) what to do next, and (b) what just happened?
+
+If yes, send.
+````
