@@ -30,6 +30,8 @@ const JAPANESE_TECH_WRITING_GIST =
   "https://gist.githubusercontent.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d/raw";
 const I_HAVE_ADHD_BASE =
   "https://raw.githubusercontent.com/ayghri/i-have-adhd/main/skills/i-have-adhd";
+const STOP_AI_SLOP_JP_BASE =
+  "https://raw.githubusercontent.com/iKora128/stop-ai-slop-jp/main";
 
 const SKILLS: SkillSource[] = [
   {
@@ -102,6 +104,19 @@ const SKILLS: SkillSource[] = [
 - SKILL.md のみで動作。リポジトリの python 群は評価ハーネス用でありチャット利用では不要`,
     files: [
       { url: `${I_HAVE_ADHD_BASE}/SKILL.md`, title: "SKILL.md" },
+    ],
+  },
+  {
+    templateName: "stop-ai-slop-jp",
+    description: `日本語の文章からAI臭を取り除く Claude Skill。立場 → 主体 → 構造 → 語彙 → 記号の優先順位でレビュー・修正するタイプ。hardikpandya/stop-slop の日本語版。
+
+- 出典: https://github.com/iKora128/stop-ai-slop-jp (MIT)
+- 元版: https://github.com/hardikpandya/stop-slop`,
+    files: [
+      { url: `${STOP_AI_SLOP_JP_BASE}/SKILL.md`, title: "SKILL.md" },
+      { url: `${STOP_AI_SLOP_JP_BASE}/references/phrases.md`, title: "references/phrases.md" },
+      { url: `${STOP_AI_SLOP_JP_BASE}/references/structures.md`, title: "references/structures.md" },
+      { url: `${STOP_AI_SLOP_JP_BASE}/references/examples.md`, title: "references/examples.md" },
     ],
   },
 ];
