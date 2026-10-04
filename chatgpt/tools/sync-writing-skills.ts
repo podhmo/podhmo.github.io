@@ -28,6 +28,8 @@ const NATURAL_JAPANESE_BASE =
   "https://raw.githubusercontent.com/coji/natural-japanese/main/skills/natural-japanese";
 const JAPANESE_TECH_WRITING_GIST =
   "https://gist.githubusercontent.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d/raw";
+const I_HAVE_ADHD_BASE =
+  "https://raw.githubusercontent.com/ayghri/i-have-adhd/main/skills/i-have-adhd";
 
 const SKILLS: SkillSource[] = [
   {
@@ -90,6 +92,16 @@ const SKILLS: SkillSource[] = [
 - 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14`,
     files: [
       { url: `${JAPANESE_TECH_WRITING_GIST}/SKILL.md`, title: "SKILL.md" },
+    ],
+  },
+  {
+    templateName: "i-have-adhd",
+    description: `コーディングエージェントの応答を ADHD フレンドリーにする output style skill。回答を先に出し、手順を番号付きにし、脱線を抑えるタイプ。日本語推敲ではなく応答スタイルのルール集。
+
+- 出典: https://github.com/ayghri/i-have-adhd (MIT)
+- SKILL.md のみで動作。リポジトリの python 群は評価ハーネス用でありチャット利用では不要`,
+    files: [
+      { url: `${I_HAVE_ADHD_BASE}/SKILL.md`, title: "SKILL.md" },
     ],
   },
 ];
