@@ -100,6 +100,25 @@ ${instruction}
         await copyToClipboard(finalPrompt, buttonElement);
     };
 
+    // スマホのクリップボードサイズ制限を回避するため、ファイルから直接テキストを読み込む。
+    // 読み込んだ内容は対象テキストの textarea (prompt-target-text) に流し込む。
+    const handleTargetTextFileSelect = async (event) => {
+        const fileInput = event.target;
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+
+        const textarea = document.getElementById('prompt-target-text');
+        try {
+            textarea.value = await file.text();
+        } catch (err) {
+            console.error('Failed to read file:', err);
+            textarea.value = `Error: failed to read file "${file.name}" (${err.message})`;
+        } finally {
+            // 同じファイルを続けて選択できるよう選択状態をリセットする
+            fileInput.value = '';
+        }
+    };
+
     const buildDownloadFilename = () => {
         const sanitized = template.templateName.replace(/[\\/:*?"<>|]/g, '-').trim();
         return `${sanitized || 'prompt'}.md`;
@@ -250,6 +269,16 @@ ${instruction}
                         name="prompt-target-text"
                         placeholder="Enter target text, a URL, or leave blank for chat history..."
                     ></textarea>
+                    <small>
+                        またはファイルから読み込む（大きなテキスト用）:
+                        <input
+                            type="file"
+                            id="prompt-target-file"
+                            name="prompt-target-file"
+                            accept="text/*,.md,.txt"
+                            onChange=${handleTargetTextFileSelect}
+                        />
+                    </small>
                 </div>
                 <button
                     class="download-button"
