@@ -4,6 +4,9 @@ import { default as htm } from 'htm';
 
 const html = htm.bind(h);
 
+// 連続してファイルを選択した場合に後から選んだ方を優先するための世代番号
+let targetFileReadSeq = 0;
+
 /**
  * 選択されたテンプレートの詳細（説明、プロンプト本体、変数入力欄）のVNodeを返します。
  * @param {import('../markdownParser.js').ParsedTemplate} template - 表示するテンプレートのデータ
@@ -98,6 +101,32 @@ ${instruction}
     const handleCopy = async (instruction, isRaw, buttonElement) => {
         const finalPrompt = buildFinalPrompt(instruction, isRaw);
         await copyToClipboard(finalPrompt, buttonElement);
+    };
+
+    // スマホのクリップボードサイズ制限を回避するため、ファイルから直接テキストを読み込む。
+    // 読み込んだ内容は対象テキストの textarea (prompt-target-text) に流し込む。
+    const handleTargetTextFileSelect = async (event) => {
+        const fileInput = event.target;
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+
+        const readSeq = ++targetFileReadSeq;
+        const statusEl = document.getElementById('prompt-target-file-status');
+        try {
+            const text = await file.text();
+            if (readSeq !== targetFileReadSeq) return; // 後から選択された方を優先
+            document.getElementById('prompt-target-text').value = text;
+            if (statusEl) statusEl.textContent = `読み込みました: ${file.name} (${text.length}文字)`;
+        } catch (err) {
+            console.error('Failed to read file:', err);
+            // エラーをtextareaに書くとプロンプト本文に混入するため、ステータス表示に留める
+            if (readSeq === targetFileReadSeq && statusEl) {
+                statusEl.textContent = `読み込みに失敗しました: ${file.name}`;
+            }
+        } finally {
+            // 同じファイルを続けて選択できるよう選択状態をリセットする
+            fileInput.value = '';
+        }
     };
 
     const buildDownloadFilename = () => {
@@ -250,6 +279,17 @@ ${instruction}
                         name="prompt-target-text"
                         placeholder="Enter target text, a URL, or leave blank for chat history..."
                     ></textarea>
+                    <small>
+                        またはファイルから読み込む（大きなテキスト用）:
+                        <input
+                            type="file"
+                            id="prompt-target-file"
+                            name="prompt-target-file"
+                            accept="text/*,.md,.txt"
+                            onChange=${handleTargetTextFileSelect}
+                        />
+                    </small>
+                    <small id="prompt-target-file-status" aria-live="polite"></small>
                 </div>
                 <button
                     class="download-button"
