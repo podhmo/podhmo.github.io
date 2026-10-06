@@ -8,6 +8,10 @@ const GOOGLE_AI_STUDIO_FOLDER_NAME = "Google AI Studio";
 let tokenClient;
 let gapiInited = false;
 let gisInited = false;
+let aiStudioFolderId = null;
+let nextPageToken = null;
+let filesLoading = false;
+let fileListVersion = 0;
 
 // --- DOM要素の取得 ---
 const authorizeButton = document.getElementById('authorize_button');
@@ -16,6 +20,7 @@ const contentSection = document.getElementById('content');
 const fileListElement = document.getElementById('file-list');
 const loadingMessage = document.getElementById('loading-message');
 const noFilesMessage = document.getElementById('no-files-message');
+const loadMoreButton = document.getElementById('load-more-button');
 
 // Markdownダウンロードオプション用のDOM要素を取得
 const includeThoughtsCheckbox = document.getElementById('includeThoughtsCheckbox');
@@ -87,14 +92,41 @@ function updateSigninStatus(isSignedIn) {
     if (authorizeButton) authorizeButton.style.display = isSignedIn ? 'none' : 'block';
     if (signoutButton) signoutButton.style.display = isSignedIn ? 'block' : 'none';
     if (contentSection) contentSection.style.display = isSignedIn ? 'block' : 'none';
-    if (!isSignedIn && loadingMessage) loadingMessage.style.display = 'none';
+    if (!isSignedIn) {
+        resetFilePagination();
+        if (loadingMessage) loadingMessage.style.display = 'none';
+    }
+}
+
+function updateLoadMoreButton() {
+    if (!loadMoreButton) return;
+    loadMoreButton.style.display = nextPageToken ? 'block' : 'none';
+    loadMoreButton.disabled = filesLoading;
+    loadMoreButton.textContent = filesLoading ? '読み込み中...' : '次の100件を取得';
+    loadMoreButton.setAttribute('aria-busy', String(filesLoading));
+}
+
+function resetFilePagination() {
+    fileListVersion++;
+    aiStudioFolderId = null;
+    nextPageToken = null;
+    filesLoading = false;
+    updateLoadMoreButton();
 }
 
 /**
  * "Google AI Studio" フォルダ内のファイルを取得して表示
+ * @param {boolean} append 次のページを一覧に追記するか
  */
-async function listFilesInAiStudioFolder() {
-    if (fileListElement) fileListElement.innerHTML = '';
+async function listFilesInAiStudioFolder(append = false) {
+    if (filesLoading || (append && !nextPageToken)) return;
+    if (!append) {
+        resetFilePagination();
+        if (fileListElement) fileListElement.innerHTML = '';
+    }
+    const version = fileListVersion;
+    filesLoading = true;
+    updateLoadMoreButton();
     if (loadingMessage) loadingMessage.style.display = 'block';
     if (noFilesMessage) noFilesMessage.style.display = 'none';
 
@@ -106,48 +138,58 @@ async function listFilesInAiStudioFolder() {
     }
     
     try {
-        const folderSearchResponse = await gapi.client.drive.files.list({
-            q: `name='${GOOGLE_AI_STUDIO_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-            fields: 'files(id, name)',
-            spaces: 'drive'
-        });
+        if (!aiStudioFolderId) {
+            const folderSearchResponse = await gapi.client.drive.files.list({
+                q: `name='${GOOGLE_AI_STUDIO_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+                fields: 'files(id, name)',
+                spaces: 'drive'
+            });
+            if (version !== fileListVersion) return;
 
-        if (!folderSearchResponse.result.files || folderSearchResponse.result.files.length === 0) {
-            showError(`フォルダ "${GOOGLE_AI_STUDIO_FOLDER_NAME}" が見つかりません。`);
-            if (loadingMessage) loadingMessage.style.display = 'none';
-            if (noFilesMessage) {
-                noFilesMessage.textContent = `フォルダ "${GOOGLE_AI_STUDIO_FOLDER_NAME}" が見つかりません。`;
-                noFilesMessage.style.display = 'block';
+            if (!folderSearchResponse.result.files || folderSearchResponse.result.files.length === 0) {
+                showError(`フォルダ "${GOOGLE_AI_STUDIO_FOLDER_NAME}" が見つかりません。`);
+                if (noFilesMessage) {
+                    noFilesMessage.textContent = `フォルダ "${GOOGLE_AI_STUDIO_FOLDER_NAME}" が見つかりません。`;
+                    noFilesMessage.style.display = 'block';
+                }
+                return;
             }
-            return;
+            aiStudioFolderId = folderSearchResponse.result.files[0].id;
         }
-        const aiStudioFolderId = folderSearchResponse.result.files[0].id;
 
         const fileListResponse = await gapi.client.drive.files.list({
             q: `'${aiStudioFolderId}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed=false`,
             orderBy: 'modifiedTime desc',
-            fields: 'files(id, name, createdTime, modifiedTime)',
+            fields: 'nextPageToken, files(id, name, createdTime, modifiedTime)',
             pageSize: 100,
+            ...(nextPageToken ? { pageToken: nextPageToken } : {}),
             spaces: 'drive'
         });
+        if (version !== fileListVersion) return;
+        nextPageToken = fileListResponse.result.nextPageToken || null;
         const files = (fileListResponse.result.files || []).filter(file => !/\.[^.\s]+$/.test(file.name));
 
-        if (loadingMessage) loadingMessage.style.display = 'none';
         if (files && files.length > 0) {
-            displayFiles(files);
+            displayFiles(files, append);
         } else {
-            if (noFilesMessage) {
+            if (noFilesMessage && !fileListElement?.children.length && !nextPageToken) {
                 noFilesMessage.textContent = `"${GOOGLE_AI_STUDIO_FOLDER_NAME}" フォルダ内に対話履歴が見つかりませんでした。`;
                 noFilesMessage.style.display = 'block';
             }
         }
     } catch (error) {
+        if (version !== fileListVersion) return;
         console.error('Error listing files:', error);
         showError(`ファイルの取得に失敗しました: ${error.result ? error.result.error.message : error.message}`);
-        if (loadingMessage) loadingMessage.style.display = 'none';
         if (error.status === 401 || error.status === 403) {
             handleSignoutClick();
             alert("認証エラーが発生しました。再度ログインしてください。");
+        }
+    } finally {
+        if (version === fileListVersion) {
+            filesLoading = false;
+            if (loadingMessage) loadingMessage.style.display = 'none';
+            updateLoadMoreButton();
         }
     }
 }
@@ -165,10 +207,11 @@ function normalizeFileName(originalName) {
 /**
  * 取得したファイルリストをHTMLに描画
  * @param {Array<Object>} files
+ * @param {boolean} append 既存の一覧を残して追記するか
  */
-function displayFiles(files) {
+function displayFiles(files, append = false) {
     if (!fileListElement) return;
-    fileListElement.innerHTML = '';
+    if (!append) fileListElement.innerHTML = '';
     files.forEach(file => {
         const listItem = document.createElement('li');
         
@@ -526,6 +569,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (signoutButton) {
         signoutButton.onclick = handleSignoutClick;
+    }
+    if (loadMoreButton) {
+        loadMoreButton.onclick = () => listFilesInAiStudioFolder(true);
     }
     // 初期UI状態を設定
     if (authorizeButton) authorizeButton.style.display = 'none'; // GIS/GAPIロード後に表示される
