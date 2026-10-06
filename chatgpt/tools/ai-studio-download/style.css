@@ -5,8 +5,15 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.5rem;
     padding: 0.5rem 0;
     border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+#file-list li > span {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 #file-list li:last-child {
@@ -14,9 +21,16 @@
 }
 
 /* ファイル操作ボタンの調整 */
+#file-list .file-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 0.5rem;
+}
+
 #file-list .file-actions button {
-    margin-left: 0.5rem;
+    margin: 0;
     min-width: 110px; /* ボタンの最小幅を少し調整 */
+    white-space: nowrap;
 }
 
 /* スマートフォンでのファイルリスト表示調整 */
@@ -26,15 +40,16 @@
         align-items: flex-start;
     }
     #file-list .file-actions {
-        margin-top: 0.5rem;
         width: 100%;
         display: grid; /* Gridを使用してボタンを均等配置 */
-        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); /* 最小100pxで自動フィット */
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.5rem; /* ボタン間の隙間 */
     }
     #file-list .file-actions button {
-        margin-left: 0; /* 左マージンをリセット */
+        min-width: 0;
         width: 100%; /* ボタンをコンテナ幅いっぱいに */
+        padding: 0.5rem 0.25rem;
+        font-size: 0.875rem;
     }
 }
 
