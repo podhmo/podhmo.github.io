@@ -130,14 +130,14 @@ async function listFilesInAiStudioFolder() {
             pageSize: 100,
             spaces: 'drive'
         });
+        const files = (fileListResponse.result.files || []).filter(file => !/\.[^.\s]+$/.test(file.name));
 
         if (loadingMessage) loadingMessage.style.display = 'none';
-        const files = fileListResponse.result.files;
         if (files && files.length > 0) {
             displayFiles(files);
         } else {
             if (noFilesMessage) {
-                noFilesMessage.textContent = `"${GOOGLE_AI_STUDIO_FOLDER_NAME}" フォルダ内にJSONファイルが見つかりませんでした。`;
+                noFilesMessage.textContent = `"${GOOGLE_AI_STUDIO_FOLDER_NAME}" フォルダ内に対話履歴が見つかりませんでした。`;
                 noFilesMessage.style.display = 'block';
             }
         }
