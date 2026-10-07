@@ -33,6 +33,7 @@ pico.css v2 のコンポーネント組み合わせだけで作るウェブア�
 | `profile.html` | 詳細表示系 (ユーザー/組織/リソース) | `.grid` 2列, `figure` + インラインSVG のアバター, `table` の属性表, カード内 `role="group"` |
 | `inbox.html` | 通知・受信トレイ。テーブルではなくカード列にする例 | nav + `aria-current` のタブ風フィルタ, `nav` 左側の `details.dropdown` のまとめ操作, article の `header/footer` に差出人・操作 |
 | `billing.html` | 料金プラン・請求系 | `.grid` 3枚のプランカード, `mark` のバッジ, `ins`/`del`/`kbd` の状態表示 |
+| `ai-studio-download.html` | 既存アプリ ([chatgpt/tools/ai-studio-download](../../chatgpt/tools/ai-studio-download/)) を pico 部品だけで組み直すためのモック。「一覧 + 各行に操作ボタン」型の画面の雛形 | `article` 1枚 = 1件、カード内を `.grid` で「`hgroup` (タイトル+日時) / `role="group"` (JSON / Markdown)」の2列に。PC では左右、モバイルでは縦積み。`aria-busy` のローディング、`fieldset` + `role="switch"` のオプション |
 
 ## 逆引き: やりたいこと → pico の書き方
 
@@ -79,6 +80,21 @@ pico.css v2 のコンポーネント組み合わせだけで作るウェブア�
 - `nav` 内の `details.dropdown > summary` (roleなし) はリンク風、`nav` 外では select 風の見た目になる
 - `data-theme="dark"` は `html` だけでなく `table` 等の任意要素にも効く
 - dropdown/details 系は JS 不要だが `dialog` だけは `showModal()` が要る
+
+## 実アプリへの適用例: ai-studio-download
+
+`ai-studio-download.html` は [chatgpt/tools/ai-studio-download](../../chatgpt/tools/ai-studio-download/) を pico 部品だけで組み直すためのモック。元の実装は `#file-list li` を flex で左右に並べ、`@media (max-width: 576px)` で縦積みにする独自 CSS を持っていた。それを次のように置き換える。
+
+| 元 (独自 CSS) | モック (pico のみ) |
+| --- | --- |
+| `li { display:flex; justify-content:space-between }` + モバイル用 `flex-direction:column` | `article` の中に `.grid` → 768px 以上で2列、未満で縦積み。メディアクエリ不要 |
+| `.file-actions { display:flex / grid }` + ボタン幅の調整 | `div[role="group"]` に短いラベルのボタン2つ (JSON / Markdown)。幅は親列いっぱいに均等割り |
+| `li > span { overflow-wrap:anywhere }` (長いタイトル対策) | 不要。pico は `:root { overflow-wrap: break-word }` と `.grid > * { min-width: 0 }` を持つので、空白のない長いトークンも列幅で折り返す |
+| `border-bottom` の区切り線 | `article` のカード境界で代替 |
+| `#loading-message` / `#no-files-message` の margin | `p[aria-busy="true"]` と `article` 内の `p` の既定余白のまま |
+| `nav > ul > li > button` のログイン/ログアウト | 同じ。ナビ右側は1項目 (ログアウト) だけにして 375px でも折れないようにする |
+
+タイトルと日時は `hgroup` (`h4` + `p > time`) にまとめると、2行目が自動で muted color になる。
 
 ## 共通ボイラープレート
 
