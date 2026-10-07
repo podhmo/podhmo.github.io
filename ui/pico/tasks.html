@@ -46,7 +46,8 @@
                 <fieldset>
                     <label>
                         <input type="checkbox" name="t1">
-                        仕様書のレビュー <small>14:00 まで</small>
+                        <!-- input の直後の small は pico がヘルパーテキスト扱い (display:block) にするので span で包む -->
+                        <span>仕様書のレビュー <small>14:00 まで</small></span>
                     </label>
                     <label>
                         <input type="checkbox" name="t2" checked>

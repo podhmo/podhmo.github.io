@@ -25,13 +25,13 @@ pico.css v2 のコンポーネント組み合わせだけで作るウェブア�
 | `login.html` | 認証フォーム。入力エラー表示の見せ方も入っている | article の中に form, `aria-invalid` + `small` + `aria-describedby`, `role="switch"` |
 | `hero.html` | ランディング等「ウェブサイト寄り」の標準ページ | nav の右端に `role="button"` CTA, hgroup のヒーロー, blockquote の引用, `role="group"` の登録フォーム |
 | `dashboard.html` | 管理画面・KPI サマリのトップ | `.grid` の KPI カード (4列→縦積み), `table.striped` + `overflow-auto`, `progress`, nav の `details.dropdown` ユーザーメニュー, `aria-busy` のローディング表示 |
-| `datatable.html` | 一覧+検索+一括操作の管理画面 | `role="search"` 検索バー, チェックボックスつき `table.striped`, `data-tooltip`, nav の `aria-current` を使ったページネーション |
+| `datatable.html` | 一覧+検索+一括操作の管理画面 | `role="search"` 検索バー, `nav` の左に `details.dropdown` の一括操作・右に主操作ボタン, チェックボックスつき `table.striped` (モバイル用に列を畳む), `data-tooltip`, nav の `aria-current` を使ったページネーション |
 | `tasks.html` | チェックリスト系。進捗表示の出し方の例 | checkbox リスト + `del` で完了表現, 確定/不確定の `progress`, `details` で折りたたみ |
 | `kanban.html` | カードを列に並べるボード | `.grid` の直下に `section` = 列、その中に `article` = カード。`role="group"` のビュー切り替えも |
 | `chat.html` | メッセージング・サイドバーつき画面 | `aside` の中の `details` アコーディオンに `nav` (aside 内の nav は自動で縦積み), メッセージは `article` + `header`, 入力は `role="group"` |
 | `settings.html` | フォーム中心の設定画面 + 確認ダイアログ | `role="switch"` トグル, `range`, `select`, radio, `dialog` + `modal-is-open`, パンくず `nav[aria-label="breadcrumb"]` |
 | `profile.html` | 詳細表示系 (ユーザー/組織/リソース) | `.grid` 2列, `figure` + インラインSVG のアバター, `table` の属性表, カード内 `role="group"` |
-| `inbox.html` | 通知・受信トレイ。テーブルではなくカード列にする例 | nav + `aria-current` のタブ風フィルタ, `details.dropdown` のまとめ操作, article の `header/footer` に差出人・操作 |
+| `inbox.html` | 通知・受信トレイ。テーブルではなくカード列にする例 | nav + `aria-current` のタブ風フィルタ, `nav` 左側の `details.dropdown` のまとめ操作, article の `header/footer` に差出人・操作 |
 | `billing.html` | 料金プラン・請求系 | `.grid` 3枚のプランカード, `mark` のバッジ, `ins`/`del`/`kbd` の状態表示 |
 
 ## 逆引き: やりたいこと → pico の書き方
@@ -71,7 +71,10 @@ pico.css v2 のコンポーネント組み合わせだけで作るウェブア�
 - `.grid` は `min-width:768px` 以上で `auto-fit` の等分列、未満で1列。4枚なら4列になるのでカードの枚数は列数と考える
 - `role="group"` は `.grid` と違ってモバイルでも縮まず横並びのまま。中身が長いと潰れるので短いラベルにする
 - トップ `nav` の項目は溢れると折り返されて崩れるので、モバイルで見て右側 `ul` は2項目程度に抑える。多い場合は `details.dropdown` に畳むか `nav[aria-label="breadcrumb"]` を使う (dashboard.html / settings.html / kanban.html 参照)
-- `role="group"` のボタン列も同様に折り返さず潰れるので、長い文言はリンクに逃がす方が無難 (login.html のフッター参照)
+- `role="group"` のボタン列も同様に折り返さず潰れるので、長い文言はリンクに逃がす方が無難 (login.html のフッター参照)。ボタン3つ以上も 375px では2行に折れる → 副次操作は `details.dropdown` に畳み、主操作1つだけ残す (datatable.html の一括操作)
+- `details.dropdown` のメニューは summary の**左端**基準 (`left:0` + `min-width:fit-content`) で開く。`nav` の右端に置くと項目が長いとき右にはみ出し、375px では開いた瞬間にページが横に広がる。dropdown は `nav` の左側 `ul` か本文側に置き、右端に置くなら項目を短くする (inbox.html / datatable.html は左に置いた)
+- `table` は `width:100%` の auto layout なので、狭い幅では折り返せない内容 (メールアドレス等) が幅を取り、CJK のセルが1文字ずつ縦に折れる。`.overflow-auto` はページのはみ出しは防ぐがこの潰れは防げない → 列数を減らし、メール・ロール・状態などは名前セルに `kbd`/`ins`/`small` で畳む (datatable.html は 7列→3列)。それでも無理ならカード列 (inbox.html) にする
+- `input` の直後 (兄弟要素として) に置いた `small` はヘルパーテキスト扱いで `display:block` + 負の margin になる。checkbox ラベル内の「本文 <small>補足</small>」は `span` で包んで `input + small` にならないようにする (tasks.html)
 - `.container` の最大幅はブレークポイントごとに段階的 (最大 ~1150px+)。article を1枚だけ置くと横にだらっと伸びる → 複数枚並べる or 読み物なら気にしない
 - `nav` 内の `details.dropdown > summary` (roleなし) はリンク風、`nav` 外では select 風の見た目になる
 - `data-theme="dark"` は `html` だけでなく `table` 等の任意要素にも効く
