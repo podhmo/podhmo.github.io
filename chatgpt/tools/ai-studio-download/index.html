@@ -5,47 +5,50 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Studio Conversion History Downloader</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
-    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <main class="container">
-        <header>
-            <h1>AI Studio Conversion History Downloader</h1>
-            <p>Google AI Studio フォルダ内の JSON ファイルをダウンロードします。</p>
-        </header>
-
         <nav>
             <ul>
-                <li><button id="authorize_button" style="display:none;">Googleアカウントでログイン</button></li>
-                <li><button id="signout_button" style="display:none;">ログアウト</button></li>
+                <li><strong>AI Studio Download</strong></li>
+            </ul>
+            <ul>
+                <li><button id="signout_button" type="button" class="secondary outline" hidden>ログアウト</button></li>
             </ul>
         </nav>
 
-        <section id="content" style="display:none;">
-            <h2>ファイル一覧 (Google AI Studio フォルダ内)</h2>
+        <hgroup>
+            <h1>AI Studio の対話履歴をダウンロード</h1>
+            <p>Google Drive の "Google AI Studio" フォルダにある対話履歴を JSON / Markdown で保存します。</p>
+        </hgroup>
 
-            <!-- ダウンロードオプションを追加 -->
+        <section id="signin" hidden>
+            <article>
+                <p>Google アカウントでログインすると、Drive 上の "Google AI Studio" フォルダから対話履歴の一覧を取得します (読み取り専用)。</p>
+                <button id="authorize_button" type="button" disabled aria-busy="true">Googleアカウントでログイン</button>
+            </article>
+        </section>
+
+        <section id="content" hidden>
             <fieldset>
-                <legend>Markdownダウンロードオプション</legend>
+                <legend>Markdown のオプション</legend>
                 <label for="includeThoughtsCheckbox">
                     <input type="checkbox" id="includeThoughtsCheckbox" name="includeThoughtsCheckbox" role="switch" checked>
                     AIの思考プロセスを含める
                 </label>
                 <label for="onlyUserInputsCheckbox">
                     <input type="checkbox" id="onlyUserInputsCheckbox" name="onlyUserInputsCheckbox" role="switch">
-                    ユーザー入力のみ表示する
+                    ユーザー入力のみ
                 </label>
             </fieldset>
-            <!-- /ダウンロードオプション -->
 
-            <div id="file-list-container">
-                <p aria-busy="true" id="loading-message" style="display:none;">ファイル一覧を読み込み中...</p>
-                <ul id="file-list"></ul>
-                <button id="load-more-button" type="button" style="display:none;">次の100件を取得</button>
-                <p id="no-files-message" style="display:none;">対象のファイルが見つかりませんでした。</p>
-            </div>
+            <h2>対話履歴 <small>(新しい順)</small></h2>
+            <div id="file-list"></div>
+            <p id="loading-message" aria-busy="true" hidden>ファイル一覧を読み込み中...</p>
+            <p id="no-files-message" hidden>対象のファイルが見つかりませんでした。</p>
+            <button id="load-more-button" type="button" class="secondary outline" hidden>次の100件を取得</button>
         </section>
-        
+
         <footer>
             <small>Pico.css v2 を使用しています。</small>
         </footer>

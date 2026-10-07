@@ -16,6 +16,7 @@ let fileListVersion = 0;
 // --- DOM要素の取得 ---
 const authorizeButton = document.getElementById('authorize_button');
 const signoutButton = document.getElementById('signout_button');
+const signinSection = document.getElementById('signin');
 const contentSection = document.getElementById('content');
 const fileListElement = document.getElementById('file-list');
 const loadingMessage = document.getElementById('loading-message');
@@ -48,7 +49,8 @@ async function initializeGapiClient() {
  */
 function maybeEnableAuthUI() {
     if (gapiInited && gisInited && authorizeButton) {
-        authorizeButton.style.display = 'block';
+        authorizeButton.disabled = false;
+        authorizeButton.removeAttribute('aria-busy');
     }
 }
 
@@ -79,7 +81,7 @@ function handleSignoutClick() {
             gapi.client.setToken('');
             updateSigninStatus(false);
             if (fileListElement) fileListElement.innerHTML = '';
-            if (noFilesMessage) noFilesMessage.style.display = 'none';
+            if (noFilesMessage) noFilesMessage.hidden = true;
         });
     }
 }
@@ -89,18 +91,18 @@ function handleSignoutClick() {
  * @param {boolean} isSignedIn
  */
 function updateSigninStatus(isSignedIn) {
-    if (authorizeButton) authorizeButton.style.display = isSignedIn ? 'none' : 'block';
-    if (signoutButton) signoutButton.style.display = isSignedIn ? 'block' : 'none';
-    if (contentSection) contentSection.style.display = isSignedIn ? 'block' : 'none';
+    if (signinSection) signinSection.hidden = isSignedIn;
+    if (signoutButton) signoutButton.hidden = !isSignedIn;
+    if (contentSection) contentSection.hidden = !isSignedIn;
     if (!isSignedIn) {
         resetFilePagination();
-        if (loadingMessage) loadingMessage.style.display = 'none';
+        if (loadingMessage) loadingMessage.hidden = true;
     }
 }
 
 function updateLoadMoreButton() {
     if (!loadMoreButton) return;
-    loadMoreButton.style.display = nextPageToken ? 'block' : 'none';
+    loadMoreButton.hidden = !nextPageToken;
     loadMoreButton.disabled = filesLoading;
     loadMoreButton.textContent = filesLoading ? '読み込み中...' : '次の100件を取得';
     loadMoreButton.setAttribute('aria-busy', String(filesLoading));
@@ -127,12 +129,12 @@ async function listFilesInAiStudioFolder(append = false) {
     const version = fileListVersion;
     filesLoading = true;
     updateLoadMoreButton();
-    if (loadingMessage) loadingMessage.style.display = 'block';
-    if (noFilesMessage) noFilesMessage.style.display = 'none';
+    if (loadingMessage) loadingMessage.hidden = false;
+    if (noFilesMessage) noFilesMessage.hidden = true;
 
     if (!gapi.client.getToken()) {
         showError('認証されていません。ログインしてください。');
-        if (loadingMessage) loadingMessage.style.display = 'none';
+        if (loadingMessage) loadingMessage.hidden = true;
         updateSigninStatus(false);
         return;
     }
@@ -150,7 +152,7 @@ async function listFilesInAiStudioFolder(append = false) {
                 showError(`フォルダ "${GOOGLE_AI_STUDIO_FOLDER_NAME}" が見つかりません。`);
                 if (noFilesMessage) {
                     noFilesMessage.textContent = `フォルダ "${GOOGLE_AI_STUDIO_FOLDER_NAME}" が見つかりません。`;
-                    noFilesMessage.style.display = 'block';
+                    noFilesMessage.hidden = false;
                 }
                 return;
             }
@@ -174,7 +176,7 @@ async function listFilesInAiStudioFolder(append = false) {
         } else {
             if (noFilesMessage && !fileListElement?.children.length && !nextPageToken) {
                 noFilesMessage.textContent = `"${GOOGLE_AI_STUDIO_FOLDER_NAME}" フォルダ内に対話履歴が見つかりませんでした。`;
-                noFilesMessage.style.display = 'block';
+                noFilesMessage.hidden = false;
             }
         }
     } catch (error) {
@@ -188,7 +190,7 @@ async function listFilesInAiStudioFolder(append = false) {
     } finally {
         if (version === fileListVersion) {
             filesLoading = false;
-            if (loadingMessage) loadingMessage.style.display = 'none';
+            if (loadingMessage) loadingMessage.hidden = true;
             updateLoadMoreButton();
         }
     }
@@ -205,7 +207,19 @@ function normalizeFileName(originalName) {
 }
 
 /**
+ * 日時の表示用フォーマット (RFC 3339 → ブラウザのロケール表記)
+ * @param {string} isoString
+ * @returns {string}
+ */
+function formatDateTime(isoString) {
+    const date = new Date(isoString);
+    return Number.isNaN(date.getTime()) ? isoString : date.toLocaleString('ja-JP', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+/**
  * 取得したファイルリストをHTMLに描画
+ * 1件 = article。中を .grid で「hgroup (タイトル+日時) / role=group (操作ボタン)」の2列にする
+ * (768px 以上で左右、未満で縦積み。pico.css の既定挙動に任せるので独自 CSS は不要)
  * @param {Array<Object>} files
  * @param {boolean} append 既存の一覧を残して追記するか
  */
@@ -213,22 +227,34 @@ function displayFiles(files, append = false) {
     if (!fileListElement) return;
     if (!append) fileListElement.innerHTML = '';
     files.forEach(file => {
-        const listItem = document.createElement('li');
-        
-        const fileNameSpan = document.createElement('span');
-        fileNameSpan.textContent = `${file.name} (${file.createdTime})`; // 時刻を右寄せにしたい        
-        
-        const actionsDiv = document.createElement('div');
-        actionsDiv.classList.add('file-actions');
+        const card = document.createElement('article');
+        const grid = document.createElement('div');
+        grid.classList.add('grid');
+
+        const heading = document.createElement('hgroup');
+        const title = document.createElement('h4');
+        title.textContent = file.name;
+        const meta = document.createElement('p');
+        const time = document.createElement('time');
+        time.dateTime = file.createdTime;
+        time.textContent = formatDateTime(file.createdTime);
+        meta.appendChild(time);
+        heading.append(title, meta);
+
+        const actions = document.createElement('div');
+        actions.setAttribute('role', 'group');
 
         const normalizedBaseName = normalizeFileName(file.name);
 
         const downloadJsonButton = document.createElement('button');
-        downloadJsonButton.textContent = 'JSON形式でDL';
+        downloadJsonButton.type = 'button';
+        downloadJsonButton.classList.add('outline', 'secondary');
+        downloadJsonButton.textContent = 'JSON';
         downloadJsonButton.onclick = () => handleDownloadFile(file.id, `${normalizedBaseName}.json`, 'application/json');
-        
+
         const downloadMdButton = document.createElement('button');
-        downloadMdButton.textContent = 'MD形式でDL';
+        downloadMdButton.type = 'button';
+        downloadMdButton.textContent = 'Markdown';
         downloadMdButton.onclick = () => handleDownloadFile(file.id, `${normalizedBaseName}.md`, 'text/markdown', (jsonText => {
             // UIの状態を読み取り、オプションオブジェクトを作成して渡す
             const options = {
@@ -240,12 +266,10 @@ function displayFiles(files, append = false) {
             return formatChatHistoryToMarkdown(JSON.parse(jsonText), options);
         }));
 
-        actionsDiv.appendChild(downloadJsonButton);
-        actionsDiv.appendChild(downloadMdButton);
-        
-        listItem.appendChild(fileNameSpan);
-        listItem.appendChild(actionsDiv);
-        fileListElement.appendChild(listItem);
+        actions.append(downloadJsonButton, downloadMdButton);
+        grid.append(heading, actions);
+        card.appendChild(grid);
+        fileListElement.appendChild(card);
     });
 }
 
@@ -574,11 +598,11 @@ document.addEventListener('DOMContentLoaded', () => {
         loadMoreButton.onclick = () => listFilesInAiStudioFolder(true);
     }
     // 初期UI状態を設定
-    if (authorizeButton) authorizeButton.style.display = 'none'; // GIS/GAPIロード後に表示される
-    if (signoutButton) signoutButton.style.display = 'none';
-    if (contentSection) contentSection.style.display = 'none';
-    if (loadingMessage) loadingMessage.style.display = 'none';
-    if (noFilesMessage) noFilesMessage.style.display = 'none';
+    if (signinSection) signinSection.hidden = false; // ログインボタンは GIS/GAPI ロード後に有効化される
+    if (signoutButton) signoutButton.hidden = true;
+    if (contentSection) contentSection.hidden = true;
+    if (loadingMessage) loadingMessage.hidden = true;
+    if (noFilesMessage) noFilesMessage.hidden = true;
 
     // オプションチェックボックスの初期状態を設定（HTMLでcheckedがあればそれが優先される）
     // なければJSでデフォルト値を設定することも可能だが、HTMLに任せる
