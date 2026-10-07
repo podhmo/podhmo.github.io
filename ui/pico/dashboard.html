@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — dashboard</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li><strong>Admin</strong></li>
+            </ul>
+            <ul>
+                <li><a href="#" aria-current="page">概要</a></li>
+                <li><a href="./index.html">examples</a></li>
+                <li>
+                    <details class="dropdown">
+                        <summary>山田太郎</summary>
+                        <ul>
+                            <li><a href="#">レポート</a></li>
+                            <li><a href="#">設定</a></li>
+                            <li><a href="#">ログアウト</a></li>
+                        </ul>
+                    </details>
+                </li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <hgroup>
+            <h2>ダッシュボード</h2>
+            <p>2026年10月のサマリ <a href="#" aria-busy="true">同期中</a></p>
+        </hgroup>
+
+        <!-- KPI cards -->
+        <div class="grid">
+            <article>
+                <p><small>売上</small></p>
+                <h3>¥1,234,000</h3>
+                <p><ins>+12%</ins> <small>前月比</small></p>
+            </article>
+            <article>
+                <p><small>新規ユーザー</small></p>
+                <h3>342</h3>
+                <p><ins>+5%</ins> <small>前月比</small></p>
+            </article>
+            <article>
+                <p><small>解約数</small></p>
+                <h3>18</h3>
+                <p><del>-2%</del> <small>前月比</small></p>
+            </article>
+            <article>
+                <p><small>アクティブ率</small></p>
+                <h3>64%</h3>
+                <p><small>先週と同じ</small></p>
+            </article>
+        </div>
+
+        <div class="grid">
+            <!-- recent orders -->
+            <article>
+                <header><strong>最近の注文</strong></header>
+                <div class="overflow-auto">
+                    <table class="striped">
+                        <thead>
+                            <tr>
+                                <th scope="col">注文ID</th>
+                                <th scope="col">顧客</th>
+                                <th scope="col">金額</th>
+                                <th scope="col">状態</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>#1082</td>
+                                <td>佐藤</td>
+                                <td>¥12,800</td>
+                                <td><kbd>発送済</kbd></td>
+                            </tr>
+                            <tr>
+                                <td>#1081</td>
+                                <td>鈴木</td>
+                                <td>¥3,400</td>
+                                <td><kbd>処理中</kbd></td>
+                            </tr>
+                            <tr>
+                                <td>#1080</td>
+                                <td>高橋</td>
+                                <td>¥56,000</td>
+                                <td><kbd>発送済</kbd></td>
+                            </tr>
+                            <tr>
+                                <td>#1079</td>
+                                <td>田中</td>
+                                <td>¥980</td>
+                                <td><mark>要確認</mark></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <footer><a href="#"><small>すべて見る</small></a></footer>
+            </article>
+
+            <!-- resource usage -->
+            <article>
+                <header><strong>リソース使用状況</strong></header>
+                <p>
+                    CPU <small>(60%)</small>
+                    <progress value="60" max="100"></progress>
+                </p>
+                <p>
+                    メモリ <small>(82%)</small>
+                    <progress value="82" max="100"></progress>
+                </p>
+                <p>
+                    ストレージ <small>(45%)</small>
+                    <progress value="45" max="100"></progress>
+                </p>
+                <footer><small>上限に近づいたら通知が届きます</small></footer>
+            </article>
+        </div>
+    </main>
+</body>
+
+</html>

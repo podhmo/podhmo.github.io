@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — profile</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li><a href="./index.html"><strong>pico examples</strong></a></li>
+            </ul>
+            <ul>
+                <li><a href="#">メンバー</a></li>
+                <li><a href="./index.html">examples</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <div class="grid">
+            <!-- profile card -->
+            <article>
+                <header><strong>プロフィール</strong></header>
+                <figure>
+                    <!-- インラインSVGならCSSを書かずにプレースホルダ画像を置ける -->
+                    <svg width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="アバター">
+                        <circle cx="48" cy="48" r="48" fill="currentColor" opacity="0.12" />
+                        <text x="48" y="60" font-size="36" text-anchor="middle" fill="currentColor">YT</text>
+                    </svg>
+                    <figcaption>@ytaro</figcaption>
+                </figure>
+                <hgroup>
+                    <h3>山田太郎</h3>
+                    <p>ソフトウェアエンジニア / 東京</p>
+                </hgroup>
+                <p>バックエンド寄り。趣味は自作キーボード。最近は pico.css で遊んでいる。</p>
+                <footer>
+                    <div role="group">
+                        <button>フォロー</button>
+                        <button class="outline secondary">メッセージ</button>
+                    </div>
+                </footer>
+            </article>
+
+            <!-- details column -->
+            <section>
+                <article>
+                    <header><strong>基本情報</strong></header>
+                    <div class="overflow-auto">
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <th scope="row">参加日</th>
+                                    <td>2024-04-01</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">チーム</th>
+                                    <td>開発部 / プラットフォーム</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">ロール</th>
+                                    <td><kbd>メンテナー</kbd></td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">連絡先</th>
+                                    <td><a href="mailto:ytaro@example.com">ytaro@example.com</a></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+
+                <article>
+                    <header><strong>最近のアクティビティ</strong></header>
+                    <ul>
+                        <li><a href="#">PR #108 をマージ</a> <small>2時間前</small></li>
+                        <li><a href="#">issue #97 にコメント</a> <small>昨日</small></li>
+                        <li><a href="#">ドキュメント「認証まわり」を更新</a> <small>3日前</small></li>
+                    </ul>
+                </article>
+            </section>
+        </div>
+    </main>
+</body>
+
+</html>

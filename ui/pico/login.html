@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — login</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li><a href="./index.html"><strong>pico examples</strong></a></li>
+            </ul>
+            <ul>
+                <li><a href="./index.html">一覧に戻る</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <article>
+            <header>
+                <hgroup>
+                    <h2>ログイン</h2>
+                    <p>アカウントにサインインします</p>
+                </hgroup>
+            </header>
+            <form>
+                <label for="email">メールアドレス</label>
+                <input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required>
+
+                <label for="password">パスワード</label>
+                <input id="password" name="password" type="password" placeholder="8文字以上"
+                    autocomplete="current-password" required aria-invalid="true" aria-describedby="password-helper">
+                <small id="password-helper">パスワードが違います (エラー表示の例: aria-invalid="true")</small>
+
+                <fieldset>
+                    <label for="remember">
+                        <input id="remember" name="remember" type="checkbox" role="switch" checked>
+                        ログイン状態を保持する
+                    </label>
+                </fieldset>
+
+                <button type="submit">ログイン</button>
+            </form>
+            <footer>
+                <a href="#">アカウント作成</a> / <a href="#">パスワードを忘れた</a>
+            </footer>
+        </article>
+    </main>
+</body>
+
+</html>

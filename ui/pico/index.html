@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li><strong>pico examples</strong></li>
+            </ul>
+            <ul>
+                <li><a href="https://picocss.com/docs/v2">pico doc</a></li>
+            </ul>
+        </nav>
+        <hgroup>
+            <h1>ウェブアプリUI例集</h1>
+            <p>pico.css v2 のコンポーネント組み合わせだけで作る例。独自クラス・独自CSSはなし。モバイル最優先。</p>
+        </hgroup>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <div class="overflow-auto">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">page</th>
+                        <th scope="col">使いどころと主な部品</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><a href="./login.html">login</a></td>
+                        <td>認証フォーム — article, form, role="switch", aria-invalid</td>
+                    </tr>
+                    <tr>
+                        <td><a href="./hero.html">hero</a></td>
+                        <td>ランディングページ — nav, hgroup, role="group", blockquote</td>
+                    </tr>
+                    <tr>
+                        <td><a href="./dashboard.html">dashboard</a></td>
+                        <td>KPIダッシュボード — .grid, article, table.striped, progress, dropdown</td>
+                    </tr>
+                    <tr>
+                        <td><a href="./datatable.html">datatable</a></td>
+                        <td>管理用データテーブル — role="search", table.striped, ページネーション</td>
+                    </tr>
+                    <tr>
+                        <td><a href="./tasks.html">tasks</a></td>
+                        <td>タスク管理 — checkbox リスト, progress, role="group"</td>
+                    </tr>
+                    <tr>
+                        <td><a href="./kanban.html">kanban</a></td>
+                        <td>カンバンボード — .grid 3列, 入れ子 article</td>
+                    </tr>
+                    <tr>
+                        <td><a href="./chat.html">chat</a></td>
+                        <td>メッセージング — aside nav, details アコーディオン, role="group"</td>
+                    </tr>
+                    <tr>
+                        <td><a href="./settings.html">settings</a></td>
+                        <td>設定フォーム — role="switch", range, select, dialog (modal)</td>
+                    </tr>
+                    <tr>
+                        <td><a href="./profile.html">profile</a></td>
+                        <td>プロフィール詳細 — .grid 2列, figure, table</td>
+                    </tr>
+                    <tr>
+                        <td><a href="./inbox.html">inbox</a></td>
+                        <td>受信トレイ・通知一覧 — nav タブ風, article リスト, kbd ラベル</td>
+                    </tr>
+                    <tr>
+                        <td><a href="./billing.html">billing</a></td>
+                        <td>料金プラン・請求履歴 — .grid 3カード, mark バッジ, table</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p>
+            <small>各ページはそのまま雛形としてコピーできる。使い分けの指針は <a href="https://github.com/podhmo/podhmo.github.io/tree/master/ui/pico">README.md</a> を参照。</small>
+        </p>
+    </main>
+</body>
+
+</html>

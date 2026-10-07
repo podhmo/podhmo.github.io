@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — datatable</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav aria-label="breadcrumb">
+            <ul>
+                <li><a href="./index.html">pico examples</a></li>
+                <li><a href="./datatable.html" aria-current="page">ユーザー管理</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <hgroup>
+            <h2>ユーザー管理</h2>
+            <p>登録ユーザーの検索・編集・一括操作</p>
+        </hgroup>
+
+        <!-- toolbar -->
+        <form role="search">
+            <input name="q" type="search" placeholder="名前・メールで検索" aria-label="検索">
+            <select name="status" aria-label="状態で絞り込み">
+                <option selected value="">すべての状態</option>
+                <option>有効</option>
+                <option>停止中</option>
+                <option>招待中</option>
+            </select>
+            <input type="submit" value="検索">
+        </form>
+        <div role="group">
+            <button class="outline secondary">エクスポート</button>
+            <button class="outline secondary">一括停止</button>
+            <button>新規</button>
+        </div>
+
+        <!-- table -->
+        <div class="overflow-auto">
+            <table class="striped">
+                <thead>
+                    <tr>
+                        <th scope="col"><input type="checkbox" aria-label="すべて選択"></th>
+                        <th scope="col">名前</th>
+                        <th scope="col">メール</th>
+                        <th scope="col">ロール</th>
+                        <th scope="col">状態</th>
+                        <th scope="col">最終ログイン</th>
+                        <th scope="col"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><input type="checkbox" aria-label="山田太郎を選択"></td>
+                        <td><strong>山田太郎</strong></td>
+                        <td>taro@example.com</td>
+                        <td><kbd>管理者</kbd></td>
+                        <td><ins>有効</ins></td>
+                        <td><small>10/07 09:12</small></td>
+                        <td><a href="#" data-tooltip="編集" data-placement="left">編集</a></td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" aria-label="佐藤花子を選択"></td>
+                        <td><strong>佐藤花子</strong></td>
+                        <td>hanako@example.com</td>
+                        <td><kbd>編集者</kbd></td>
+                        <td><ins>有効</ins></td>
+                        <td><small>10/06 22:40</small></td>
+                        <td><a href="#" data-tooltip="編集" data-placement="left">編集</a></td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" aria-label="鈴木一郎を選択"></td>
+                        <td>鈴木一郎</td>
+                        <td>ichiro@example.com</td>
+                        <td><kbd>閲覧者</kbd></td>
+                        <td><del>停止中</del></td>
+                        <td><small>09/28 15:03</small></td>
+                        <td><a href="#" data-tooltip="編集" data-placement="left">編集</a></td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" aria-label="高橋次郎を選択"></td>
+                        <td>高橋次郎</td>
+                        <td>jiro@example.com</td>
+                        <td><kbd>編集者</kbd></td>
+                        <td><mark>招待中</mark></td>
+                        <td><small>—</small></td>
+                        <td><a href="#" data-tooltip="編集" data-placement="left">編集</a></td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" aria-label="田中三郎を選択"></td>
+                        <td>田中三郎</td>
+                        <td>saburo@example.com</td>
+                        <td><kbd>閲覧者</kbd></td>
+                        <td><ins>有効</ins></td>
+                        <td><small>10/07 11:55</small></td>
+                        <td><a href="#" data-tooltip="編集" data-placement="left">編集</a></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- pagination -->
+        <nav>
+            <ul>
+                <li><small>全128件中 1–5件</small></li>
+            </ul>
+            <ul>
+                <li><a href="#">«</a></li>
+                <li><a href="#" aria-current="page">1</a></li>
+                <li><a href="#">2</a></li>
+                <li><a href="#">3</a></li>
+                <li><a href="#">»</a></li>
+            </ul>
+        </nav>
+    </main>
+</body>
+
+</html>

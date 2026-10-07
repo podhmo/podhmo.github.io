@@ -6,4 +6,5 @@
 - event -- 主にjs経由でのイベントのhandlingの例を置いておきたかった
 - example -- 記事やフォームなどの例をここに置いておきたかった
 - layout -- 空 （未完成）
+- pico -- pico.css v2 だけで組むウェブアプリUI例 (独自クラスなし・モバイル優先)
 - scaffold

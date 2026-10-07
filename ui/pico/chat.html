@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — chat</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li><a href="./index.html"><strong>pico examples</strong></a></li>
+            </ul>
+            <ul>
+                <li><a href="#">スレッド</a></li>
+                <li><a href="./index.html">examples</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <div class="grid">
+            <!-- sidebar: channels -->
+            <aside>
+                <details open>
+                    <summary><strong>チャンネル</strong></summary>
+                    <nav>
+                        <ul>
+                            <li><a href="#"># general</a></li>
+                            <li><a href="#" aria-current="page"># dev</a></li>
+                            <li><a href="#"># design</a></li>
+                            <li><a href="#"># random</a></li>
+                        </ul>
+                    </nav>
+                </details>
+                <details>
+                    <summary><strong>ダイレクトメッセージ</strong></summary>
+                    <nav>
+                        <ul>
+                            <li><a href="#">山田</a></li>
+                            <li><a href="#">佐藤</a></li>
+                            <li><a href="#">鈴木</a></li>
+                        </ul>
+                    </nav>
+                </details>
+            </aside>
+
+            <!-- messages -->
+            <section>
+                <h3># dev</h3>
+                <article>
+                    <header><strong>山田</strong> <small>10:02</small></header>
+                    <p>おはようございます。昨日のデプロイ、問題なく完了しています。</p>
+                </article>
+                <article>
+                    <header><strong>自分</strong> <mark>you</mark> <small>10:05</small></header>
+                    <p>確認しました。ログも異常なしです。</p>
+                </article>
+                <article>
+                    <header><strong>鈴木</strong> <small>10:12</small></header>
+                    <p>APIのページネーション仕様、<a href="#">このドキュメント</a> にまとめました。</p>
+                    <p>レビューお願いします。</p>
+                </article>
+                <article>
+                    <header><strong>自分</strong> <mark>you</mark> <small>10:15</small></header>
+                    <p>あとで読みます。ひとまず cursor 方式で良さそうです。</p>
+                </article>
+
+                <!-- composer -->
+                <form>
+                    <fieldset role="group">
+                        <input name="message" type="text" placeholder="#dev へのメッセージ" aria-label="メッセージ">
+                        <input type="submit" value="送信">
+                    </fieldset>
+                </form>
+            </section>
+        </div>
+    </main>
+</body>
+
+</html>
