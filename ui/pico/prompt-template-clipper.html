@@ -6,10 +6,10 @@
     <title>mock: Prompt Template Clipper — pico examples</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <!-- 唯一の例外: pico に position 系ユーティリティが無いため、
-         Copy ボタンをブロック右上に浮かせる最小限の独自スタイル (本体は chatgpt/style.css) -->
+         Copy ボタン (画面に1個だけ) を対象テキスト textarea 右下に浮かせる最小限の独自スタイル (本体は chatgpt/style.css) -->
     <style>
         .prompt-block { position: relative; }
-        .prompt-block .copy-button { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 1; }
+        .prompt-block .copy-button { position: absolute; right: 0.5rem; bottom: 0.5rem; z-index: 1; }
     </style>
 </head>
 <body>
@@ -43,7 +43,10 @@
             <input type="text" id="prompt-title" name="prompt-title" placeholder="Enter a title for the final prompt...">
 
             <label for="prompt-target-text">対象テキストまたはURL</label>
-            <textarea id="prompt-target-text" name="prompt-target-text" placeholder="Enter target text, a URL, or leave blank for chat history..."></textarea>
+            <div class="prompt-block">
+                <textarea id="prompt-target-text" name="prompt-target-text" placeholder="Enter target text, a URL, or leave blank for chat history..."></textarea>
+                <button type="button" class="copy-button" title="生成した最終プロンプトをコピー">Copy</button>
+            </div>
             <small>またはファイルから読み込む（大きなテキスト用）</small>
             <input type="file" id="prompt-target-file" name="prompt-target-file" accept="text/*,.md,.txt">
             <small aria-live="polite">読み込みました: memo.txt (1234文字)</small>
@@ -52,9 +55,7 @@
 
             <h4>Prompt Template(s):</h4>
             <small>md</small>
-            <div class="prompt-block">
-                <button type="button" class="copy-button">Copy</button>
-                <pre><code>あなたは思慮深い執筆者です。これまでの思考の内容を追体験させるような文章がほしいです。自己完結型の文章にしてください。わざと短くまとめようとせずに丁寧に長さを気にせずテキストとして出力してください。
+            <pre><code>あなたは思慮深い執筆者です。これまでの思考の内容を追体験させるような文章がほしいです。自己完結型の文章にしてください。わざと短くまとめようとせずに丁寧に長さを気にせずテキストとして出力してください。
 
 ----
 
@@ -64,20 +65,16 @@
 - 記事は幾分かの章で分割してください
 - 章タイトルには絵文字を1つ加えてください
 - 記事はmarkdownフォーマットを念頭に入れてください</code></pre>
-            </div>
 
             <hr>
 
             <small>markdown — docs/record-style.md</small>
-            <div class="prompt-block">
-                <button type="button" class="copy-button secondary">Copied!</button>
-                <pre><code>## 重要なこと
+            <pre><code>## 重要なこと
 
 - 読者は私およびあなたの存在を知りません
 - 読者は投稿元のSNSの投稿を知りません
 
 それではお願いします。</code></pre>
-            </div>
 
             <footer>
                 <a href="#">Back to 思考の備忘録</a>

@@ -34,7 +34,7 @@ pico.css v2 のコンポーネント組み合わせだけで作るウェブア�
 | `inbox.html` | 通知・受信トレイ。テーブルではなくカード列にする例 | nav + `aria-current` のタブ風フィルタ, `nav` 左側の `details.dropdown` のまとめ操作, article の `header/footer` に差出人・操作 |
 | `billing.html` | 料金プラン・請求系 | `.grid` 3枚のプランカード, `mark` のバッジ, `ins`/`del`/`kbd` の状態表示 |
 | `ai-studio-download.html` | 既存アプリ ([chatgpt/tools/ai-studio-download](../../chatgpt/tools/ai-studio-download/)) を pico 部品だけで組み直すためのモック。「一覧 + 各行に操作ボタン」型の画面の雛形 | `article` 1枚 = 1件、カード内を `.grid` で「`hgroup` (タイトル+日時) / `role="group"` (JSON / Markdown)」の2列に。PC では左右、モバイルでは縦積み。`aria-busy` のローディング、`fieldset` + `role="switch"` のオプション |
-| `prompt-template-clipper.html` | 既存アプリ ([chatgpt/index.html + src](../../chatgpt/) の Prompt Template Clipper) を pico 部品だけで組み直すためのモック。「変数入力 → 生成設定 → 本文+コピー」のフォーム中心の詳細画面の雛形 | Copy ボタンは `.prompt-block` (`position:relative`) 内の absolute で `pre` 右上に浮かせる (pico に position 系が無い唯一の例外、本体は `chatgpt/style.css`)。言語/タイトルはブロック直上の `<small>`。`label` + `textarea` の素の縦積み、`input[type=file]` + `small` のステータス、`fieldset role="group"` の URL 入力+Load、パンくず `nav[aria-label="breadcrumb"]` |
+| `prompt-template-clipper.html` | 既存アプリ ([chatgpt/index.html + src](../../chatgpt/) の Prompt Template Clipper) を pico 部品だけで組み直すためのモック。「変数入力 → 生成設定 → 本文」のフォーム中心の詳細画面の雛形 | Copy ボタンは画面に1個だけ — 対象テキスト textarea 右下に `.prompt-block` (`position:relative`) + absolute で浮かせる (pico に position 系が無い唯一の例外、本体は `chatgpt/style.css`)。言語/タイトルはブロック直上の `<small>`。`label` + `textarea` の素の縦積み、`input[type=file]` + `small` のステータス、`fieldset role="group"` の URL 入力+Load、パンくず `nav[aria-label="breadcrumb"]` |
 
 ## 逆引き: やりたいこと → pico の書き方
 
@@ -102,13 +102,13 @@ pico.css v2 のコンポーネント組み合わせだけで作るウェブア�
 
 `prompt-template-clipper.html` は [chatgpt/index.html + src](../../chatgpt/) (Prompt Template Clipper) を pico 部品だけで組み直すためのモック。元の実装は `index.html` の `<style>` ブロックで独自クラス (`container` の max-width, `copy-button` の absolute 浮遊, `placeholder-input`, `pre` の `#ccc` 固定色など) を持っていた。それを次のように置き換える。
 
-Copy ボタンだけは例外: スマホで本文上に少し浮いて押しやすいことが重要で、pico には position 系ユーティリティが無いため `.prompt-block { position: relative }` + `.copy-button { position: absolute }` の最小ルールだけ `chatgpt/style.css` に残すことにした (ブロック基準の絶対配置なので、上部の生成コントロールが増えてもボタン位置はずれない)。
+Copy ボタンだけは例外: スマホで本文上に少し浮いて押しやすいことが重要で、pico には position 系ユーティリティが無いため `.prompt-block { position: relative }` + `.copy-button { position: absolute }` の最小ルールだけ `chatgpt/style.css` に残すことにした (ブロック基準の絶対配置なので、上部の生成コントロールが増えてもボタン位置はずれない)。ボタンは画面に1個だけ — アプリの目的が「入力データを織り込んだ一つの最終プロンプトを作る」ことなので、対象テキスト textarea の右下で最終生成プロンプトをコピーする。
 
 | 元 (独自 CSS) | モック (pico のみ) |
 | --- | --- |
 | `<div class="container">` で全体を包み `padding:1rem; max-width:800px` | `header`/`main`/`footer` にそれぞれ `.container` (pico 既定のレスポンシブ幅) |
 | パンくずを包む `<nav>` 入れ子 | `nav[aria-label="breadcrumb"]` をそのまま置く (外側の nav は不要) |
-| `.template-body-container` + `.copy-button { position:absolute }` で `pre` の上に浮遊 | 同様の浮遊を最小ルールで維持: `.prompt-block { position:relative }` > `.copy-button { position:absolute; top/right: 0.5rem }` (独自 CSS はこの 2 ルールのみ、本体は `chatgpt/style.css`)。言語/タイトルはブロック直上の `<small>` |
+| `.template-body-container` + `.copy-button { position:absolute }` で `pre` の上に浮遊 | 同様の浮遊を最小ルールで維持: `.prompt-block { position:relative }` > `.copy-button { position:absolute; right/bottom: 0.5rem }` (独自 CSS はこの 2 ルールのみ、本体は `chatgpt/style.css`)。ボタンは対象テキスト textarea 右下に1個だけ置き、ブロック側は言語/タイトルの `<small>` + `pre` のみ |
 | `pre { background-color:#ccc; color:#333 }` | 削除。`data-theme="dark"` 下で pico 既定の `pre` が暗い背景になる |
 | `.placeholder-input` の div + inline `label` | `label` + `textarea` をそのまま縦積み (pico で label はブロック) |
 | `<small>` の中に `input[type=file]` をネスト | `textarea` 直後の `<small>` (ヘルパーテキスト) → `input[type=file]` → ステータス用 `<small>` (こちらもヘルパー表示になる) |
