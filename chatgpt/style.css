@@ -1,0 +1,13 @@
+/* pico.css には position 系のユーティリティが無いため、
+   Copy ボタンをプロンプトブロックの右上に浮かせるこの箇所だけ独自スタイルを使う。
+   スマホから使うときに本文 (pre) 上に少し浮いて表示される方が押しやすい。 */
+.prompt-block {
+    position: relative;
+}
+
+.prompt-block .copy-button {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 1;
+}

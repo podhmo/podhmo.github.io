@@ -59,20 +59,18 @@ export function TemplateDetailView(template, router, appState, requestRender) {
         try {
             await navigator.clipboard.writeText(text);
             buttonElement.textContent = 'Copied!';
-            buttonElement.classList.remove('outline');
+            buttonElement.classList.add('secondary');
             setTimeout(() => {
                 buttonElement.textContent = 'Copy';
-                buttonElement.classList.add('outline');
+                buttonElement.classList.remove('secondary');
             }, 2000);
         } catch (err) {
             console.error('Failed to copy: ', err);
             buttonElement.textContent = 'Failed!';
-            buttonElement.classList.remove('secondary', 'outline');
             buttonElement.classList.add('contrast');
             setTimeout(() => {
                 buttonElement.textContent = 'Copy';
                 buttonElement.classList.remove('contrast');
-                buttonElement.classList.add('secondary', 'outline');
             }, 2000);
         }
     };
@@ -301,22 +299,16 @@ ${instruction}
                 const isRaw = prompt.language.toLowerCase() === 'raw';
                 const processedBody = getProcessedPromptBody(prompt.body);
                 return html`
-                    <nav>
-                        <ul>
-                            ${(prompt.language || prompt.title) ? html`<li><small>${prompt.language}${prompt.title ? ` — ${prompt.title}` : ''}</small></li>` : null}
-                        </ul>
-                        <ul>
-                            <li>
-                                <button
-                                    type="button"
-                                    class="secondary outline"
-                                    onClick=${async (e) => await handleCopy(processedBody, isRaw, e.target)}>
-                                    Copy
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                    <pre><code>${processedBody}</code></pre>
+                    ${(prompt.language || prompt.title) ? html`<small>${prompt.language}${prompt.title ? ` — ${prompt.title}` : ''}</small>` : null}
+                    <div class="prompt-block">
+                        <button
+                            type="button"
+                            class="copy-button"
+                            onClick=${async (e) => await handleCopy(processedBody, isRaw, e.target)}>
+                            Copy
+                        </button>
+                        <pre><code>${processedBody}</code></pre>
+                    </div>
                     ${index < template.prompts.length - 1 ? html`<hr />` : null}
                 `;
             })}
