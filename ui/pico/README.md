@@ -33,6 +33,9 @@ pico.css v2 のコンポーネント組み合わせだけで作るウェブア�
 | `profile.html` | 詳細表示系 (ユーザー/組織/リソース) | `.grid` 2列, `figure` + インラインSVG のアバター, `table` の属性表, カード内 `role="group"` |
 | `inbox.html` | 通知・受信トレイ。テーブルではなくカード列にする例 | nav + `aria-current` のタブ風フィルタ, `nav` 左側の `details.dropdown` のまとめ操作, article の `header/footer` に差出人・操作 |
 | `billing.html` | 料金プラン・請求系 | `.grid` 3枚のプランカード, `mark` のバッジ, `ins`/`del`/`kbd` の状態表示 |
+| `reservation.html` | 予約フォーム。フォーム部品の網羅的な例 | `type=date`/`time`/`datetime-local`/`month`/`number`/`tel`/`color`, `select` (required+placeholder, `optgroup`), `select[multiple]`, `aria-invalid="false"` の valid 表示, `readonly`, `fieldset[disabled]`, `label[aria-disabled]`, checkbox/radio の横並び, indeterminate (JS 1行) |
+| `catalog.html` | フィルタ付き一覧。nav 外で使う dropdown のバリエーション | nav 外の `details.dropdown` (select 風), `summary role="button"` + `.secondary`/`.contrast`/`.outline`, radio・checkbox を項目に持つ dropdown, nav 右端 dropdown の `<ul dir="rtl">` 右揃え, `tfoot` の合計行, `a.contrast`/`a.secondary` のリンクバリアント, `a[aria-disabled]` |
+| `changelog.html` | リリースノート等の読み物ページ | `.container-fluid`, `abbr`, `pre > samp`, `sub`/`sup`, `u`/`s`, `figure > img` + `figcaption`, 要素単位の `data-theme="light"` |
 | `ai-studio-download.html` | 既存アプリ ([chatgpt/tools/ai-studio-download](../../chatgpt/tools/ai-studio-download/)) を pico 部品だけで組み直すためのモック。「一覧 + 各行に操作ボタン」型の画面の雛形 | `article` 1枚 = 1件、カード内を `.grid` で「`hgroup` (タイトル+日時) / `role="group"` (JSON / Markdown)」の2列に。PC では左右、モバイルでは縦積み。`aria-busy` のローディング、`fieldset` + `role="switch"` のオプション |
 | `prompt-template-clipper.html` | 既存アプリ ([chatgpt/index.html + src](../../chatgpt/) の Prompt Template Clipper) を pico 部品だけで組み直すためのモック。「変数入力 → 生成設定 → 本文」のフォーム中心の詳細画面の雛形 | Copy ボタンは画面に1個だけ — 対象テキスト textarea 右下に `.prompt-block` (`position:relative`) + absolute で浮かせる (pico に position 系が無い唯一の例外、本体は `chatgpt/style.css`)。言語/タイトルはブロック直上の `<small>`。`label` + `textarea` の素の縦積み、`input[type=file]` + `small` のステータス、`fieldset role="group"` の URL 入力+Load、パンくず `nav[aria-label="breadcrumb"]` |
 
@@ -51,6 +54,26 @@ pico.css v2 のコンポーネント組み合わせだけで作るウェブア�
 | アコーディオン | `details` + `summary` (`.dropdown` を付けない方) |
 | ドロップダウン/メニュー | `details.dropdown` + `summary` + 内側に `ul` |
 | モーダル | `dialog` + `article`。開閉は自前JSで `showModal()`/`close()`、`html` に `modal-is-open` を付け外し |
+| select 風のドロップダウン | nav の**外**に `details.dropdown` を置くと select 風の見た目になる (catalog.html) |
+| ボタン見た目のドロップダウン | `details.dropdown > summary[role="button"]`。`.secondary`/`.contrast`/`.outline` のバリアントも効く |
+| dropdown の項目を選択式に | `li > label > input[type=checkbox|radio]` (catalog.html) |
+| nav 右端 dropdown の右揃え | 内側の `<ul dir="rtl">` で `right:0` になる (公式のやり方。項目テキストも右揃えになる点だけ注意) |
+| 日付・時刻・日時・月・数値・電話番号・色の入力 | `type=date`/`time`/`datetime-local`/`month`/`number`/`tel`/`color` (reservation.html) |
+| 複数選択の select | `select multiple size="…"` |
+| select の選択肢をグループ化 | `optgroup label="…"` |
+| 入力の valid 表示 | `aria-invalid="false"` (+`aria-describedby` と `small`)。エラーは `aria-invalid="true"` |
+| 読み取り専用・無効の入力 | `readonly` / `disabled`。ラベルごと muted にするには `label[aria-disabled]`。ブロック全体は `fieldset[disabled]` |
+| checkbox・radio の横並び | `label` で包まず `<input id>` + `<label for>` を兄弟にする (reservation.html) |
+| 一部選択 (indeterminate) | 属性では書けない。`el.indeterminate = true` の 1行だけ JS (docs 記載の手順) |
+| 表の合計行 | `tfoot` (太字+上罫線になる) |
+| 色つきリンク | `a.secondary` / `a.contrast` |
+| 無効なリンク | `a[aria-disabled="true"]` (クリックは止まらないので注意) |
+| 用語への補足 (dotted 下線) | `abbr title="…"` |
+| 端末出力 | `pre > samp` |
+| 上付き・下付き | `sup` / `sub` (脚注、化学式、計算量の表記など) |
+| 全幅レイアウト | `.container-fluid` (changelog.html) |
+| 要素ごとにテーマを変える | 任意要素に `data-theme="light"`/`"dark"` (changelog.html のライトカード) |
+| 画像+caption | `figure > img` + `figcaption`。img は自動で流体サイズ |
 | タブ風の切り替え | pico にタブは無い。`nav` + `aria-current` か `role="group"` のボタン列で代替 (inbox.html) |
 | バッジ/ラベル | バッジ要素は無い。`kbd`, `mark`, `ins`(緑), `del`(赤) で状態を書き分ける |
 | トグルスイッチ | `<input type="checkbox" role="switch">` |
@@ -75,12 +98,27 @@ pico.css v2 のコンポーネント組み合わせだけで作るウェブア�
 - `role="group"` は `.grid` と違ってモバイルでも縮まず横並びのまま。中身が長いと潰れるので短いラベルにする
 - トップ `nav` の項目は溢れると折り返されて崩れるので、モバイルで見て右側 `ul` は2項目程度に抑える。多い場合は `details.dropdown` に畳むか `nav[aria-label="breadcrumb"]` を使う (dashboard.html / settings.html / kanban.html 参照)
 - `role="group"` のボタン列も同様に折り返さず潰れるので、長い文言はリンクに逃がす方が無難 (login.html のフッター参照)。ボタン3つ以上も 375px では2行に折れる → 副次操作は `details.dropdown` に畳み、主操作1つだけ残す (datatable.html の一括操作)
-- `details.dropdown` のメニューは summary の**左端**基準 (`left:0` + `min-width:fit-content`) で開く。`nav` の右端に置くと項目が長いとき右にはみ出し、375px では開いた瞬間にページが横に広がる。dropdown は `nav` の左側 `ul` か本文側に置き、右端に置くなら項目を短くする (inbox.html / datatable.html は左に置いた)
+- `details.dropdown` のメニューは summary の**左端**基準 (`left:0` + `min-width:fit-content`) で開く。`nav` の右端に置くと項目が長いとき右にはみ出し、375px では開いた瞬間にページが横に広がる。右端に置きたいときは内側の `ul` に `dir="rtl"` を付けると `right:0` で開く (catalog.html)。ただし `dir=rtl` は `direction:rtl` なので項目の文字列自体も右揃え表示になる — それが嫌なら従来通り `nav` の左側 `ul` か本文側に置く
 - `table` は `width:100%` の auto layout なので、狭い幅では折り返せない内容 (メールアドレス等) が幅を取り、CJK のセルが1文字ずつ縦に折れる。`.overflow-auto` はページのはみ出しは防ぐがこの潰れは防げない → 列数を減らし、メール・ロール・状態などは名前セルに `kbd`/`ins`/`small` で畳む (datatable.html は 7列→3列)。それでも無理ならカード列 (inbox.html) にする
 - `input` の直後 (兄弟要素として) に置いた `small` はヘルパーテキスト扱いで `display:block` + 負の margin になる。checkbox ラベル内の「本文 <small>補足</small>」は `span` で包んで `input + small` にならないようにする (tasks.html)
 - `.container` の最大幅はブレークポイントごとに段階的 (最大 ~1150px+)。article を1枚だけ置くと横にだらっと伸びる → 複数枚並べる or 読み物なら気にしない
 - `nav` 内の `details.dropdown > summary` (roleなし) はリンク風、`nav` 外では select 風の見た目になる
-- `data-theme="dark"` は `html` だけでなく `table` 等の任意要素にも効く
+- `data-theme="dark"` は `html` だけでなく `table` 等の任意要素にも効く (changelog.html はダークページ内に `article[data-theme="light"]` を置いている)
+- `summary[role="button"]` の dropdown は summary が普通のボタン装飾+矢印になる。nav の中でもボタン見た目になるので、リンク風のままにしたい nav 内 dropdown には `role` を付けない
+- nav 外の `details.dropdown` は select 風の見た目で `display:inline-block` 相当。`.grid` に入れると横幅いっぱいに並ぶ (catalog.html は3つ並べている)
+- checkbox/radio を `li > label > input` の形で dropdown 項目にすると、メニューが開いたまま選べるフィルタになる (docs の "Dropdowns with checkboxes and radios")
+- checkbox の indeterminate は HTML 属性が無い。docs 通り `el.indeterminate = true` の 1行だけ JS を置く (reservation.html / catalog.html) — dialog の開閉と同じ「最小限の JS」の範囲とする
+- 横並び checkbox/radio (`<input id>` + `<label for>` の兄弟) はモバイルでも縦積みにならない。項目が多いと折り返して窮屈になるので短いラベルにする (reservation.html は4項目+disabled 1項目)
+- `select[multiple]` は素の `<select>` と違って矢印が出ず、常に `size` 行のリストになる。モバイルの縦積みフォームでは `size="4"〜"6"` 程度が無難
+- `select:invalid` は `required` + 未選択で自動でエラー色になる。placeholder は `disabled` な `option` で作る (reservation.html)
+- `abbr[title]` は dotted 下線だけで、タップでも title が出るがモバイルでは出ない環境もある。長い補足は `small` か脚注に逃がす方が安全
+- `img` は `max-width:100%` で親に合わせて縮む。`figure` 内の `img` も同じ
+- `audio`/`video`/`iframe`/`canvas`/`svg` も流体サイズになるだけ (装飾は無い)。この例集では `img` のみ使用
+- `a[aria-disabled]`/`label[aria-disabled]` は muted 表示になるだけで機能は止まらない (リンクは遷移する)
+- `role=search`/`role=group` の末尾ボタンは `padding-inline` が大きめ (40px) で、`<button>` は `white-space:normal` なので「検索」程度の短いラベルでも 2 文字ずつ縦に折れることがある。`<input type="submit">` はテキストが折れないのでこちらを使う (datatable.html / catalog.html)
+- `.secondary`/`.contrast` を `role="button"` なしの `a` に付けると色だけ変わるリンクになる (ボタン見た目にはならない)。nav の中でも同じ
+- `tfoot` の `td`/`th` は太字+上罫線。合計行に向く (catalog.html)
+- `pico.colors.min.css` (色ユーティリティ) ・ `pico.conditional.min.css` ・ classless 版は別 stylesheet が要るのでこの例集の対象外。同様に `[dir=rtl]` の各種左右反転ルールはページ全体を RTL にする用途なので省略
 - dropdown/details 系は JS 不要だが `dialog` だけは `showModal()` が要る
 
 ## 実アプリへの適用例: ai-studio-download

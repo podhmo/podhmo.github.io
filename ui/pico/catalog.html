@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — catalog</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li><a href="./index.html" class="contrast"><strong>pico examples</strong></a></li>
+                <li><a href="./index.html" class="secondary">一覧に戻る</a></li>
+            </ul>
+            <ul>
+                <li>
+                    <!-- nav 右端の dropdown は ul dir="rtl" で右揃えにできる (項目は右寄せ表示になる) -->
+                    <details class="dropdown">
+                        <summary>アカウント</summary>
+                        <ul dir="rtl">
+                            <li><a href="#">プロフィール</a></li>
+                            <li><a href="#">設定</a></li>
+                            <li><a href="#">ログアウト</a></li>
+                        </ul>
+                    </details>
+                </li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <hgroup>
+            <h2>カタログ</h2>
+            <p>フィルタ付き一覧。nav の外の details.dropdown (select 風 / role=button 風)、項目に radio・checkbox を持つ dropdown、tfoot の例</p>
+        </hgroup>
+
+        <form role="search">
+            <input name="q" type="search" placeholder="商品名で検索" aria-label="商品名で検索">
+            <input type="submit" value="検索">
+        </form>
+
+        <!-- nav の外に置く dropdown は select 風の見た目になる -->
+        <div class="grid">
+            <details class="dropdown">
+                <summary>表示順: 新着順</summary>
+                <ul>
+                    <li><a href="#" aria-current="true">新着順</a></li>
+                    <li><a href="#">価格が安い順</a></li>
+                    <li><a href="#">価格が高い順</a></li>
+                    <li><a href="#">名前順</a></li>
+                </ul>
+            </details>
+            <!-- 項目に radio を持つ dropdown -->
+            <details class="dropdown">
+                <summary>期間: すべて</summary>
+                <ul>
+                    <li>
+                        <label>
+                            <input type="radio" name="period" value="all" checked>
+                            すべて
+                        </label>
+                    </li>
+                    <li>
+                        <label>
+                            <input type="radio" name="period" value="week">
+                            今週の入荷
+                        </label>
+                    </li>
+                    <li>
+                        <label>
+                            <input type="radio" name="period" value="month">
+                            今月の入荷
+                        </label>
+                    </li>
+                </ul>
+            </details>
+            <!-- 項目に checkbox を持つ dropdown -->
+            <details class="dropdown">
+                <summary>状態で絞り込み…</summary>
+                <ul>
+                    <li>
+                        <label>
+                            <input type="checkbox" name="st-in" checked>
+                            在庫あり
+                        </label>
+                    </li>
+                    <li>
+                        <label>
+                            <input type="checkbox" name="st-low" checked>
+                            残りわずか
+                        </label>
+                    </li>
+                    <li>
+                        <label>
+                            <input type="checkbox" name="st-out">
+                            在庫切れ
+                        </label>
+                    </li>
+                </ul>
+            </details>
+        </div>
+
+        <!-- summary role="button" にするとボタン見た目の dropdown になる。バリアントも使える -->
+        <nav>
+            <ul>
+                <li>
+                    <details class="dropdown">
+                        <summary role="button" class="outline secondary">一括操作</summary>
+                        <ul>
+                            <li><a href="#">公開する</a></li>
+                            <li><a href="#">非公開にする</a></li>
+                            <li><a href="#">タグを付ける</a></li>
+                        </ul>
+                    </details>
+                </li>
+            </ul>
+            <ul>
+                <li>
+                    <details class="dropdown">
+                        <summary role="button" class="contrast">エクスポート</summary>
+                        <ul>
+                            <li><a href="#">CSV</a></li>
+                            <li><a href="#">JSON</a></li>
+                        </ul>
+                    </details>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="overflow-auto">
+            <table class="striped">
+                <thead>
+                    <tr>
+                        <th scope="col">
+                            <!-- 一部選択中の見た目。indeterminate は JS でだけ設定できる -->
+                            <input type="checkbox" id="select-all" aria-label="すべて選択">
+                        </th>
+                        <th scope="col">商品名</th>
+                        <th scope="col">単価</th>
+                        <th scope="col">在庫</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><input type="checkbox" aria-label="チョコレートを選択"></td>
+                        <td>チョコレート <ins>新着</ins></td>
+                        <td>¥480</td>
+                        <td>42</td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" aria-label="クラッカーを選択" checked></td>
+                        <td>クラッカー</td>
+                        <td>¥320</td>
+                        <td>15</td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" aria-label="ナッツを選択"></td>
+                        <td>ミックスナッツ <kbd>残りわずか</kbd></td>
+                        <td>¥650</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" aria-label="フルーツを選択" checked></td>
+                        <td>ドライフルーツ</td>
+                        <td>¥540</td>
+                        <td>28</td>
+                    </tr>
+                </tbody>
+                <!-- tfoot は太字+上罫線で合計行に向く -->
+                <tfoot>
+                    <tr>
+                        <th scope="row">合計</th>
+                        <td>4 商品 (2 選択中)</td>
+                        <td>¥1,990</td>
+                        <td>88</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- ページネーション。aria-disabled で無効リンクの見た目にできる -->
+        <nav aria-label="pagination">
+            <ul></ul>
+            <ul>
+                <li><a href="#" aria-disabled="true">‹ 前へ</a></li>
+                <li><a href="#" aria-current="page">1</a></li>
+                <li><a href="#">2</a></li>
+                <li><a href="#">3</a></li>
+                <li><a href="#">次へ ›</a></li>
+            </ul>
+        </nav>
+    </main>
+
+    <!-- indeterminate は属性では書けないので docs 通り 1行だけ JS を置く -->
+    <script>
+        document.getElementById("select-all").indeterminate = true;
+    </script>
+</body>
+
+</html>
