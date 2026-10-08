@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mock: AI Studio Download — pico examples</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+<body>
+    <main class="container">
+        <nav>
+            <ul>
+                <li><strong>AI Studio Download</strong></li>
+            </ul>
+            <ul>
+                <li><button class="secondary outline" type="button">ログアウト</button></li>
+            </ul>
+        </nav>
+
+        <hgroup>
+            <h1>AI Studio の対話履歴をダウンロード</h1>
+            <p>Google Drive の "Google AI Studio" フォルダにある対話履歴を JSON / Markdown で保存します。</p>
+        </hgroup>
+
+        <section>
+            <fieldset>
+                <legend>Markdown のオプション</legend>
+                <label>
+                    <input type="checkbox" role="switch" checked>
+                    AIの思考プロセスを含める
+                </label>
+                <label>
+                    <input type="checkbox" role="switch">
+                    ユーザー入力のみ
+                </label>
+            </fieldset>
+        </section>
+
+        <section>
+            <h2>対話履歴 <small>(新しい順)</small></h2>
+
+            <article>
+              <div class="grid">
+                <hgroup>
+                    <h4>Untitled prompt</h4>
+                    <p><time datetime="2026-10-07T12:34:56Z">2026/10/07 21:34</time></p>
+                </hgroup>
+                <div role="group">
+                    <button class="outline secondary" type="button">JSON</button>
+                    <button type="button">Markdown</button>
+                </div>
+              </div>
+            </article>
+
+            <article>
+              <div class="grid">
+                <hgroup>
+                    <h4>pico.css v2 でモバイル向け UI を組むときのコンポーネントの選び方について相談したい</h4>
+                    <p><time datetime="2026-10-06T08:00:00Z">2026/10/06 17:00</time></p>
+                </hgroup>
+                <div role="group">
+                    <button class="outline secondary" type="button">JSON</button>
+                    <button type="button">Markdown</button>
+                </div>
+              </div>
+            </article>
+
+            <article>
+              <div class="grid">
+                <hgroup>
+                    <h4>Copy of Copy of Copy of 長いタイトルが折り返されても操作ボタンの位置と幅が変わらないことを確認するためのサンプル</h4>
+                    <p><time datetime="2026-10-05T23:15:00Z">2026/10/06 08:15</time></p>
+                </hgroup>
+                <div role="group">
+                    <button class="outline secondary" type="button">JSON</button>
+                    <button type="button">Markdown</button>
+                </div>
+              </div>
+            </article>
+
+            <article>
+              <div class="grid">
+                <hgroup>
+                    <h4>deno_preact_htm_signals_router_experiment_20261005_very_long_single_token_title_without_hyphen</h4>
+                    <p><time datetime="2026-10-05T01:00:00Z">2026/10/05 10:00</time></p>
+                </hgroup>
+                <div role="group">
+                    <button class="outline secondary" type="button">JSON</button>
+                    <button type="button">Markdown</button>
+                </div>
+              </div>
+            </article>
+
+            <p aria-busy="true">次の 100 件を読み込み中...</p>
+
+            <button class="secondary outline" type="button">次の 100 件を取得</button>
+        </section>
+
+        <section>
+            <h2>状態の例</h2>
+            <details>
+                <summary>未ログイン時</summary>
+                <article>
+                    <p>Google アカウントでログインすると、Drive 上の "Google AI Studio" フォルダから対話履歴の一覧を取得します (読み取り専用)。</p>
+                    <button type="button">Google アカウントでログイン</button>
+                </article>
+            </details>
+            <details>
+                <summary>対話履歴が見つからない時</summary>
+                <article>
+                    <p>"Google AI Studio" フォルダ内に対話履歴が見つかりませんでした。</p>
+                </article>
+            </details>
+        </section>
+
+        <footer>
+            <small><a href="./index.html">pico examples</a> / <a href="../../chatgpt/tools/ai-studio-download/">本体</a></small>
+        </footer>
+    </main>
+</body>
+</html>

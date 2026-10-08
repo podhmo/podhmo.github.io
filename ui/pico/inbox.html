@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — inbox</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li><a href="./index.html"><strong>pico examples</strong></a></li>
+            </ul>
+            <ul>
+                <li><a href="./index.html">examples</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <hgroup>
+            <h2>受信トレイ</h2>
+            <p>通知とメンションをまとめて確認</p>
+        </hgroup>
+
+        <!-- bulk actions: dropdown は summary の左端を基準に開くので、nav の右端ではなく左に置く -->
+        <nav>
+            <ul>
+                <li>
+                    <details class="dropdown">
+                        <summary>操作</summary>
+                        <ul>
+                            <li><a href="#">すべて既読にする</a></li>
+                            <li><a href="#">アーカイブ</a></li>
+                            <li><a href="#">通知設定</a></li>
+                        </ul>
+                    </details>
+                </li>
+            </ul>
+            <ul>
+                <li><small>未読 3 件</small></li>
+            </ul>
+        </nav>
+
+        <!-- filter tabs + search -->
+        <nav>
+            <ul>
+                <li><a href="#" aria-current="page">すべて</a></li>
+                <li><a href="#">未読</a></li>
+                <li><a href="#">メンション</a></li>
+                <li><a href="#">アーカイブ</a></li>
+            </ul>
+        </nav>
+        <form role="search">
+            <input name="q" type="search" placeholder="通知を検索" aria-label="通知を検索">
+            <input type="submit" value="検索">
+        </form>
+
+        <!-- message list -->
+        <article>
+            <header>
+                <strong>GitHub</strong>
+                <small><kbd>dev</kbd> 10/07 18:00</small>
+            </header>
+            <p><strong>[minigo] PR #613 がマージされました</strong></p>
+            <p><small>docs(todo): promote decided pre-todo items to TODO.md — CI はすべてグリーンです。</small></p>
+            <footer><a href="#">開く</a> / <a href="#">既読にする</a></footer>
+        </article>
+        <article>
+            <header>
+                <strong>CI Bot</strong>
+                <small><kbd>alert</kbd> 10/07 15:32</small>
+            </header>
+            <p><strong>nightly build が失敗しました</strong></p>
+            <p><small>job: e2e-tests — タイムアウトで中断。直近の成功は 10/06 です。</small></p>
+            <footer><a href="#">ログを見る</a> / <a href="#">再実行</a></footer>
+        </article>
+        <article>
+            <header>
+                <strong>山田</strong>
+                <small><kbd>mention</kbd> 10/07 11:20</small>
+            </header>
+            <p><strong>レビュー依頼: ユーザー管理API</strong></p>
+            <p><small>@you ページネーション周りを重点的に見てほしいです。</small></p>
+            <footer><a href="#">開く</a> / <a href="#">既読にする</a></footer>
+        </article>
+        <article>
+            <header>
+                <span>週次レポート</span>
+                <small><kbd>info</kbd> 10/06 09:00</small>
+            </header>
+            <p>先週のアクティビティサマリができました。</p>
+            <footer><a href="#">アーカイブ済み</a></footer>
+        </article>
+    </main>
+</body>
+
+</html>

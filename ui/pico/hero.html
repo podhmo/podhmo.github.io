@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — hero</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li><strong>SampleApp</strong></li>
+            </ul>
+            <ul>
+                <li><a href="#features">機能</a></li>
+                <li><a href="./login.html" class="contrast">ログイン</a></li>
+                <li><a href="#cta" role="button">登録</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <!-- hero -->
+        <section>
+            <hgroup>
+                <h1>作業をまとめる、<br>シンプルなワークスペース</h1>
+                <p>タスク・ドキュメント・チャットをひとつの画面に。pico.css の既定スタイルだけでこの見た目。</p>
+            </hgroup>
+            <p>
+                <a href="#cta" role="button">今すぐ試す</a>
+                <a href="#features" role="button" class="outline secondary">機能を見る</a>
+            </p>
+        </section>
+
+        <!-- features -->
+        <section id="features">
+            <h2>機能</h2>
+            <div class="grid">
+                <article>
+                    <h3>タスク管理</h3>
+                    <p>チェックリストとカンバンを切り替えられるタスク管理。進捗は自動で集計されます。</p>
+                </article>
+                <article>
+                    <h3>ドキュメント</h3>
+                    <p>Markdown で書ける共有ドキュメント。タスクやファイルへのリンクを埋め込めます。</p>
+                </article>
+                <article>
+                    <h3>チャット</h3>
+                    <p>チャンネル単位のメッセージング。未読管理とメンション通知つき。</p>
+                </article>
+            </div>
+        </section>
+
+        <!-- testimonial -->
+        <section>
+            <blockquote>
+                「導入してから、会議のたびに画面を切り替える回数が減った。モバイルでも読みやすいのが良い」
+                <footer>
+                    <cite>— 某社 プロジェクトマネージャー</cite>
+                </footer>
+            </blockquote>
+        </section>
+
+        <!-- cta -->
+        <section id="cta">
+            <article>
+                <h2>まずは無料で</h2>
+                <form>
+                    <fieldset role="group">
+                        <input name="email" type="email" placeholder="メールアドレス" autocomplete="email" required>
+                        <input type="submit" value="登録する">
+                    </fieldset>
+                    <small>クレジットカード不要。いつでも解約できます。</small>
+                </form>
+            </article>
+        </section>
+    </main>
+
+    <!-- footer -->
+    <footer class="container">
+        <nav>
+            <ul>
+                <li><small>SampleApp</small></li>
+            </ul>
+            <ul>
+                <li><a href="./index.html"><small>pico examples 一覧</small></a></li>
+            </ul>
+        </nav>
+    </footer>
+</body>
+
+</html>

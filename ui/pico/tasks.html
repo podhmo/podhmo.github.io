@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — tasks</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li><a href="./index.html"><strong>pico examples</strong></a></li>
+            </ul>
+            <ul>
+                <li><a href="#">今日</a></li>
+                <li><a href="#">今週</a></li>
+                <li><a href="./index.html">examples</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <hgroup>
+            <h2>タスク</h2>
+            <p>10月7日 (水) の予定</p>
+        </hgroup>
+
+        <div class="grid">
+            <!-- task list -->
+            <article>
+                <header><strong>タスク一覧</strong></header>
+                <form>
+                    <fieldset role="group">
+                        <input name="title" type="text" placeholder="新しいタスクを入力" aria-label="新しいタスク">
+                        <input type="submit" value="追加">
+                    </fieldset>
+                </form>
+                <fieldset>
+                    <label>
+                        <input type="checkbox" name="t1">
+                        <!-- input の直後の small は pico がヘルパーテキスト扱い (display:block) にするので span で包む -->
+                        <span>仕様書のレビュー <small>14:00 まで</small></span>
+                    </label>
+                    <label>
+                        <input type="checkbox" name="t2" checked>
+                        <del>週次レポートを提出</del>
+                    </label>
+                    <label>
+                        <input type="checkbox" name="t3">
+                        デザイン案を2つ作成
+                    </label>
+                    <label>
+                        <input type="checkbox" name="t4">
+                        PR #108 のコメントに返信 <mark>優先</mark>
+                    </label>
+                </fieldset>
+                <footer>
+                    <small>1 / 4 完了</small>
+                    <progress value="1" max="4"></progress>
+                </footer>
+            </article>
+
+            <!-- side column -->
+            <section>
+                <article>
+                    <header><strong>プロジェクト進捗</strong></header>
+                    <p>
+                        機能実装
+                        <progress value="7" max="10">70%</progress>
+                    </p>
+                    <p>
+                        ドキュメント整備
+                        <progress value="4" max="10">40%</progress>
+                    </p>
+                    <p>
+                        テスト整備
+                        <progress></progress>
+                    </p>
+                    <footer><small>テスト整備はまだ見積もり中 (不確定 progress の例)</small></footer>
+                </article>
+
+                <article>
+                    <header><strong>完了したタスク</strong></header>
+                    <details>
+                        <summary>3件を表示</summary>
+                        <ul>
+                            <li><del>週次レポートを提出</del></li>
+                            <li><del>ミーティング資料作成</del></li>
+                            <li><del>勤怠入力</del></li>
+                        </ul>
+                    </details>
+                </article>
+            </section>
+        </div>
+    </main>
+</body>
+
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — settings</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav aria-label="breadcrumb">
+            <ul>
+                <li><a href="./index.html">pico examples</a></li>
+                <li><a href="./dashboard.html">Admin</a></li>
+                <li><a href="./settings.html" aria-current="page">設定</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <hgroup>
+            <h2>設定</h2>
+            <p>アカウントと通知の設定。セクションごとに article で区切る。</p>
+        </hgroup>
+
+        <form>
+            <!-- profile -->
+            <article>
+                <header><strong>プロフィール</strong></header>
+                <label for="name">表示名</label>
+                <input id="name" name="name" type="text" value="山田太郎">
+
+                <label for="bio">自己紹介</label>
+                <textarea id="bio" name="bio" rows="3" placeholder="ひとこと自己紹介"></textarea>
+
+                <label for="visibility">プロフィールの公開範囲</label>
+                <select id="visibility" name="visibility">
+                    <option selected>全員に公開</option>
+                    <option>チームのみ</option>
+                    <option>非公開</option>
+                </select>
+            </article>
+
+            <!-- notification -->
+            <article>
+                <header><strong>通知</strong></header>
+                <fieldset>
+                    <label>
+                        <input type="checkbox" name="notify-mail" role="switch" checked>
+                        メール通知
+                    </label>
+                    <label>
+                        <input type="checkbox" name="notify-push" role="switch">
+                        プッシュ通知
+                    </label>
+                    <label>
+                        <input type="checkbox" name="notify-digest" role="switch" checked>
+                        週次ダイジェスト
+                    </label>
+                </fieldset>
+                <label for="volume">通知音量</label>
+                <input id="volume" name="volume" type="range" min="0" max="100" value="40">
+            </article>
+
+            <!-- appearance -->
+            <article>
+                <header><strong>外観</strong></header>
+                <fieldset>
+                    <legend><small>テーマ</small></legend>
+                    <label>
+                        <input type="radio" name="theme" value="auto" checked>
+                        システムに合わせる
+                    </label>
+                    <label>
+                        <input type="radio" name="theme" value="light">
+                        ライト
+                    </label>
+                    <label>
+                        <input type="radio" name="theme" value="dark">
+                        ダーク
+                    </label>
+                </fieldset>
+            </article>
+
+            <div role="group">
+                <button type="submit">保存</button>
+                <button type="reset" class="secondary">変更を破棄</button>
+            </div>
+        </form>
+
+        <!-- danger zone + modal -->
+        <article>
+            <header><strong>アカウント削除</strong></header>
+            <p><small>削除するとすべてのデータが失われ、取り消せません。</small></p>
+            <footer>
+                <button class="outline" id="delete-button">アカウントを削除</button>
+            </footer>
+        </article>
+    </main>
+
+    <!-- modal (dialog) -->
+    <dialog id="confirm-delete-dialog">
+        <article>
+            <header>
+                <button aria-label="閉じる" rel="prev" id="dialog-close"></button>
+                <p><strong>本当に削除しますか？</strong></p>
+            </header>
+            <p>アカウントと全データが削除されます。この操作は取り消せません。</p>
+            <footer>
+                <div role="group">
+                    <button class="secondary" id="dialog-cancel">キャンセル</button>
+                    <button id="dialog-ok">削除する</button>
+                </div>
+            </footer>
+        </article>
+    </dialog>
+
+    <!-- pico の modal-is-open クラスを付け外しする最小限のJS (独自CSSは不要) -->
+    <script>
+        const dialog = document.getElementById("confirm-delete-dialog");
+        const root = document.documentElement;
+        const open = () => { root.classList.add("modal-is-open"); dialog.showModal(); };
+        const close = () => { root.classList.remove("modal-is-open"); dialog.close(); };
+        document.getElementById("delete-button").addEventListener("click", open);
+        document.getElementById("dialog-close").addEventListener("click", close);
+        document.getElementById("dialog-cancel").addEventListener("click", close);
+        dialog.addEventListener("close", () => root.classList.remove("modal-is-open"));
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — datatable</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav aria-label="breadcrumb">
+            <ul>
+                <li><a href="./index.html">pico examples</a></li>
+                <li><a href="./datatable.html" aria-current="page">ユーザー管理</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <hgroup>
+            <h2>ユーザー管理</h2>
+            <p>登録ユーザーの検索・編集・一括操作</p>
+        </hgroup>
+
+        <!-- toolbar -->
+        <form role="search">
+            <input name="q" type="search" placeholder="名前・メールで検索" aria-label="検索">
+            <select name="status" aria-label="状態で絞り込み">
+                <option selected value="">すべて</option>
+                <option>有効</option>
+                <option>停止中</option>
+                <option>招待中</option>
+            </select>
+            <input type="submit" value="検索">
+        </form>
+        <!-- 一括操作は dropdown にまとめて左に、主操作の「新規」だけ右に。3つ以上のボタンを role=group に入れると 375px で折れる -->
+        <nav>
+            <ul>
+                <li>
+                    <details class="dropdown">
+                        <summary>一括操作</summary>
+                        <ul>
+                            <li><a href="#">選択をエクスポート</a></li>
+                            <li><a href="#">選択を一括停止</a></li>
+                        </ul>
+                    </details>
+                </li>
+            </ul>
+            <ul>
+                <li><button>新規</button></li>
+            </ul>
+        </nav>
+
+        <!-- table -->
+        <div class="overflow-auto">
+            <table class="striped">
+                <thead>
+                    <tr>
+                        <th scope="col"><input type="checkbox" aria-label="すべて選択"></th>
+                        <th scope="col">名前</th>
+                        <th scope="col"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><input type="checkbox" aria-label="山田太郎を選択"></td>
+                        <td><strong>山田太郎</strong> <kbd>管理者</kbd> <ins>有効</ins><br><small>taro@example.com</small></td>
+                        <td><a href="#" data-tooltip="編集" data-placement="left">編集</a></td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" aria-label="佐藤花子を選択"></td>
+                        <td><strong>佐藤花子</strong> <kbd>編集者</kbd> <ins>有効</ins><br><small>hanako@example.com</small></td>
+                        <td><a href="#" data-tooltip="編集" data-placement="left">編集</a></td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" aria-label="鈴木一郎を選択"></td>
+                        <td>鈴木一郎 <kbd>閲覧者</kbd> <del>停止中</del><br><small>ichiro@example.com</small></td>
+                        <td><a href="#" data-tooltip="編集" data-placement="left">編集</a></td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" aria-label="高橋次郎を選択"></td>
+                        <td>高橋次郎 <kbd>編集者</kbd> <mark>招待中</mark><br><small>jiro@example.com</small></td>
+                        <td><a href="#" data-tooltip="編集" data-placement="left">編集</a></td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" aria-label="田中三郎を選択"></td>
+                        <td>田中三郎 <kbd>閲覧者</kbd> <ins>有効</ins><br><small>saburo@example.com</small></td>
+                        <td><a href="#" data-tooltip="編集" data-placement="left">編集</a></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- pagination -->
+        <nav>
+            <ul>
+                <li><small>全128件中 1–5件</small></li>
+            </ul>
+            <ul>
+                <li><a href="#">«</a></li>
+                <li><a href="#" aria-current="page">1</a></li>
+                <li><a href="#">2</a></li>
+                <li><a href="#">3</a></li>
+                <li><a href="#">»</a></li>
+            </ul>
+        </nav>
+    </main>
+</body>
+
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — billing</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li><a href="./index.html"><strong>pico examples</strong></a></li>
+            </ul>
+            <ul>
+                <li><a href="./settings.html">設定</a></li>
+                <li><a href="./index.html">examples</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <hgroup>
+            <h2>料金プラン</h2>
+            <p>いつでもアップグレード・解約できます</p>
+        </hgroup>
+
+        <!-- plans -->
+        <div class="grid">
+            <article>
+                <header><strong>Free</strong></header>
+                <h3>¥0 <small>/ 月</small></h3>
+                <ul>
+                    <li>プロジェクト 3件まで</li>
+                    <li>メンバー 2名まで</li>
+                    <li>コミュニティサポート</li>
+                </ul>
+                <footer>
+                    <button class="outline secondary" disabled>現在のプラン</button>
+                </footer>
+            </article>
+            <article>
+                <header><strong>Pro</strong> <mark>おすすめ</mark></header>
+                <h3>¥980 <small>/ 月</small></h3>
+                <ul>
+                    <li>プロジェクト無制限</li>
+                    <li>メンバー 10名まで</li>
+                    <li>メールサポート</li>
+                    <li>データエクスポート</li>
+                </ul>
+                <footer>
+                    <button>アップグレード</button>
+                </footer>
+            </article>
+            <article>
+                <header><strong>Team</strong></header>
+                <h3>¥4,800 <small>/ 月</small></h3>
+                <ul>
+                    <li>Pro の全機能</li>
+                    <li>メンバー無制限</li>
+                    <li>SSO / 監査ログ</li>
+                    <li>優先サポート</li>
+                </ul>
+                <footer>
+                    <button class="outline contrast">営業に相談</button>
+                </footer>
+            </article>
+        </div>
+
+        <!-- billing history -->
+        <article>
+            <header><strong>請求履歴</strong></header>
+            <div class="overflow-auto">
+                <table class="striped">
+                    <thead>
+                        <tr>
+                            <th scope="col">日付</th>
+                            <th scope="col">内容</th>
+                            <th scope="col">金額</th>
+                            <th scope="col">状態</th>
+                            <th scope="col"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>2026-10-01</td>
+                            <td>Pro 月額 (10月分)</td>
+                            <td>¥980</td>
+                            <td><ins>支払済</ins></td>
+                            <td><a href="#">領収書</a></td>
+                        </tr>
+                        <tr>
+                            <td>2026-09-01</td>
+                            <td>Pro 月額 (9月分)</td>
+                            <td>¥980</td>
+                            <td><ins>支払済</ins></td>
+                            <td><a href="#">領収書</a></td>
+                        </tr>
+                        <tr>
+                            <td>2026-08-01</td>
+                            <td>Pro 月額 (8月分)</td>
+                            <td>¥980</td>
+                            <td><ins>支払済</ins></td>
+                            <td><a href="#">領収書</a></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <footer><small>支払い方法の変更は <a href="./settings.html">設定</a> から</small></footer>
+        </article>
+    </main>
+</body>
+
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — kanban</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav aria-label="breadcrumb">
+            <ul>
+                <li><a href="./index.html">pico examples</a></li>
+                <li><a href="./kanban.html" aria-current="page">カンバン</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <hgroup>
+            <h2>カンバン</h2>
+            <p>プロジェクトX — .grid の3列がそのままボードの列になる (モバイルでは縦積み)</p>
+        </hgroup>
+
+        <!-- view switcher (タブの代わりに role="group") -->
+        <div role="group">
+            <button disabled>ボード</button>
+            <a href="./tasks.html" role="button" class="outline secondary">リスト</a>
+            <a href="#" role="button" class="outline secondary">ガント</a>
+        </div>
+
+        <div class="grid">
+            <!-- todo -->
+            <section>
+                <h3>未着手 <small>(3)</small></h3>
+                <article>
+                    <p><strong>ログイン画面のデザイン</strong></p>
+                    <p><small>モバイルレイアウトから先に作る</small></p>
+                    <footer><small>担当: 山田 / <kbd>design</kbd></small></footer>
+                </article>
+                <article>
+                    <p><strong>エラー文言の見直し</strong></p>
+                    <p><small>フォーム周りのメッセージを統一する</small></p>
+                    <footer><small>担当: 佐藤 / <kbd>copy</kbd></small></footer>
+                </article>
+                <article>
+                    <p><strong>負荷テスト計画</strong></p>
+                    <p><small>シナリオを決めて見積もりに出す</small></p>
+                    <footer><small>担当: 未定 / <kbd>infra</kbd></small></footer>
+                </article>
+            </section>
+
+            <!-- doing -->
+            <section>
+                <h3>進行中 <small>(2)</small></h3>
+                <article>
+                    <p><strong>ユーザー管理API</strong></p>
+                    <p><small>一覧取得のページネーション実装中</small></p>
+                    <footer><small>担当: 鈴木 / <kbd>backend</kbd> / 期限 10/10</small></footer>
+                </article>
+                <article>
+                    <p><strong>通知設定画面</strong></p>
+                    <p><small>role="switch" を使ったトグルに置き換え</small></p>
+                    <footer><small>担当: 田中 / <kbd>frontend</kbd></small></footer>
+                </article>
+            </section>
+
+            <!-- done -->
+            <section>
+                <h3>完了 <small>(2)</small></h3>
+                <article>
+                    <p><del>メール認証フロー</del></p>
+                    <p><small>本番リリース済み</small></p>
+                    <footer><small>担当: 山田</small></footer>
+                </article>
+                <article>
+                    <p><del>オンボーディング改善</del></p>
+                    <p><small>A/Bテストで +8% 改善を確認</small></p>
+                    <footer><small>担当: 佐藤</small></footer>
+                </article>
+            </section>
+        </div>
+    </main>
+</body>
+
+</html>
