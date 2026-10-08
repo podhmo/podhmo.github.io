@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — changelog</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header: container-fluid は全幅レイアウト -->
+    <header class="container-fluid">
+        <nav>
+            <ul>
+                <li><a href="./index.html"><strong>pico examples</strong></a></li>
+            </ul>
+            <ul>
+                <li><a href="./index.html">一覧に戻る</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container-fluid">
+        <div class="grid">
+            <!-- sidebar: TOC -->
+            <aside>
+                <details open>
+                    <summary><strong>リリース</strong></summary>
+                    <nav>
+                        <ul>
+                            <li><a href="#v240" aria-current="page">v2.4.0</a></li>
+                            <li><a href="#v231">v2.3.1</a></li>
+                            <li><a href="#v230">v2.3.0</a></li>
+                        </ul>
+                    </nav>
+                </details>
+            </aside>
+
+            <!-- content -->
+            <section>
+                <hgroup>
+                    <h2>リリースノート</h2>
+                    <p>読み物系ページの例。インライン要素 (abbr, samp, sub/sup, u, s) と figure>img、要素単位の data-theme をまとめている</p>
+                </hgroup>
+
+                <article id="v240">
+                    <header>
+                        <hgroup>
+                            <h3>v2.4.0</h3>
+                            <p><time datetime="2026-10-01">2026-10-01</time></p>
+                        </hgroup>
+                    </header>
+                    <p>
+                        <abbr title="Command Line Interface">CLI</abbr> の検索コマンドが
+                        O(log<sub>2</sub>n) になりました<sup><a href="#fn1">1</a></sup>。
+                        ショートカットは <kbd>Ctrl</kbd>+<kbd>K</kbd> です。
+                        旧コマンド <s>find</s> は廃止され、<u>search</u> に統一されました。
+                        詳細は <a href="#" class="secondary">マイグレーションガイド</a> か
+                        <a href="#" class="contrast">GitHub の Issue</a> を参照してください。
+                    </p>
+                    <p><mark>既知の問題</mark>: Windows 環境で検索インデックスの再構築に時間がかかる場合があります。</p>
+
+                    <h4>変更点</h4>
+                    <ul>
+                        <li><ins>追加</ins> 検索インデックスの差分更新</li>
+                        <li><del>削除</del> <code>--legacy-index</code> フラグ</li>
+                    </ul>
+
+                    <!-- pre>samp は端末出力の表示に向く -->
+                    <pre><samp>$ app search --reindex
+index: rebuilding... done (12,841 docs in 1.2s)
+$ app status
+index: up to date</samp></pre>
+
+                    <figure>
+                        <img src="https://picsum.photos/seed/pico-search/800/400" alt="新しい検索画面のスクリーンショット">
+                        <figcaption>図1: 新しい検索画面 (figure + img + figcaption)</figcaption>
+                    </figure>
+
+                    <footer>
+                        <small>
+                            <sup id="fn1">1</sup> 既存インデックスからの増分更新時の計算量。
+                            <a href="#" class="secondary">ベンチマーク結果</a>
+                        </small>
+                    </footer>
+                </article>
+
+                <hr>
+
+                <!-- data-theme は任意の要素に効く。ダークページの中にライトなカードを置ける -->
+                <article data-theme="light">
+                    <header>
+                        <hgroup>
+                            <h4>テーマプレビュー</h4>
+                            <p>article data-theme="light" — 要素単位でテーマを切り替えられる</p>
+                        </hgroup>
+                    </header>
+                    <div class="grid">
+                        <input type="text" value="ライトテーマの入力欄" aria-label="プレビュー入力">
+                        <button type="button">ボタン</button>
+                    </div>
+                    <footer>
+                        <small>カード・入力・ボタンがライト配色になる。ページ全体は data-theme="dark" のまま</small>
+                    </footer>
+                </article>
+
+                <hr>
+
+                <details id="v231">
+                    <summary><strong>v2.3.1</strong> <small>2026-09-12</small></summary>
+                    <p>バグ修正のみのリリースです。</p>
+                </details>
+                <details id="v230">
+                    <summary><strong>v2.3.0</strong> <small>2026-08-30</small></summary>
+                    <p>パフォーマンス改善とドキュメント更新。</p>
+                </details>
+            </section>
+        </div>
+    </main>
+
+    <!-- footer -->
+    <footer class="container-fluid">
+        <small><a href="./index.html">pico examples</a> — 各ページは雛形としてコピーして使える</small>
+    </footer>
+</body>
+
+</html>

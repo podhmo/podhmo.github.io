@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <title>pico examples — reservation</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- style -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+
+<body>
+    <!-- header -->
+    <header class="container">
+        <nav>
+            <ul>
+                <li><a href="./index.html"><strong>pico examples</strong></a></li>
+            </ul>
+            <ul>
+                <li><a href="./index.html">一覧に戻る</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- main -->
+    <main class="container">
+        <article>
+            <header>
+                <hgroup>
+                    <h2>予約フォーム</h2>
+                    <p>フォーム部品の網羅的な例。日時・色・数値入力、select のバリエーション、入力状態 (valid/readonly/disabled) をまとめている</p>
+                </hgroup>
+            </header>
+            <form>
+                <!-- 日時・数値・連絡先の入力 -->
+                <div class="grid">
+                    <div>
+                        <label for="date">予約日</label>
+                        <input id="date" name="date" type="date" value="2026-10-15">
+                    </div>
+                    <div>
+                        <label for="time">開始時刻</label>
+                        <input id="time" name="time" type="time" value="18:30">
+                    </div>
+                    <div>
+                        <label for="guests">人数</label>
+                        <input id="guests" name="guests" type="number" min="1" max="20" value="4">
+                    </div>
+                </div>
+                <div class="grid">
+                    <div>
+                        <label for="tel">電話番号</label>
+                        <input id="tel" name="tel" type="tel" placeholder="090-1234-5678" autocomplete="tel">
+                    </div>
+                    <div>
+                        <label for="remind-at">リマインド送信日時</label>
+                        <input id="remind-at" name="remind-at" type="datetime-local" value="2026-10-14T09:00">
+                    </div>
+                </div>
+
+                <!-- select のバリエーション -->
+                <div class="grid">
+                    <div>
+                        <label for="seat">席の希望 (required + placeholder + optgroup)</label>
+                        <select id="seat" name="seat" required>
+                            <option selected disabled value="">席種を選択…</option>
+                            <optgroup label="店内">
+                                <option value="table">テーブル席</option>
+                                <option value="counter">カウンター席</option>
+                                <option value="private">個室</option>
+                            </optgroup>
+                            <optgroup label="屋外">
+                                <option value="terrace">テラス席</option>
+                                <option value="rooftop">屋上席</option>
+                            </optgroup>
+                        </select>
+                        <small>未選択のまま送信できない (required)。placeholder は disabled な選択肢で作る</small>
+                    </div>
+                    <div>
+                        <label for="allergy">アレルギー対応 (multiple + size)</label>
+                        <select id="allergy" name="allergy" multiple size="5" aria-label="アレルギー対応">
+                            <option disabled>複数選択可…</option>
+                            <option selected>小麦</option>
+                            <option>卵</option>
+                            <option>乳</option>
+                            <option selected>そば</option>
+                            <option>落花生</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- checkbox の横並び + indeterminate -->
+                <fieldset>
+                    <legend>オプション (input + label を兄弟にすると横並び)</legend>
+                    <label>
+                        <input type="checkbox" id="opt-all">
+                        すべて選択 (indeterminate の例)
+                    </label>
+                    <input type="checkbox" id="opt-cake" name="opt-cake" checked>
+                    <label for="opt-cake">記念日プレート</label>
+                    <input type="checkbox" id="opt-pickup" name="opt-pickup">
+                    <label for="opt-pickup">送迎</label>
+                    <input type="checkbox" id="opt-pet" name="opt-pet" checked>
+                    <label for="opt-pet">ペット同伴</label>
+                    <input type="checkbox" id="opt-smoking" name="opt-smoking" disabled>
+                    <label for="opt-smoking" aria-disabled="true">喫煙席 (準備中)</label>
+                </fieldset>
+
+                <!-- radio の横並び -->
+                <fieldset>
+                    <legend>支払い方法 (radio も同じ並べ方)</legend>
+                    <input type="radio" id="pay-card" name="payment" checked>
+                    <label for="pay-card">カード</label>
+                    <input type="radio" id="pay-cash" name="payment">
+                    <label for="pay-cash">現金</label>
+                    <input type="radio" id="pay-qr" name="payment">
+                    <label for="pay-qr">QR 決済</label>
+                </fieldset>
+
+                <!-- 入力の状態: valid / readonly / disabled -->
+                <div class="grid">
+                    <div>
+                        <label for="coupon">クーポンコード</label>
+                        <input id="coupon" name="coupon" type="text" value="WELCOME2026"
+                            aria-invalid="false" aria-describedby="coupon-helper">
+                        <small id="coupon-helper">適用されました (aria-invalid="false" で valid 表示)</small>
+                    </div>
+                    <div>
+                        <label for="member-id">会員番号 (readonly)</label>
+                        <input id="member-id" name="member-id" type="text" value="PM-00042" readonly>
+                    </div>
+                    <div>
+                        <label for="card-exp">カード有効期限 (month)</label>
+                        <input id="card-exp" name="card-exp" type="month" value="2027-03">
+                    </div>
+                </div>
+
+                <!-- fieldset ごと disabled にする例 -->
+                <fieldset disabled>
+                    <legend>同行者情報 (確定後のみ編集可 — fieldset[disabled])</legend>
+                    <div class="grid">
+                        <div>
+                            <label for="companion">同行者名</label>
+                            <input id="companion" name="companion" type="text" value="山田 花子">
+                        </div>
+                        <div>
+                            <label for="relation">続柄</label>
+                            <select id="relation" name="relation">
+                                <option>家族</option>
+                                <option>友人</option>
+                                <option>同僚</option>
+                            </select>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <div class="grid">
+                    <div>
+                        <label for="badge-color">名札の色 (color)</label>
+                        <input id="badge-color" name="badge-color" type="color" value="#e91e63">
+                    </div>
+                    <div>
+                        <label for="shop-note">店舗からの注意書き (readonly textarea)</label>
+                        <textarea id="shop-note" name="shop-note" rows="3" readonly>駐車場は近隣のコインパーキングをご利用ください。当日キャンセルはお電話のみ承ります。</textarea>
+                    </div>
+                </div>
+            </form>
+            <footer>
+                <div role="group">
+                    <button type="submit">予約する</button>
+                    <button type="reset" class="secondary">リセット</button>
+                </div>
+                <small><a href="#" class="secondary">会員ページに戻る</a> (a.secondary のリンクバリアント)</small>
+            </footer>
+        </article>
+    </main>
+
+    <!-- indeterminate は属性では書けないので docs 通り 1行だけ JS を置く -->
+    <script>
+        document.getElementById("opt-all").indeterminate = true;
+    </script>
+</body>
+
+</html>
