@@ -32,7 +32,7 @@ class App {
         this.appState = new AppState();
         this.router = new Router();
         this.currentBreadcrumbsVNode = null;
-        this.currentMainContentVNode = html`<p>Initializing...</p>`;
+        this.currentMainContentVNode = html`<p aria-busy="true">Initializing...</p>`;
         this.setupRoutes();
     }
 
@@ -44,7 +44,7 @@ class App {
             newBrowserUrl.searchParams.set('source', trimmedUrl);
             history.pushState({}, '', newBrowserUrl.toString());
 
-            this.currentMainContentVNode = html`<p>Loading from new source: ${trimmedUrl}...</p>`;
+            this.currentMainContentVNode = html`<p aria-busy="true">Loading from new source: ${trimmedUrl}...</p>`;
             this.renderUI();
 
             await this.loadData(trimmedUrl);
@@ -89,7 +89,7 @@ class App {
         this.router.addRoute('/', async () => {
             this.appState.setCurrentPath('/');
             this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
-            this.currentMainContentVNode = html`<p>Loading categories...</p>`;
+            this.currentMainContentVNode = html`<p aria-busy="true">Loading categories...</p>`;
             this.renderUI();
 
             if (!this.appState.data || !this.appState.data.sourceUrl || this.appState.data.sourceUrl !== this.appState.getCurrentSourceUrl()) {
@@ -112,7 +112,7 @@ class App {
             const categoryName = decodeURIComponent(params[0]);
             this.appState.setCurrentPath(location.hash.slice(1));
             this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
-            this.currentMainContentVNode = html`<p>Loading templates for ${categoryName}...</p>`;
+            this.currentMainContentVNode = html`<p aria-busy="true">Loading templates for ${categoryName}...</p>`;
             this.renderUI();
 
             if (!this.appState.data || !this.appState.data.sourceUrl || this.appState.data.sourceUrl !== this.appState.getCurrentSourceUrl()) {
@@ -147,7 +147,7 @@ class App {
             this.appState.clearVariableValues();
 
             this.currentBreadcrumbsVNode = AppShell(this.appState, this.router);
-            this.currentMainContentVNode = html`<p>Loading template ${templateName}...</p>`;
+            this.currentMainContentVNode = html`<p aria-busy="true">Loading template ${templateName}...</p>`;
             this.renderUI();
 
             if (!this.appState.data || !this.appState.data.sourceUrl || this.appState.data.sourceUrl !== this.appState.getCurrentSourceUrl()) {
@@ -184,7 +184,7 @@ class App {
             this.appState.setData(null);
         }
 
-        this.currentMainContentVNode = html`<p>Fetching data from ${currentLoadingUrl}...</p>`;
+        this.currentMainContentVNode = html`<p aria-busy="true">Fetching data from ${currentLoadingUrl}...</p>`;
         // The caller (route handler or handleLoadSourceUrl) is responsible for calling renderUI to show this.
 
         try {
@@ -196,7 +196,7 @@ class App {
             // Let route handlers determine content for empty data, do not set currentMainContentVNode here for that case.
         } catch (error) {
             console.error('Error loading or parsing data from ${currentLoadingUrl}:', error);
-            this.currentMainContentVNode = html`<p>Error loading data from ${currentLoadingUrl}: ${error.message}. Please check the console and the Markdown source.</p>`;
+            this.currentMainContentVNode = html`<article><p>Error loading data from ${currentLoadingUrl}: ${error.message}. Please check the console and the Markdown source.</p></article>`;
             const errorData = [];
             errorData.sourceUrl = currentLoadingUrl;
             this.appState.setData(errorData);
@@ -204,7 +204,7 @@ class App {
     }
 
     async start() {
-        this.currentMainContentVNode = html`<p>Application starting...</p>`;
+        this.currentMainContentVNode = html`<p aria-busy="true">Application starting...</p>`;
         this.renderUI();
         await this.router.handleLocationChange();
     }

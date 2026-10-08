@@ -8,12 +8,14 @@ This application allows users to:
 - Copy the finalized prompt to the clipboard.
 - Load templates from a user-specified Markdown file URL.
 
+The app's purpose is to produce **one** final prompt that weaves the input data (variables, target text/URL) into the template, so the desired output comes out in a single shot without back-and-forth with the LLM. Accordingly there is a single Copy button and its output is the merged final prompt. Download / file input exist only to work around clipboard and paste size limits on smartphones.
+
 ## Features
 
 -   **Categorized Templates**: Prompts are organized by `# Category` and `## Template Name` from a Markdown source.
 -   **Placeholder Support**: Templates can use `{{placeholder_name}}` syntax for dynamic input.
--   **Clipboard Copy**: Easily copy the generated prompt.
--   **Download**: Download the template as a self-contained `.md` prompt that can be handed to a model as-is. A single untitled prompt block is downloaded verbatim; otherwise a lead-in line is followed by each block wrapped in `<file name="...">` (the block title, or `part-N` when untitled). The 対象テキスト field is appended when filled. Unlike the clipboard copy, no title or `<details>` wrapper is added.
+-   **Clipboard Copy**: A single Copy button, floating at the bottom-right of the 対象テキスト textarea, copies the final generated prompt — an optional title, the instruction wrapped in `<details>`, and the 対象テキスト section. The instruction is built by `buildMergedInstruction()`: a single untitled block is copied verbatim; multiple (or titled) blocks are merged with a lead-in line followed by each block wrapped in `<file name="...">`.
+-   **Download**: Download the template as a self-contained `.md` prompt that can be handed to a model as-is. The content is the same `buildMergedInstruction()` output plus the 対象テキスト field when filled — unlike the clipboard copy, no title or `<details>` wrapper is added.
 -   **Custom Markdown Source**: Load templates from any accessible Markdown URL via a query parameter (`?source=URL_TO_MARKDOWN`). Defaults to `./Template.md`.
 
 ### style
@@ -23,6 +25,7 @@ This is not a feature, but I'll include it as additional information.
 -   **Dark Mode by Default**: Uses Pico.css with dark theme.
 -   **Mobile-First UI**: Designed to be responsive and usable on mobile devices.
 -   **History API Navigation**: Supports browser back/forward buttons.
+-   **Pico-only styling**: The layout is built only from Pico.css v2 components — no custom classes or inline styles. The single permitted exception is `chatgpt/style.css` (two rules: `.prompt-block { position: relative }` + `.copy-button { position: absolute; right/bottom: 0.5rem }`), which floats the Copy button over the textarea because Pico has no positioning utilities.
 
 
 ## Tech Stack
@@ -89,11 +92,13 @@ Just a simple text prompt.
     -   `dataProvider.js`: Fetches Markdown data.
     -   `appState.js`: Manages application state.
     -   `ui/`: Directory for UI components (Preact and htm based).
-        -   `AppShell.js`: Basic application layout (breadcrumbs).
+        -   `AppRootComponent.js`: Top-level layout (header with title + breadcrumbs, main, footer).
+        -   `AppShell.js`: Breadcrumb navigation VNode.
         -   `CategoryListView.js`: Renders the list of categories.
         -   `TemplateListView.js`: Renders the list of templates in a category.
         -   `TemplateDetailView.js`: Renders the details of a single template.
         -   `render.js`: Utility for Preact rendering.
+-   `style.css`: The single permitted custom CSS — floats the Copy button at the bottom-right of the 対象テキスト textarea.
 -   `README.md`: This file.
 
 ## Notes on the Markdown Parser

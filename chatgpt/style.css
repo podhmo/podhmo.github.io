@@ -1,0 +1,13 @@
+/* pico.css には position 系のユーティリティが無いため、
+   Copy ボタンを対象テキスト textarea の右下に浮かせるこの箇所だけ独自スタイルを使う。
+   スマホから使うときに本文上に少し浮いて表示される方が押しやすい。 */
+.prompt-block {
+    position: relative;
+}
+
+.prompt-block .copy-button {
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    z-index: 1;
+}

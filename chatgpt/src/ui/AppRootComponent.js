@@ -14,44 +14,47 @@ const html = htm.bind(h);
  * @param {(newUrl: string) => void} props.onLoadSourceUrl - Callback function when load button is clicked.
  */
 export function AppRootComponent({ breadcrumbsVNode, mainContentView, currentSourceUrl, onLoadSourceUrl }) {
-    const handleLoadClick = () => {
-        const inputElement = document.getElementById('sourceUrlInput_approot'); // ID needs to be unique if old one still exists
+    const handleSubmit = (event) => {
+        event.preventDefault();
+        const inputElement = document.getElementById('sourceUrlInput_approot');
         if (inputElement && inputElement.value.trim()) {
             onLoadSourceUrl(inputElement.value.trim());
         }
     };
 
     return html`
-        <div class="container">
-            <header>
-                <h1>Prompt Template Clipper</h1>
-                <nav id="breadcrumbs-area-approot">${breadcrumbsVNode}</nav>
-            </header>
-            <main id="content-area-approot">
-                ${mainContentView}
-            </main>
-            <footer>
-                <small>Powered by Vanilla JS, Preact & Pico.css</small>
-                <br />
-                <p>
+        <header class="container">
+            <h1>Prompt Template Clipper</h1>
+            ${breadcrumbsVNode}
+        </header>
+        <main class="container" id="content-area-approot">
+            ${mainContentView}
+        </main>
+        <footer class="container">
+            <p>
+                <small>
                     <a href="?source=./Template.md">Template.md</a> /
                     <a href="?source=./WritingSkills.md">WritingSkills.md</a>
                     を読み込んで表示してる (
-                    <a href="https://github.com/podhmo/podhmo.github.io/tree/master/chatgpt">GitHub</a>)
-                </p>
-                <p>
+                    <a href="https://github.com/podhmo/podhmo.github.io/tree/master/chatgpt">GitHub</a>
+                    ) — Powered by Vanilla JS, Preact & Pico.css
+                    <br />
                     <a href="./lint/">lint</a>: yomiyasu_lint.py をブラウザ内で実行 (pyodide)
-                </p>
-                <label htmlFor="sourceUrlInput_approot">Load from URL:</label>
-                <input
-                    type="text"
-                    id="sourceUrlInput_approot"
-                    name="sourceUrl"
-                    placeholder="Enter URL of Markdown file..."
-                    value=${currentSourceUrl}
-                />
-                <button id="loadSourceUrlButton_approot" onClick=${handleLoadClick}>Load</button>
-            </footer>
-        </div>
+                </small>
+            </p>
+            <form onSubmit=${handleSubmit}>
+                <label for="sourceUrlInput_approot">Load from URL:</label>
+                <fieldset role="group">
+                    <input
+                        type="text"
+                        id="sourceUrlInput_approot"
+                        name="sourceUrl"
+                        placeholder="Enter URL of Markdown file..."
+                        value=${currentSourceUrl}
+                    />
+                    <button type="submit" id="loadSourceUrlButton_approot">Load</button>
+                </fieldset>
+            </form>
+        </footer>
     `;
 }

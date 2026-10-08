@@ -20,11 +20,11 @@ export function CategoryListView(categories, router) {
             <article>
                 <header>
                     <a href="#/category/${encodeURIComponent(category.categoryName)}" onClick=${(e) => { e.preventDefault(); router.navigateTo(`/category/${encodeURIComponent(category.categoryName)}`); }}>
-                        <h3>${category.categoryName}</h3>
+                        <h4>${category.categoryName}</h4>
                     </a>
                 </header>
                 ${category.description ? html`<p dangerouslySetInnerHTML=${{ __html: category.description.replace(/\n/g, '<br>') }}></p>` : null}
-                 <small>${category.templates.length} template(s)</small>
+                 <footer><small>${category.templates.length} template(s)</small></footer>
             </article>
         `)}
     `;

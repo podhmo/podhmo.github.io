@@ -75,9 +75,26 @@ export function TemplateDetailView(template, router, appState, requestRender) {
         }
     };
 
-    const buildFinalPrompt = (instruction, isRaw) => {
+    // テンプレートの全ブロックを1つの指示文にまとめる。
+    // ブロックが複数 (またはタイトル付き) なら Download と同じ <file name> 統合形式にする。
+    const buildMergedInstruction = () => {
+        const processedBodies = template.prompts.map(prompt => getProcessedPromptBody(prompt.body));
+        if (template.prompts.length === 1 && !template.prompts[0].title) {
+            return processedBodies[0];
+        }
+        const fileBlocks = template.prompts.map((prompt, index) => {
+            const name = prompt.title || `part-${index + 1}`;
+            return `<file name="${name}">\n${processedBodies[index]}\n</file>`;
+        }).join('\n\n');
+        return `以下の \`<file name="...">\` ブロックを、スキルのファイル一式（指示・参照資料・スクリプト）として解釈し、その指示に従ってください。\n\n${fileBlocks}`;
+    };
+
+    // Copy ボタンは画面に1個だけ: 生成した最終プロンプト全体をコピーする。
+    const handleCopy = async (buttonElement) => {
         const title = document.getElementById('prompt-title').value;
         const targetText = document.getElementById('prompt-target-text').value;
+        const isRaw = template.prompts.length === 1 && template.prompts[0].language.toLowerCase() === 'raw';
+        const instruction = buildMergedInstruction();
 
         let finalPrompt;
         if (isRaw) {
@@ -95,11 +112,6 @@ ${instruction}
 </details>`;
             finalPrompt += createTargetDocumentSection(targetText);
         }
-        return finalPrompt;
-    };
-
-    const handleCopy = async (instruction, isRaw, buttonElement) => {
-        const finalPrompt = buildFinalPrompt(instruction, isRaw);
         await copyToClipboard(finalPrompt, buttonElement);
     };
 
@@ -138,25 +150,9 @@ ${instruction}
         // The downloaded file is a single self-contained prompt to hand to a
         // model: the merged prompt bodies plus the target text (if filled in),
         // without the chat-oriented decorations (title, <details> wrapper)
-        // that buildFinalPrompt adds for the copy button.
-        const processedBodies = template.prompts.map(prompt => getProcessedPromptBody(prompt.body));
+        // that the copy button adds on top of buildMergedInstruction().
         const targetText = document.getElementById('prompt-target-text').value;
-
-        let content;
-        if (template.prompts.length === 1 && !template.prompts[0].title) {
-            // An untitled block is a plain prompt: emit the body itself.
-            content = processedBodies[0];
-        } else {
-            // A titled block is a file in the prompt package (e.g. SKILL.md):
-            // emit the same lead-in + <file name> format as multi-block
-            // templates, so the file never starts with e.g. YAML frontmatter
-            // and the model can map each block to a path.
-            const fileBlocks = template.prompts.map((prompt, index) => {
-                const name = prompt.title || `part-${index + 1}`;
-                return `<file name="${name}">\n${processedBodies[index]}\n</file>`;
-            }).join('\n\n');
-            content = `以下の \`<file name="...">\` ブロックを、スキルのファイル一式（指示・参照資料・スクリプト）として解釈し、その指示に従ってください。\n\n${fileBlocks}`;
-        }
+        let content = buildMergedInstruction();
 
         // The empty-text branch of createTargetDocumentSection refers to the
         // conversation history, which is meaningless in a file — skip it.
@@ -246,53 +242,55 @@ ${instruction}
             <header>
                 <h3>${template.templateName}</h3>
             </header>
-            ${template.description ? html`<section class="description" dangerouslySetInnerHTML=${{ __html: template.description.replace(/\n/g, '<br>') }}></section>` : null}
-            
+            ${template.description ? html`<section dangerouslySetInnerHTML=${{ __html: template.description.replace(/\n/g, '<br>') }}></section>` : null}
+
             ${uniquePlaceholders.length > 0 ? html`
-                <section class="placeholders">
+                <section>
                     <h4>Variables:</h4>
                     ${uniquePlaceholders.map(phObj => html`
-                        <div class="placeholder-input">
-                            <label for="ph-${phObj.name}">${phObj.name}:</label>
-                            <textarea
-                                id="ph-${phObj.name}"
-                                name="${phObj.name}"
-                                value=${appState.getVariableValues()[phObj.name]}
-                                onInput=${(e) => updatePlaceholderValue(phObj.name, e.target.value)}
-                                placeholder=${phObj.defaultValue ? `Default: ${phObj.defaultValue}` : `Enter value for ${phObj.name}`}
-                                rows="2"
-                            ></textarea>
-                        </div>
+                        <label for="ph-${phObj.name}">${phObj.name}:</label>
+                        <textarea
+                            id="ph-${phObj.name}"
+                            name="${phObj.name}"
+                            value=${appState.getVariableValues()[phObj.name]}
+                            onInput=${(e) => updatePlaceholderValue(phObj.name, e.target.value)}
+                            placeholder=${phObj.defaultValue ? `Default: ${phObj.defaultValue}` : `Enter value for ${phObj.name}`}
+                            rows="2"
+                        ></textarea>
                     `)}
                 </section>
             ` : null}
 
-            <section class="generation-controls">
-                <div class="form-group">
-                    <label for="prompt-title">タイトル</label>
-                    <input type="text" id="prompt-title" name="prompt-title" placeholder="Enter a title for the final prompt..." />
-                </div>
-                <div class="form-group">
-                    <label for="prompt-target-text">対象テキストまたはURL</label>
+            <section>
+                <h4>生成:</h4>
+                <label for="prompt-title">タイトル</label>
+                <input type="text" id="prompt-title" name="prompt-title" placeholder="Enter a title for the final prompt..." />
+                <label for="prompt-target-text">対象テキストまたはURL</label>
+                <div class="prompt-block">
                     <textarea
                         id="prompt-target-text"
                         name="prompt-target-text"
                         placeholder="Enter target text, a URL, or leave blank for chat history..."
                     ></textarea>
-                    <small>
-                        またはファイルから読み込む（大きなテキスト用）:
-                        <input
-                            type="file"
-                            id="prompt-target-file"
-                            name="prompt-target-file"
-                            accept="text/*,.md,.txt"
-                            onChange=${handleTargetTextFileSelect}
-                        />
-                    </small>
-                    <small id="prompt-target-file-status" aria-live="polite"></small>
+                    <button
+                        type="button"
+                        class="copy-button"
+                        title="生成した最終プロンプトをコピー"
+                        onClick=${async (e) => await handleCopy(e.target)}>
+                        Copy
+                    </button>
                 </div>
+                <small>またはファイルから読み込む（大きなテキスト用）</small>
+                <input
+                    type="file"
+                    id="prompt-target-file"
+                    name="prompt-target-file"
+                    accept="text/*,.md,.txt"
+                    onChange=${handleTargetTextFileSelect}
+                />
+                <small id="prompt-target-file-status" aria-live="polite"></small>
                 <button
-                    class="download-button"
+                    type="button"
                     title=${template.prompts.length > 1
                         ? `${template.prompts.length}個のプロンプトを1つのファイルに合成してダウンロード`
                         : 'プロンプトをファイルとしてダウンロード'}
@@ -303,18 +301,10 @@ ${instruction}
 
             <h4>Prompt Template(s):</h4>
             ${template.prompts.map((prompt, index) => {
-                const isRaw = prompt.language.toLowerCase() === 'raw';
                 const processedBody = getProcessedPromptBody(prompt.body);
                 return html`
-                    <div class="template-body-container">
-                        ${(prompt.language || prompt.title) ? html`<small>${prompt.language}${prompt.title ? ` — ${prompt.title}` : ''}</small>` : null}
-                        <button
-                            class="copy-button"
-                            onClick=${async (e) => await handleCopy(processedBody, isRaw, e.target)}>
-                            Copy
-                        </button>
-                        <pre><code>${processedBody}</code></pre>
-                    </div>
+                    ${(prompt.language || prompt.title) ? html`<small>${prompt.language}${prompt.title ? ` — ${prompt.title}` : ''}</small>` : null}
+                    <pre><code>${processedBody}</code></pre>
                     ${index < template.prompts.length - 1 ? html`<hr />` : null}
                 `;
             })}
