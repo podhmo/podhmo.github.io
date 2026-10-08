@@ -59,18 +59,20 @@ export function TemplateDetailView(template, router, appState, requestRender) {
         try {
             await navigator.clipboard.writeText(text);
             buttonElement.textContent = 'Copied!';
-            buttonElement.classList.add('secondary');
+            buttonElement.classList.remove('outline');
             setTimeout(() => {
                 buttonElement.textContent = 'Copy';
-                buttonElement.classList.remove('secondary');
+                buttonElement.classList.add('outline');
             }, 2000);
         } catch (err) {
             console.error('Failed to copy: ', err);
             buttonElement.textContent = 'Failed!';
+            buttonElement.classList.remove('secondary', 'outline');
             buttonElement.classList.add('contrast');
             setTimeout(() => {
                 buttonElement.textContent = 'Copy';
                 buttonElement.classList.remove('contrast');
+                buttonElement.classList.add('secondary', 'outline');
             }, 2000);
         }
     };
@@ -246,53 +248,46 @@ ${instruction}
             <header>
                 <h3>${template.templateName}</h3>
             </header>
-            ${template.description ? html`<section class="description" dangerouslySetInnerHTML=${{ __html: template.description.replace(/\n/g, '<br>') }}></section>` : null}
-            
+            ${template.description ? html`<section dangerouslySetInnerHTML=${{ __html: template.description.replace(/\n/g, '<br>') }}></section>` : null}
+
             ${uniquePlaceholders.length > 0 ? html`
-                <section class="placeholders">
+                <section>
                     <h4>Variables:</h4>
                     ${uniquePlaceholders.map(phObj => html`
-                        <div class="placeholder-input">
-                            <label for="ph-${phObj.name}">${phObj.name}:</label>
-                            <textarea
-                                id="ph-${phObj.name}"
-                                name="${phObj.name}"
-                                value=${appState.getVariableValues()[phObj.name]}
-                                onInput=${(e) => updatePlaceholderValue(phObj.name, e.target.value)}
-                                placeholder=${phObj.defaultValue ? `Default: ${phObj.defaultValue}` : `Enter value for ${phObj.name}`}
-                                rows="2"
-                            ></textarea>
-                        </div>
+                        <label for="ph-${phObj.name}">${phObj.name}:</label>
+                        <textarea
+                            id="ph-${phObj.name}"
+                            name="${phObj.name}"
+                            value=${appState.getVariableValues()[phObj.name]}
+                            onInput=${(e) => updatePlaceholderValue(phObj.name, e.target.value)}
+                            placeholder=${phObj.defaultValue ? `Default: ${phObj.defaultValue}` : `Enter value for ${phObj.name}`}
+                            rows="2"
+                        ></textarea>
                     `)}
                 </section>
             ` : null}
 
-            <section class="generation-controls">
-                <div class="form-group">
-                    <label for="prompt-title">タイトル</label>
-                    <input type="text" id="prompt-title" name="prompt-title" placeholder="Enter a title for the final prompt..." />
-                </div>
-                <div class="form-group">
-                    <label for="prompt-target-text">対象テキストまたはURL</label>
-                    <textarea
-                        id="prompt-target-text"
-                        name="prompt-target-text"
-                        placeholder="Enter target text, a URL, or leave blank for chat history..."
-                    ></textarea>
-                    <small>
-                        またはファイルから読み込む（大きなテキスト用）:
-                        <input
-                            type="file"
-                            id="prompt-target-file"
-                            name="prompt-target-file"
-                            accept="text/*,.md,.txt"
-                            onChange=${handleTargetTextFileSelect}
-                        />
-                    </small>
-                    <small id="prompt-target-file-status" aria-live="polite"></small>
-                </div>
+            <section>
+                <h4>生成:</h4>
+                <label for="prompt-title">タイトル</label>
+                <input type="text" id="prompt-title" name="prompt-title" placeholder="Enter a title for the final prompt..." />
+                <label for="prompt-target-text">対象テキストまたはURL</label>
+                <textarea
+                    id="prompt-target-text"
+                    name="prompt-target-text"
+                    placeholder="Enter target text, a URL, or leave blank for chat history..."
+                ></textarea>
+                <small>またはファイルから読み込む（大きなテキスト用）</small>
+                <input
+                    type="file"
+                    id="prompt-target-file"
+                    name="prompt-target-file"
+                    accept="text/*,.md,.txt"
+                    onChange=${handleTargetTextFileSelect}
+                />
+                <small id="prompt-target-file-status" aria-live="polite"></small>
                 <button
-                    class="download-button"
+                    type="button"
                     title=${template.prompts.length > 1
                         ? `${template.prompts.length}個のプロンプトを1つのファイルに合成してダウンロード`
                         : 'プロンプトをファイルとしてダウンロード'}
@@ -306,15 +301,22 @@ ${instruction}
                 const isRaw = prompt.language.toLowerCase() === 'raw';
                 const processedBody = getProcessedPromptBody(prompt.body);
                 return html`
-                    <div class="template-body-container">
-                        ${(prompt.language || prompt.title) ? html`<small>${prompt.language}${prompt.title ? ` — ${prompt.title}` : ''}</small>` : null}
-                        <button
-                            class="copy-button"
-                            onClick=${async (e) => await handleCopy(processedBody, isRaw, e.target)}>
-                            Copy
-                        </button>
-                        <pre><code>${processedBody}</code></pre>
-                    </div>
+                    <nav>
+                        <ul>
+                            ${(prompt.language || prompt.title) ? html`<li><small>${prompt.language}${prompt.title ? ` — ${prompt.title}` : ''}</small></li>` : null}
+                        </ul>
+                        <ul>
+                            <li>
+                                <button
+                                    type="button"
+                                    class="secondary outline"
+                                    onClick=${async (e) => await handleCopy(processedBody, isRaw, e.target)}>
+                                    Copy
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                    <pre><code>${processedBody}</code></pre>
                     ${index < template.prompts.length - 1 ? html`<hr />` : null}
                 `;
             })}

@@ -25,6 +25,7 @@ export function TemplateListView(category, router) {
                     </a>
                 </header>
                 ${template.description ? html`<p dangerouslySetInnerHTML=${{ __html: template.description.replace(/\n/g, '<br>') }}></p>` : null}
+                <footer><small>${template.prompts.length} prompt(s)</small></footer>
             </article>
         `)}
         <p><a href="#/" onClick=${(e) => { e.preventDefault(); router.navigateTo('/'); }}>Back to Categories</a></p>
