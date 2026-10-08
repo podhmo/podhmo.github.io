@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mock: Prompt Template Clipper — pico examples</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <!-- 唯一の例外: pico に position 系ユーティリティが無いため、
+         Copy ボタン (画面に1個だけ) を対象テキスト textarea 右下に浮かせる最小限の独自スタイル (本体は chatgpt/style.css) -->
+    <style>
+        .prompt-block { position: relative; }
+        .prompt-block .copy-button { position: absolute; right: 0.5rem; bottom: 0.5rem; z-index: 1; }
+    </style>
+</head>
+<body>
+    <header class="container">
+        <h1>Prompt Template Clipper</h1>
+        <nav aria-label="breadcrumb">
+            <ul>
+                <li><a href="#">Home</a></li>
+                <li><a href="#">思考の備忘録</a></li>
+                <li><a href="#">思索の文章化 雄弁が過ぎる先導者的なやつ</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="container">
+        <!-- テンプレート詳細ビュー (一番複雑な画面) -->
+        <article>
+            <header>
+                <h3>思索の文章化 雄弁が過ぎる先導者的なやつ</h3>
+            </header>
+
+            <p>役割には例えば思慮深い執筆者などが入る。適切に役割を付けないとスピリチュアルな方向に向かう。</p>
+            <p>かつて使っていたプロンプト。事実の湾曲が目立つが読後感が面白いので残している。</p>
+
+            <h4>Variables:</h4>
+            <label for="ph-yakuwari">役割:</label>
+            <textarea id="ph-yakuwari" name="役割" rows="2" placeholder="Default: 思慮深い執筆者">思慮深い執筆者</textarea>
+
+            <h4>生成:</h4>
+            <label for="prompt-title">タイトル</label>
+            <input type="text" id="prompt-title" name="prompt-title" placeholder="Enter a title for the final prompt...">
+
+            <label for="prompt-target-text">対象テキストまたはURL</label>
+            <div class="prompt-block">
+                <textarea id="prompt-target-text" name="prompt-target-text" placeholder="Enter target text, a URL, or leave blank for chat history..."></textarea>
+                <button type="button" class="copy-button" title="生成した最終プロンプトをコピー">Copy</button>
+            </div>
+            <small>またはファイルから読み込む（大きなテキスト用）</small>
+            <input type="file" id="prompt-target-file" name="prompt-target-file" accept="text/*,.md,.txt">
+            <small aria-live="polite">読み込みました: memo.txt (1234文字)</small>
+
+            <button type="button">Download (.md)</button>
+
+            <h4>Prompt Template(s):</h4>
+            <small>md</small>
+            <pre><code>あなたは思慮深い執筆者です。これまでの思考の内容を追体験させるような文章がほしいです。自己完結型の文章にしてください。わざと短くまとめようとせずに丁寧に長さを気にせずテキストとして出力してください。
+
+----
+
+記事のフォーマットについて
+
+- 記事は#1つのタイトル名からはじめてください
+- 記事は幾分かの章で分割してください
+- 章タイトルには絵文字を1つ加えてください
+- 記事はmarkdownフォーマットを念頭に入れてください</code></pre>
+
+            <hr>
+
+            <small>markdown — docs/record-style.md</small>
+            <pre><code>## 重要なこと
+
+- 読者は私およびあなたの存在を知りません
+- 読者は投稿元のSNSの投稿を知りません
+
+それではお願いします。</code></pre>
+
+            <footer>
+                <a href="#">Back to 思考の備忘録</a>
+            </footer>
+        </article>
+
+        <!-- カテゴリ一覧 / テンプレート一覧で使うカード -->
+        <section>
+            <h2>カードの例 (Categories / Templates)</h2>
+            <article>
+                <header>
+                    <a href="#"><h4>文章の理解</h4></a>
+                </header>
+                <p>既存の文章を理解したいときに使う</p>
+                <footer><small>10 template(s)</small></footer>
+            </article>
+            <article>
+                <header>
+                    <a href="#"><h4>テキストの変形</h4></a>
+                </header>
+                <p>乱雑な表現を整える。テキストの形態を変換する。</p>
+                <footer><small>6 template(s)</small></footer>
+            </article>
+        </section>
+
+        <section>
+            <h2>状態の例</h2>
+            <details>
+                <summary>読み込み中</summary>
+                <p aria-busy="true">Loading categories...</p>
+            </details>
+            <details>
+                <summary>エラー</summary>
+                <article>
+                    <p>Error loading data from ./missing.md: Failed to fetch. Please check the console and the Markdown source.</p>
+                </article>
+            </details>
+        </section>
+    </main>
+
+    <footer class="container">
+        <p>
+            <small>
+                <a href="?source=./Template.md">Template.md</a> /
+                <a href="?source=./WritingSkills.md">WritingSkills.md</a>
+                を読み込んで表示してる (<a href="https://github.com/podhmo/podhmo.github.io/tree/master/chatgpt">GitHub</a>) — Powered by Vanilla JS, Preact &amp; Pico.css
+                <br>
+                <a href="./lint/">lint</a>: yomiyasu_lint.py をブラウザ内で実行 (pyodide)
+            </small>
+        </p>
+        <form>
+            <label for="sourceUrl">Load from URL:</label>
+            <fieldset role="group">
+                <input type="url" id="sourceUrl" name="sourceUrl" placeholder="Enter URL of Markdown file..." value="./Template.md">
+                <button type="button">Load</button>
+            </fieldset>
+        </form>
+        <p><small><a href="./index.html">pico examples</a> / <a href="../../chatgpt/">本体</a></small></p>
+    </footer>
+</body>
+</html>
