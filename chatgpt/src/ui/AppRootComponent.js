@@ -38,8 +38,6 @@ export function AppRootComponent({ breadcrumbsVNode, mainContentView, currentSou
                     を読み込んで表示してる (
                     <a href="https://github.com/podhmo/podhmo.github.io/tree/master/chatgpt">GitHub</a>
                     ) — Powered by Vanilla JS, Preact & Pico.css
-                    <br />
-                    <a href="./lint/">lint</a>: yomiyasu_lint.py をブラウザ内で実行 (pyodide)
                 </small>
             </p>
             <form onSubmit=${handleSubmit}>
