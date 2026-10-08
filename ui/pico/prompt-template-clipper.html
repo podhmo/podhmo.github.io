@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>mock: Prompt Template Clipper — pico examples</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <!-- 唯一の例外: pico に position 系ユーティリティが無いため、
+         Copy ボタンをブロック右上に浮かせる最小限の独自スタイル (本体は chatgpt/style.css) -->
+    <style>
+        .prompt-block { position: relative; }
+        .prompt-block .copy-button { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 1; }
+    </style>
 </head>
 <body>
     <header class="container">
@@ -45,15 +51,10 @@
             <button type="button">Download (.md)</button>
 
             <h4>Prompt Template(s):</h4>
-            <nav>
-                <ul>
-                    <li><small>md</small></li>
-                </ul>
-                <ul>
-                    <li><button type="button" class="secondary outline">Copy</button></li>
-                </ul>
-            </nav>
-            <pre><code>あなたは思慮深い執筆者です。これまでの思考の内容を追体験させるような文章がほしいです。自己完結型の文章にしてください。わざと短くまとめようとせずに丁寧に長さを気にせずテキストとして出力してください。
+            <small>md</small>
+            <div class="prompt-block">
+                <button type="button" class="copy-button">Copy</button>
+                <pre><code>あなたは思慮深い執筆者です。これまでの思考の内容を追体験させるような文章がほしいです。自己完結型の文章にしてください。わざと短くまとめようとせずに丁寧に長さを気にせずテキストとして出力してください。
 
 ----
 
@@ -63,23 +64,20 @@
 - 記事は幾分かの章で分割してください
 - 章タイトルには絵文字を1つ加えてください
 - 記事はmarkdownフォーマットを念頭に入れてください</code></pre>
+            </div>
 
             <hr>
 
-            <nav>
-                <ul>
-                    <li><small>markdown — docs/record-style.md</small></li>
-                </ul>
-                <ul>
-                    <li><button type="button" class="secondary outline">Copied!</button></li>
-                </ul>
-            </nav>
-            <pre><code>## 重要なこと
+            <small>markdown — docs/record-style.md</small>
+            <div class="prompt-block">
+                <button type="button" class="copy-button secondary">Copied!</button>
+                <pre><code>## 重要なこと
 
 - 読者は私およびあなたの存在を知りません
 - 読者は投稿元のSNSの投稿を知りません
 
 それではお願いします。</code></pre>
+            </div>
 
             <footer>
                 <a href="#">Back to 思考の備忘録</a>
