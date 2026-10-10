@@ -51,7 +51,7 @@ podhmo.github.io 内の deno 製 CLI ツール9本を MoonBit 製単一ファイ
 
 - **計画外**: スタック積み上げ完了後に `podhmo/mbtx-install@0.1.0` が mooncakes に公開された (`moon install podhmo/mbtx-install/cmd/mbtx-install` で導入可能)。それまでは「インストールはこれから作る mbtx-install でやるつもり」が前提で、実行検証は `moon run` (WASI バックエンド) に留まっていた。
 - **追記時の検証**: 実際に mbtx-install で全9ツールをインストールし、**native バイナリ**として E2E 検証した。native こそ `create_dir` バックエンド差 (#126) が刺さる実行形態であり、`moon run` の検証では潰し切れなかった領域。
-- **結果**: 全9本合格。`llm-scaffold apply` の深いディレクトリ作成が deno 版と出力一致 (ensure_dir 修復が実バイナリで有効)、copilot の時系列ソートが異なる長さの timestamp で正順 (lexical_compare 有効)、sync-writing-skills の実 fetch が `moon run` 版とバイト一致、html-server が 200/301/404/HEAD/traversal 拒否を満たす。ai-studio-download は `--help` のみ (Drive E2E は資格情報待ち)。
+- **結果**: 全9本合格。`llm-scaffold apply` の深いディレクトリ作成が deno 版と出力一致 (ensure_dir 修復が実バイナリで有効)、copilot の時系列ソートが異なる長さの timestamp で正順 (lexical_compare 有効)、sync-writing-skills の実 fetch が `moon run` 版とバイト一致、html-server が 200/301/404/HEAD/traversal 拒否を満たす。ai-studio-download は `--help` のみ — その後 **ユーザー側で実資格情報による E2E 確認済み**: `moon run ./ai-studio-download.mbtx -- --keyFile <json>` で Drive フォルダ内一覧表示→番号入力→内容表示まで動作 (番号入力化の想定通りカーソル選択は非対応)。これで全ツールの実動作が確認された。
 
 ## レビュー指摘と verdict
 
@@ -92,7 +92,7 @@ diff を読んで初めて見える、等価性維持の細部と意図的な差
 
 ## 残存する既知の境界
 
-- **ai-studio-download の Drive E2E 未検証** — GCP 資格情報が無いため token exchange〜ファイルDL の実動作は未確認 (RS256 署名単体は検証済み)。
+- ~~ai-studio-download の Drive E2E 未検証~~ — 解消。ユーザー側で実資格情報による確認済み (上記追記節)。残る既知の差はカーソル選択非対応のみ (番号入力化の意図的仕様)。
 - `deno.jsonc` / `pwa/*.ts` / `chatgpt/src/*.ts` / Makefile `gen` — deno SPA・Worker 向けで今回の CLI 移植対象外。
 
 ## 不備の振り返り
