@@ -11,7 +11,7 @@ import {
 /// Google AI Studio の対話履歴 (JSON) を markdown に変換する
 
 ///|
-fn jmember(json : Json, key : String) -> Json? {
+fn jmember(json : Json, key~ : String) -> Json? {
   match json {
     Object(obj) => obj.get(key)
     _ => None
@@ -19,8 +19,8 @@ fn jmember(json : Json, key : String) -> Json? {
 }
 
 ///|
-fn member_string(json : Json, key : String) -> String {
-  match jmember(json, key) {
+fn member_string(json : Json, key~ : String) -> String {
+  match jmember(json, key~) {
     Some(String(s)) => s
     _ => ""
   }
@@ -28,17 +28,17 @@ fn member_string(json : Json, key : String) -> String {
 
 ///|
 fn chunk_role(chunk : Json) -> String {
-  member_string(chunk, "role")
+  member_string(chunk, key="role")
 }
 
 ///|
 fn chunk_text(chunk : Json) -> String {
-  member_string(chunk, "text")
+  member_string(chunk, key="text")
 }
 
 ///|
 fn chunk_is_thought(chunk : Json) -> Bool {
-  jmember(chunk, "isThought") is Some(True)
+  jmember(chunk, key="isThought") is Some(True)
 }
 
 ///|
@@ -49,12 +49,11 @@ fn format_chat_history_to_markdown(
   ai_name~ : String,
   only_user_inputs~ : Bool,
 ) -> String {
-  let chunks = match jmember(history, "chunkedPrompt") {
-    Some(cp) =>
-      match jmember(cp, "chunks") {
-        Some(Array(arr)) => arr
-        _ => []
-      }
+  let chunks = match
+    jmember(history, key="chunkedPrompt").bind(fn(cp) {
+      jmember(cp, key="chunks")
+    }) {
+    Some(Array(arr)) => arr
     _ => []
   }
   let output_parts : Array[String] = []
@@ -135,7 +134,7 @@ fn format_chat_history_to_markdown(
   }
   output_parts.push("## メタデータ\n\n")
   output_parts.push("```json\n")
-  let run_settings = jmember(history, "runSettings").unwrap_or(Json::null())
+  let run_settings = jmember(history, key="runSettings").unwrap_or(Json::null())
   output_parts.push(run_settings.stringify(indent=2))
   output_parts.push("\n```\n")
   output_parts.join("")

@@ -177,7 +177,7 @@ struct ScaffoldPlanItem {
 }
 
 ///|
-fn pjoin(a : String, b : String) -> String {
+fn pjoin(a : String, b~ : String) -> String {
   @path.Path::Path(a).join(@path.Path::Path(b)).to_string()
 }
 
@@ -191,63 +191,49 @@ fn ensure_dir(dir : String) -> Unit raise @fs.IOError {
     return
   }
   let is_abs = @path.Path::Path(normalized).is_absolute()
-  let mut prefix = if is_abs { "/" } else { "" }
-  for comp_view in normalized.split("/") {
+  for
+    comp_view in normalized.split("/")
+    prefix = (if is_abs { "/" } else { "" }) {
     let comp = comp_view.to_owned()
     if comp == "" {
-      continue
+      continue prefix
     }
-    prefix = if prefix == "" {
+    let next = if prefix == "" {
       comp
     } else if prefix == "/" {
       "/\{comp}"
     } else {
       "\{prefix}/\{comp}"
     }
-    @fs.create_dir(prefix) catch {
-      e => if !(@fs.is_dir(prefix) catch { _ => false }) { raise e }
+    @fs.create_dir(next) catch {
+      e => if !(@fs.is_dir(next) catch { _ => false }) { raise e }
     }
+    continue next
   }
 }
 
 ///|
 fn is_scaffold_space(c : Char) -> Bool {
-  match c {
-    ' '
-    | '\t'
-    | '\r'
-    | '\u000B'
-    | '\u000C'
-    | '\u00A0'
-    | '\u1680'
-    | '\u2000'
-    | '\u2001'
-    | '\u2002'
-    | '\u2003'
-    | '\u2004'
-    | '\u2005'
-    | '\u2006'
-    | '\u2007'
-    | '\u2008'
-    | '\u2009'
-    | '\u200A'
-    | '\u2028'
-    | '\u2029'
-    | '\u202F'
-    | '\u205F'
-    | '\u3000'
-    | '\uFEFF' => true
-    _ => false
-  }
+  c
+  is (' '
+  | '\t'
+  | '\r'
+  | '\u000B'
+  | '\u000C'
+  | '\u00A0'
+  | '\u1680'
+  | '\u2000'..='\u200A'
+  | '\u2028'
+  | '\u2029'
+  | '\u202F'
+  | '\u205F'
+  | '\u3000'
+  | '\uFEFF')
 }
 
 ///|
 fn is_lang_char(c : Char) -> Bool {
-  ('a' <= c && c <= 'z') ||
-  ('A' <= c && c <= 'Z') ||
-  ('0' <= c && c <= '9') ||
-  c == '-' ||
-  c == '_'
+  c is ('a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_')
 }
 
 ///|
@@ -257,33 +243,20 @@ fn is_lang_char(c : Char) -> Bool {
 /// Returns (filepath, description) or None when the line does not match.
 fn parse_plan_line(line : String) -> (String, String)? {
   // [\s*-]*\s* : strip leading whitespace, '*' and '-'
-  let n = line.char_length()
-  let mut i = 0
-  while i < n {
-    match line.get_char(i) {
-      Some(c) =>
-        if is_scaffold_space(c) || c == '*' || c == '-' {
-          i = i + 1
-        } else {
-          break
-        }
-      None => break
-    }
-  }
+  let i = line
+    .iter()
+    .take_while(fn(c) { is_scaffold_space(c) || c == '*' || c == '-' })
+    .count()
   let rest = line[i:].to_owned()
   // (?<filepath>[^-\n]+?)\s*-\s*(?<description>.*)
   // filepath is a run of non-'-' chars; the first '-' is the separator.
   // rest[0] is neither whitespace nor '*'/'-' so a match exists iff rest
   // contains '-'.
-  let rn = rest.char_length()
   let mut sep = -1
-  for j in 0..<rn {
-    match rest.get_char(j) {
-      Some('-') => {
-        sep = j
-        break
-      }
-      _ => ()
+  for j, c in rest {
+    if c == '-' {
+      sep = j
+      break
     }
   }
   if sep < 0 {
@@ -316,18 +289,16 @@ fn parse_scaffold_plan(text : String) -> Array[ScaffoldPlanItem] {
 /// Equivalent to /^````(?<language>[a-zA-Z0-9-_]*):(?<filepath>[^\n]+)$/.
 fn parse_generate_header(line : String) -> (String, String)? {
   let rest = line[4:].to_owned()
-  let rn = rest.char_length()
-  for j in 0..<rn {
-    match rest.get_char(j) {
-      Some(':') => {
-        let filepath = rest[j + 1:].to_owned()
-        if filepath.length() == 0 {
-          return None
-        }
-        return Some((rest[:j].to_owned(), filepath))
+  for j, c in rest {
+    if c == ':' {
+      let filepath = rest[j + 1:].to_owned()
+      if filepath.length() == 0 {
+        return None
       }
-      Some(c) => if !is_lang_char(c) { return None }
-      None => return None
+      return Some((rest[:j].to_owned(), filepath))
+    }
+    if !is_lang_char(c) {
+      return None
     }
   }
   None
@@ -459,7 +430,7 @@ fn handle_plan(input_file : String) -> Unit {
 }
 
 ///|
-fn handle_apply(input_file : String, target_dir : String?) -> Unit {
+fn handle_apply(input_file : String, target_dir~ : String?) -> Unit {
   let project_root = match target_dir {
     Some(d) => d
     None => @env.current_dir().unwrap_or("")
@@ -504,7 +475,7 @@ fn handle_apply(input_file : String, target_dir : String?) -> Unit {
       eprintln("Skipping file with empty path.")
       continue
     }
-    let target_path = pjoin(project_root, file.filepath)
+    let target_path = pjoin(project_root, b=file.filepath)
     let dir = @path.Path::Path(target_path).dirname().to_string()
     if dir != "." && dir != project_root {
       ensure_dir(dir) catch {
@@ -536,7 +507,7 @@ fn handle_apply(input_file : String, target_dir : String?) -> Unit {
 ///|
 fn encode_file_to_string(
   actual_file_path : String,
-  display_path : String,
+  display_path~ : String,
 ) -> String {
   let content = @fs.read_file_to_string(actual_file_path) catch {
     IOError(m) => {
@@ -551,12 +522,12 @@ fn encode_file_to_string(
 ///|
 fn encode_dir_to_string(
   actual_dir_path : String,
-  display_base_path : String,
+  display_base~ : String,
 ) -> String {
   let ignored_dirs = [
     ".git", "node_modules", ".vscode", ".idea", "dist", "build", "target", "out",
   ]
-  let mut encoded = ""
+  let encoded = StringBuilder()
   let entries = @fs.read_dir(actual_dir_path) catch {
     IOError(m) => {
       eprintln(
@@ -566,8 +537,8 @@ fn encode_dir_to_string(
     }
   }
   for entry_name in entries {
-    let current_actual_dir = pjoin(actual_dir_path, entry_name)
-    let raw_display = pjoin(display_base_path, entry_name)
+    let current_actual_dir = pjoin(actual_dir_path, b=entry_name)
+    let raw_display = pjoin(display_base, b=entry_name)
     let current_display_path = if raw_display.has_prefix("./") {
       raw_display[2:].to_owned()
     } else {
@@ -582,8 +553,12 @@ fn encode_dir_to_string(
       }
     }
     if is_file {
-      encoded = encoded +
-        encode_file_to_string(current_actual_dir, current_display_path)
+      encoded.write_string(
+        encode_file_to_string(
+          current_actual_dir,
+          display_path=current_display_path,
+        ),
+      )
       continue
     }
     let is_dir = @fs.is_dir(current_actual_dir) catch {
@@ -599,11 +574,15 @@ fn encode_dir_to_string(
         eprintln("  ℹ️ Skipping directory: \{current_display_path}")
         continue
       }
-      encoded = encoded +
-        encode_dir_to_string(current_actual_dir, current_display_path)
+      encoded.write_string(
+        encode_dir_to_string(
+          current_actual_dir,
+          display_base=current_display_path,
+        ),
+      )
     }
   }
-  encoded
+  encoded.to_string()
 }
 
 ///|
@@ -615,7 +594,7 @@ fn handle_encode(paths : Array[String]) -> Unit {
     print_help()
     @sys.exit(1)
   }
-  let mut full_output = ""
+  let full_output = StringBuilder()
   for path_arg in paths {
     let normalized = path_arg.replace_all(old="\\", new="/")
     let normalized_display = if normalized.has_prefix("./") {
@@ -634,8 +613,9 @@ fn handle_encode(paths : Array[String]) -> Unit {
       }
     }
     if is_file {
-      full_output = full_output +
-        encode_file_to_string(path_arg, normalized_display)
+      full_output.write_string(
+        encode_file_to_string(path_arg, display_path=normalized_display),
+      )
       continue
     }
     let is_dir = @fs.is_dir(path_arg) catch {
@@ -650,14 +630,15 @@ fn handle_encode(paths : Array[String]) -> Unit {
       } else {
         normalized_display
       }
-      full_output = full_output + encode_dir_to_string(path_arg, display_base)
+      full_output.write_string(encode_dir_to_string(path_arg, display_base~))
       continue
     }
   }
-  if full_output.has_suffix("\n\n") {
+  let rendered = full_output.to_string()
+  if rendered.has_suffix("\n\n") {
     // Deno writes the output minus one trailing '\n' without adding a
     // newline; println re-adds it, so dropping two chars is equivalent.
-    println(full_output[:full_output.char_length() - 2].to_owned())
+    println(rendered[:rendered.char_length() - 2].to_owned())
   } else {
     eprintln("No files found or processed for encoding.")
   }
@@ -670,7 +651,7 @@ fn main {
   match command {
     Some("init") => handle_init()
     Some("plan") => {
-      let input = if argv.length() > 2 { argv[2] } else { "" }
+      let input = if argv.length() > 2 { argv.get(2).unwrap_or("") } else { "" }
       if input == "" {
         eprintln("Error: Input file path is required for 'plan' command.")
         print_help()
@@ -679,14 +660,18 @@ fn main {
       handle_plan(input)
     }
     Some("apply") => {
-      let input = if argv.length() > 2 { argv[2] } else { "" }
+      let input = if argv.length() > 2 { argv.get(2).unwrap_or("") } else { "" }
       if input == "" {
         eprintln("Error: Input file path is required for 'apply' command.")
         print_help()
         @sys.exit(1)
       }
-      let target = if argv.length() > 3 { Some(argv[3]) } else { None }
-      handle_apply(input, target)
+      let target = if argv.length() > 3 {
+        Some(argv.get(3).unwrap_or(""))
+      } else {
+        None
+      }
+      handle_apply(input, target_dir=target)
     }
     Some("encode") => {
       let rest : Array[String] = []

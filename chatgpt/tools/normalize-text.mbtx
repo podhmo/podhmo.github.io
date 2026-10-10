@@ -29,11 +29,14 @@ async fn main {
   } else {
     home_var
   }
-  let mut output = input
-  if home != "" {
-    output = output.replace_all(old=home, new="~")
+  let output = if home != "" {
+    input.replace_all(old=home, new="~")
+  } else {
+    input
   }
-  output = output.replace_all(old="\\t", new="\t")
-  output = output.replace_all(old="\\n", new="\n")
-  println(output)
+  println(
+    output
+    .replace_all(old="\\t", new="\t")
+    .replace_all(old="\\n", new="\n"),
+  )
 }

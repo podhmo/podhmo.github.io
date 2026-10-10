@@ -5,33 +5,32 @@ import {
 
 ///|
 fn parse_args(args : ArrayView[String]) -> (String, Array[String]) {
-  let mut baseurl = ""
   let files : Array[String] = []
-  let mut i = 0
   // deno parseArgs と同様 `--` はオプション終端。以降は位置引数として扱い
   // `--` 自体は含めない
-  let mut opts_done = false
-  while i < args.length() {
+  for i = 0, baseurl = "", opts_done = false; i < args.length(); {
     let arg = args[i]
     if opts_done {
       files.push(arg)
+      continue i + 1, baseurl, opts_done
     } else if arg == "--" {
-      opts_done = true
+      continue i + 1, baseurl, true
     } else if arg == "--baseurl" {
       if i + 1 < args.length() {
-        baseurl = args[i + 1]
-        i += 1
+        continue i + 2, args[i + 1], opts_done
       }
+      continue i + 1, baseurl, opts_done
     } else if arg.has_prefix("--baseurl=") {
-      baseurl = arg.view(start_offset=10).to_owned()
+      continue i + 1, arg[10:].to_owned(), opts_done
     } else if arg == "--debug" {
-      ()
+      continue i + 1, baseurl, opts_done
     } else {
       files.push(arg)
+      continue i + 1, baseurl, opts_done
     }
-    i += 1
+  } nobreak {
+    (baseurl, files)
   }
-  (baseurl, files)
 }
 
 ///|

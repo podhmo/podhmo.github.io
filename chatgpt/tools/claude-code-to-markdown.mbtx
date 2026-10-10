@@ -27,7 +27,7 @@ import {
 ///   - "tool_use" : ツール呼び出し。--with-tool-calls 指定時のみ表示する
 
 ///|
-fn jmember(json : Json, key : String) -> Json? {
+fn jmember(json : Json, key~ : String) -> Json? {
   match json {
     Object(obj) => obj.get(key)
     _ => None
@@ -35,8 +35,8 @@ fn jmember(json : Json, key : String) -> Json? {
 }
 
 ///|
-fn member_string(json : Json, key : String) -> String {
-  match jmember(json, key) {
+fn member_string(json : Json, key~ : String) -> String {
+  match jmember(json, key~) {
     Some(String(s)) => s
     _ => ""
   }
@@ -58,9 +58,9 @@ struct Message {
 
 ///|
 fn assistant_msg_id(entry : Json) -> String? {
-  match jmember(entry, "message") {
+  match jmember(entry, key="message") {
     Some(msg) =>
-      match jmember(msg, "id") {
+      match jmember(msg, key="id") {
         Some(String(id)) => Some(id)
         _ => None
       }
@@ -70,18 +70,16 @@ fn assistant_msg_id(entry : Json) -> String? {
 
 ///|
 fn parse_jsonl(file_content : String) -> Array[Message] raise {
-  let entries : Array[Json] = []
-  for line in file_content.trim().split("\n") {
-    if line.trim() == "" {
-      continue
+  let entries = [
+    for line in file_content.trim().split("\n") if line.trim() != "" => {
+      @json.parse(line)
     }
-    entries.push(@json.parse(line))
-  }
+  ]
 
   // assistant エントリを message.id で重複排除（最後のものを採用）
   let assistant_by_msg_id : Map[String, Json] = Map([])
   for entry in entries {
-    if member_string(entry, "type") == "assistant" {
+    if member_string(entry, key="type") == "assistant" {
       match assistant_msg_id(entry) {
         Some(id) => assistant_by_msg_id[id] = entry
         None => ()
@@ -93,15 +91,15 @@ fn parse_jsonl(file_content : String) -> Array[Message] raise {
   let seen_msg_ids : Map[String, Bool] = Map([])
   let messages : Array[Message] = []
   for entry in entries {
-    match member_string(entry, "type") {
+    match member_string(entry, key="type") {
       "user" => {
-        let message = match jmember(entry, "message") {
+        let message = match jmember(entry, key="message") {
           Some(msg) => msg
           None =>
             fail("cannot read properties of undefined (reading 'content')")
         }
         // tool_result を含む配列は表示しない（ツール実行結果）
-        match jmember(message, "content") {
+        match jmember(message, key="content") {
           Some(String(s)) =>
             messages.push({ role: "user", text: s, tool_calls: [], })
           _ => ()
@@ -116,8 +114,8 @@ fn parse_jsonl(file_content : String) -> Array[Message] raise {
             seen_msg_ids[id] = true
             // 重複排除後の最終バージョンを取得
             let fin = assistant_by_msg_id.get(id).unwrap_or(entry)
-            let content = match jmember(fin, "message") {
-              Some(msg) => jmember(msg, "content")
+            let content = match jmember(fin, key="message") {
+              Some(msg) => jmember(msg, key="content")
               None => fail("cannot read properties of undefined")
             }
             let blocks = match content {
@@ -127,17 +125,19 @@ fn parse_jsonl(file_content : String) -> Array[Message] raise {
             let text_parts : Array[String] = []
             let tool_calls : Array[ToolCall] = []
             for block in blocks {
-              match jmember(block, "type") {
+              match jmember(block, key="type") {
                 Some(String("text")) =>
-                  match jmember(block, "text") {
+                  match jmember(block, key="text") {
                     Some(String(t)) => text_parts.push(t)
                     _ => ()
                   }
                 Some(String("tool_use")) => {
-                  let input = jmember(block, "input").unwrap_or(Json::null())
+                  let input = jmember(block, key="input").unwrap_or(
+                    Json::null(),
+                  )
                   tool_calls.push({
-                    id: member_string(block, "id"),
-                    name: member_string(block, "name"),
+                    id: member_string(block, key="id"),
+                    name: member_string(block, key="name"),
                     input,
                   })
                 }
