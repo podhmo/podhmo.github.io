@@ -105,7 +105,7 @@ let trigger_explanation : String =
   #|
   #|これらのトリガーワードの後のLLMの応答を、各コマンドの入力として与えてください。
   #|---
-  #|  
+  #|
 
 ///|
 let help_text : String =
@@ -179,6 +179,35 @@ struct ScaffoldPlanItem {
 ///|
 fn pjoin(a : String, b : String) -> String {
   @path.Path::Path(a).join(@path.Path::Path(b)).to_string()
+}
+
+///|
+/// mkdir -p equivalent. `@fs.create_dir` is a bare non-recursive mkdir on the
+/// native backend (and raises on EEXIST), so create each component in order
+/// and tolerate already-existing directories.
+fn ensure_dir(dir : String) -> Unit raise @fs.IOError {
+  let normalized = @path.Path::Path(dir).normalize().to_string()
+  if normalized == "" || normalized == "." {
+    return
+  }
+  let is_abs = @path.Path::Path(normalized).is_absolute()
+  let mut prefix = if is_abs { "/" } else { "" }
+  for comp_view in normalized.split("/") {
+    let comp = comp_view.to_owned()
+    if comp == "" {
+      continue
+    }
+    prefix = if prefix == "" {
+      comp
+    } else if prefix == "/" {
+      "/\{comp}"
+    } else {
+      "\{prefix}/\{comp}"
+    }
+    @fs.create_dir(prefix) catch {
+      e => if !(@fs.is_dir(prefix) catch { _ => false }) { raise e }
+    }
+  }
 }
 
 ///|
@@ -463,7 +492,7 @@ fn handle_apply(input_file : String, target_dir : String?) -> Unit {
     )
     return
   }
-  @fs.create_dir(project_root) catch {
+  ensure_dir(project_root) catch {
     IOError(m) => {
       eprintln("An unexpected error occurred: \{m}")
       @sys.exit(1)
@@ -478,7 +507,7 @@ fn handle_apply(input_file : String, target_dir : String?) -> Unit {
     let target_path = pjoin(project_root, file.filepath)
     let dir = @path.Path::Path(target_path).dirname().to_string()
     if dir != "." && dir != project_root {
-      @fs.create_dir(dir) catch {
+      ensure_dir(dir) catch {
         IOError(m) => {
           eprintln("  ❌ Error writing file \"\{file.filepath}\": \{m}")
           continue
