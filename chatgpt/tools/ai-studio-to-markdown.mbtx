@@ -1,0 +1,220 @@
+///|
+import {
+  "moonbitlang/core/argparse",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/x@0.5.5/fs",
+  "moonbitlang/x@0.5.5/sys",
+}
+
+///|
+/// Google AI Studio の対話履歴 (JSON) を markdown に変換する
+
+///|
+fn jmember(json : Json, key : String) -> Json? {
+  match json {
+    Object(obj) => obj.get(key)
+    _ => None
+  }
+}
+
+///|
+fn member_string(json : Json, key : String) -> String {
+  match jmember(json, key) {
+    Some(String(s)) => s
+    _ => ""
+  }
+}
+
+///|
+fn chunk_role(chunk : Json) -> String {
+  member_string(chunk, "role")
+}
+
+///|
+fn chunk_text(chunk : Json) -> String {
+  member_string(chunk, "text")
+}
+
+///|
+fn chunk_is_thought(chunk : Json) -> Bool {
+  jmember(chunk, "isThought") is Some(True)
+}
+
+///|
+fn format_chat_history_to_markdown(
+  history : Json,
+  with_thoughts~ : Bool,
+  user_name~ : String,
+  ai_name~ : String,
+  only_user_inputs~ : Bool,
+) -> String {
+  let chunks = match jmember(history, "chunkedPrompt") {
+    Some(cp) =>
+      match jmember(cp, "chunks") {
+        Some(Array(arr)) => arr
+        _ => []
+      }
+    _ => []
+  }
+  let output_parts : Array[String] = []
+  if only_user_inputs {
+    output_parts.push("## ユーザー入力履歴\n\n")
+    let user_chunks = chunks.filter(fn(c) { chunk_role(c) == "user" })
+    for i, chunk in user_chunks {
+      let text = chunk_text(chunk).trim().to_owned()
+      if text == "" {
+        continue
+      }
+      output_parts.push("\{user_name}:\n\{text}")
+      if i < user_chunks.length() - 1 {
+        output_parts.push("\n\n---\n\n")
+      } else {
+        output_parts.push("\n\n")
+      }
+    }
+    if user_chunks.length() == 0 {
+      output_parts.push("\n")
+    }
+  } else {
+    output_parts.push("## 対話履歴\n\n")
+    let display_blocks : Array[(Bool, Array[String])] = [] // (is_ai, content)
+    let current_ai : Array[String] = []
+    for chunk in chunks {
+      let role = chunk_role(chunk)
+      if role == "user" {
+        if current_ai.length() > 0 {
+          display_blocks.push((true, current_ai.copy()))
+          current_ai.clear()
+        }
+        let text = chunk_text(chunk).trim().to_owned()
+        if text == "" {
+          continue
+        }
+        display_blocks.push((false, ["\{user_name}:\n\{text}"]))
+      } else if role == "model" {
+        if chunk_is_thought(chunk) {
+          if with_thoughts {
+            if current_ai.length() > 0 &&
+              !current_ai[current_ai.length() - 1].contains("</summary>") {
+              current_ai.push("")
+            }
+            current_ai.push("<details>")
+            current_ai.push("<summary>AIの思考プロセス</summary>")
+            current_ai.push("")
+            for line in chunk_text(chunk).trim().split("\n") {
+              current_ai.push(line.to_owned())
+            }
+            current_ai.push("</details>")
+          }
+        } else {
+          if current_ai.length() > 0 &&
+            !current_ai[current_ai.length() - 1].has_prefix("\{ai_name}:") {
+            current_ai.push("")
+          }
+          let text = chunk_text(chunk).trim().to_owned()
+          current_ai.push("\{ai_name}:\n\{text}")
+        }
+      }
+    }
+    if current_ai.length() > 0 {
+      display_blocks.push((true, current_ai.copy()))
+    }
+    for i, block in display_blocks {
+      let (_, content) = block
+      output_parts.push(content.join("\n"))
+      if i < display_blocks.length() - 1 {
+        output_parts.push("\n\n---\n\n")
+      } else {
+        output_parts.push("\n\n")
+      }
+    }
+    if display_blocks.length() == 0 {
+      output_parts.push("\n")
+    }
+  }
+  output_parts.push("## メタデータ\n\n")
+  output_parts.push("```json\n")
+  let run_settings = jmember(history, "runSettings").unwrap_or(Json::null())
+  output_parts.push(run_settings.stringify(indent=2))
+  output_parts.push("\n```\n")
+  output_parts.join("")
+}
+
+///|
+fn usage() -> Unit {
+  eprintln(
+    "エラー: JSONファイルへのパスを引数として指定してください。",
+  )
+  eprintln("使用法: ai-studio-to-markdown <file.json> [options]")
+  eprintln("オプション:")
+  eprintln(
+    "  -t, --with-thoughts         AIの思考プロセスを表示します",
+  )
+  eprintln(
+    "      --user-name <name>      ユーザー名を指定します (デフォルト: User)",
+  )
+  eprintln(
+    "      --ai-name <name>        AI名を指定します (デフォルト: AI)",
+  )
+  eprintln(
+    "      --ou, --only-user-inputs ユーザー入力のみを表示します",
+  )
+}
+
+///|
+fn main raise {
+  let matches = @argparse.Command(
+    "ai-studio-to-markdown",
+    about="Google AI Studio の対話履歴 (JSON) を markdown に変換",
+    flags=[
+      FlagArg(
+        "with-thoughts",
+        short='t',
+        about="AIの思考プロセスを表示",
+      ),
+      FlagArg("only-user-inputs", about="ユーザー入力のみを表示"),
+      FlagArg("ou", about="--only-user-inputs の別名"),
+    ],
+    options=[
+      OptionArg("user-name", about="ユーザー名 (default: User)"),
+      OptionArg("ai-name", about="AI名 (default: AI)"),
+    ],
+    positionals=[
+      PositionArg(
+        "file",
+        about="JSONファイルのパス",
+        num_args=ValueRange(upper=1),
+      ),
+    ],
+  ).parse(argv=@env.args()[1:])
+  let file = match matches.values {
+    { "file": [file, ..], .. } => file
+    _ => {
+      usage()
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  let user_name = match matches.values {
+    { "user-name": [name, ..], .. } => name
+    _ => "User"
+  }
+  let ai_name = match matches.values {
+    { "ai-name": [name, ..], .. } => name
+    _ => "AI"
+  }
+  let with_thoughts = matches.flags.get("with-thoughts").unwrap_or(false)
+  let only_user_inputs = matches.flags.get("only-user-inputs").unwrap_or(false) ||
+    matches.flags.get("ou").unwrap_or(false)
+  let json_string = @fs.read_file_to_string(file)
+  let history = @json.parse(json_string)
+  let markdown = format_chat_history_to_markdown(
+    history,
+    with_thoughts=with_thoughts && !only_user_inputs,
+    user_name~,
+    ai_name~,
+    only_user_inputs~,
+  )
+  println(markdown)
+}
