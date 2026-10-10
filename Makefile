@@ -5,6 +5,6 @@ gen:
 
 # for index.html
 serve:
-	deno run --allow-net --allow-read _tools/html-server.ts --port 8080
+	moon run _tools/html-server.mbtx -- --port 8080
 	echo open http://localhost:8080/index.html
 .PHONY: serve

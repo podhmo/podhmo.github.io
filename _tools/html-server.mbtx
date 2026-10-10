@@ -1,0 +1,287 @@
+///|
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/socket",
+  "moonbitlang/core/argparse",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
+  "moonbitlang/core/string",
+  "moonbitlang/x@0.5.5/fs",
+  "moonbitlang/x@0.5.5/sys",
+}
+
+///|
+/// deno 版の live-reload/SSE/fs-watch はユーザー方針で全削除。
+/// python -m http.server 相当の静的サーバ: ディレクトリ一覧 + MIME 付き静的配信。
+
+///|
+let mime_table : Array[(String, String)] = [
+  (".html", "text/html"),
+  (".htm", "text/html"),
+  (".css", "text/css"),
+  (".js", "text/javascript"),
+  (".mjs", "text/javascript"),
+  (".json", "application/json"),
+  (".map", "application/json"),
+  (".txt", "text/plain"),
+  (".md", "text/plain"),
+  (".xml", "application/xml"),
+  (".svg", "image/svg+xml"),
+  (".png", "image/png"),
+  (".jpg", "image/jpeg"),
+  (".jpeg", "image/jpeg"),
+  (".gif", "image/gif"),
+  (".webp", "image/webp"),
+  (".ico", "image/x-icon"),
+  (".pdf", "application/pdf"),
+  (".wasm", "application/wasm"),
+  (".zip", "application/zip"),
+  (".mp4", "video/mp4"),
+  (".mp3", "audio/mpeg"),
+  (".woff", "font/woff"),
+  (".woff2", "font/woff2"),
+  (".ttf", "font/ttf"),
+]
+
+///|
+fn mime_type(name : String) -> String {
+  let lower = name.to_lower()
+  for pair in mime_table {
+    if lower.has_suffix(pair.0) {
+      return pair.1
+    }
+  }
+  "application/octet-stream"
+}
+
+///|
+fn html_escape(s : String) -> String {
+  s
+  .replace_all(old="&", new="&amp;")
+  .replace_all(old="<", new="&lt;")
+  .replace_all(old=">", new="&gt;")
+  .replace_all(old="\"", new="&quot;")
+}
+
+///|
+/// ディレクトリ一覧ページ (deno 版と同じ骨格の <ul><li><a> 一覧、
+/// エントリは全ファイル。ディレクトリは末尾 `/`)。
+fn build_index(fs_dir : String, url_path : String) -> String {
+  let names = @fs.read_dir(fs_dir).to_owned() catch { _ => [] }
+  names.sort()
+  let items = StringBuilder()
+  if url_path != "/" {
+    items.write_string("<li><a href=\"../\">../</a></li>\n")
+  }
+  for n in names {
+    let display = if (@fs.is_dir("\{fs_dir}/\{n}") catch { _ => false }) {
+      "\{n}/"
+    } else {
+      n
+    }
+    let escaped = html_escape(display)
+    items.write_string("<li><a href=\"\{escaped}\">\{escaped}</a></li>\n")
+  }
+  "<html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><body class=\"container\"><ul>\n\{items.to_string()}</ul></body></html>"
+}
+
+///|
+async fn send_response(
+  tcp : @socket.Tcp,
+  code : Int,
+  reason : String,
+  content_type : String,
+  body : Bytes,
+  head_only : Bool,
+) -> Unit {
+  let head = "HTTP/1.1 \{code} \{reason}\r\n" +
+    "Content-Type: \{content_type}\r\n" +
+    "Content-Length: \{body.length()}\r\n" +
+    "Connection: close\r\n\r\n"
+  tcp.write(head)
+  if !head_only {
+    tcp.write(body)
+  }
+}
+
+///|
+async fn send_404(tcp : @socket.Tcp, head_only : Bool) -> Unit {
+  send_response(
+    tcp,
+    404,
+    "Not Found",
+    "text/plain",
+    @utf8.encode("404 Not Found"),
+    head_only,
+  )
+}
+
+///|
+async fn send_redirect(
+  tcp : @socket.Tcp,
+  location : String,
+  head_only : Bool,
+) -> Unit {
+  let body = @utf8.encode("301 Moved Permanently: \{location}")
+  let head = "HTTP/1.1 301 Moved Permanently\r\n" +
+    "Location: \{location}\r\n" +
+    "Content-Type: text/plain\r\n" +
+    "Content-Length: \{body.length()}\r\n" +
+    "Connection: close\r\n\r\n"
+  tcp.write(head)
+  if !head_only {
+    tcp.write(body)
+  }
+}
+
+///|
+/// URL パス (クエリ除く、%XX はデコードしない = deno URL.pathname 相当)
+/// をルート配下の fs パスに正規化。".." セグメントを含む場合は拒否。
+fn resolve_fs_path(root : String, url_path : String) -> String? {
+  let segs : Array[String] = []
+  for s in url_path.split("/") {
+    let seg = s.to_owned()
+    if seg == ".." {
+      return None
+    }
+    if seg != "" && seg != "." {
+      segs.push(seg)
+    }
+  }
+  if segs.length() == 0 {
+    Some(root)
+  } else {
+    Some("\{root}/\{segs.join("/")}")
+  }
+}
+
+///|
+async fn serve_conn(
+  tcp : @socket.Tcp,
+  _addr : @socket.Addr,
+  root : String,
+) -> Unit {
+  let head = match (tcp.read_until("\r\n\r\n") catch { _ => None }) {
+    Some(h) => h
+    None => {
+      tcp.close()
+      return
+    }
+  }
+  // request line: "GET /path HTTP/1.1"
+  let first_line = head.split("\r\n").next().unwrap_or("")
+  let parts = first_line.split(" ").to_array()
+  if parts.length() < 2 {
+    tcp.close()
+    return
+  }
+  let m = parts[0].to_owned()
+  let head_only = m == "HEAD"
+  // クエリ・フラグメントを除いたパス (deno 版と同様 %XX はデコードしない)
+  let url_path = parts[1].split("?").next().unwrap_or("/")
+  // favicon は元の挙動どおり常に 404
+  if url_path == "/favicon.ico" {
+    send_404(tcp, head_only)
+    tcp.close()
+    return
+  }
+  match resolve_fs_path(root, url_path.to_owned()) {
+    None => {
+      send_404(tcp, head_only)
+      tcp.close()
+    }
+    Some(fs_path) => {
+      let is_dir = @fs.is_dir(fs_path) catch { _ => false }
+      if is_dir {
+        // ディレクトリは末尾スラッシュへリダイレクト (python http.server 相当)
+        if !url_path.has_suffix("/") {
+          send_redirect(tcp, "\{url_path}/", head_only)
+        } else {
+          // deno 版と同様、index.html があっても常に一覧を返す
+          let html = build_index(fs_path, url_path.to_owned())
+          send_response(
+            tcp,
+            200,
+            "OK",
+            "text/html",
+            @utf8.encode(html),
+            head_only,
+          )
+        }
+      } else {
+        let body = @fs.read_file_to_bytes(fs_path) catch {
+          _ => {
+            send_404(tcp, head_only)
+            tcp.close()
+            return
+          }
+        }
+        send_response(
+          tcp,
+          200,
+          "OK",
+          mime_type(url_path.to_owned()),
+          body,
+          head_only,
+        )
+      }
+      tcp.close()
+    }
+  }
+}
+
+///|
+async fn main {
+  let matches = @argparse.Command(
+    "html-server",
+    options=[@argparse.OptionArg("host"), @argparse.OptionArg("port")],
+    positionals=[
+      @argparse.PositionArg("dir", num_args=@argparse.ValueRange(upper=1)),
+    ],
+  ).parse(argv=@env.args()[1:]) catch {
+    _ => {
+      eprintln("usage: html-server [--host HOST] [--port PORT] [dir]")
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  let host = match matches.values {
+    { "host": [h, ..], .. } => h
+    _ => "localhost"
+  }
+  let port = match matches.values {
+    { "port": [p, ..], .. } =>
+      @string.parse_int(p) catch {
+        _ => {
+          eprintln("invalid port: \{p}")
+          @sys.exit(1)
+          abort("unreachable")
+        }
+      }
+    _ => 8080
+  }
+  let root = match matches.values {
+    { "dir": [d, ..], .. } => d
+    _ => "."
+  }
+  if !(@fs.is_dir(root) catch { _ => false }) {
+    eprintln("directory not found: \{root}")
+    @sys.exit(1)
+  }
+  let addr = @socket.Addr::resolve(host, port~) catch {
+    _ => {
+      eprintln("cannot resolve host: \{host}")
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  let server = @socket.TcpServer::TcpServer(addr, reuse_addr=true) catch {
+    e => {
+      eprintln("cannot bind \{addr}: \{e.to_string()}")
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  println("listening on http://\{addr}")
+  server.run_forever(async fn(tcp, addr) { serve_conn(tcp, addr, root) })
+}
