@@ -1,0 +1,556 @@
+///|
+import {
+  "moonbitlang/core/argparse",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/x@0.5.5/fs",
+  "moonbitlang/x@0.5.5/sys",
+  "moonbitlang/x@0.5.5/time",
+}
+
+///|
+/// GitHub Copilot CLI の対話履歴 (JSON または JSONL) を markdown に変換する
+///
+/// 入力形式:
+///   - JSONL: 1行1イベント (`session.start` / `user.message` / `assistant.message`)。
+///            複数行で全行が空行または `{` 始まりの場合に JSONL と判定する。
+///   - JSON : `{ sessionId, startTime, chatMessages[] }` 形式。
+
+///|
+fn jmember(json : Json, key : String) -> Json? {
+  match json {
+    Object(obj) => obj.get(key)
+    _ => None
+  }
+}
+
+///|
+fn member_string(json : Json, key : String) -> String {
+  match jmember(json, key) {
+    Some(String(s)) => s
+    _ => ""
+  }
+}
+
+///|
+/// JS の falsy 判定 (undefined / null / false / "" / 0)
+fn js_falsy(v : Json?) -> Bool {
+  match v {
+    None | Some(Null) | Some(False) | Some(String("")) => true
+    Some(Number(n, ..)) => n == 0.0
+    _ => false
+  }
+}
+
+///|
+/// JS のテンプレート文字列 `${v}` 相当の文字列化
+fn js_template_str(v : Json?) -> String {
+  match v {
+    None => "undefined"
+    Some(String(s)) => s
+    Some(Number(n, repr~)) => repr.unwrap_or("\{n}")
+    Some(True) => "true"
+    Some(False) => "false"
+    Some(Null) => "null"
+    Some(Object(_)) => "[object Object]"
+    Some(Array(arr)) => arr.map(fn(x) { js_template_str(Some(x)) }).join(",")
+  }
+}
+
+///|
+/// `v || ""` 相当 (falsy なら空文字列、truthy ならその値)
+fn js_or_empty(v : Json?) -> Json {
+  match v {
+    Some(x) => if js_falsy(v) { Json::string("") } else { x }
+    None => Json::string("")
+  }
+}
+
+///|
+/// `msg.text || msg.content || ""` 相当。truthy な非文字列は
+/// JS では text.trim() が TypeError になるのでエラーにする。
+fn pick_text(msg : Json) -> String raise {
+  let t = jmember(msg, "text")
+  let v = if js_falsy(t) { jmember(msg, "content") } else { t }
+  match v {
+    Some(String(s)) => s
+    _ => if js_falsy(v) { "" } else { fail("text.trim is not a function") }
+  }
+}
+
+///|
+fn pad2(n : Int) -> String {
+  if n < 10 {
+    "0\{n}"
+  } else {
+    "\{n}"
+  }
+}
+
+///|
+fn pad3(n : Int) -> String {
+  if n < 10 {
+    "00\{n}"
+  } else if n < 100 {
+    "0\{n}"
+  } else {
+    "\{n}"
+  }
+}
+
+///|
+/// `new Date().toISOString()` 相当 (UTC, ミリ秒3桁)
+fn now_iso_string() -> String raise {
+  let ms = @env.now()
+  let zdt = @time.unix(
+    (ms / 1000).reinterpret_as_int64(),
+    nanosecond=(ms % 1000 * 1000000).reinterpret_as_int64().to_int(),
+    zone=@time.utc_zone,
+  )
+  "\{zdt.year()}-\{pad2(zdt.month())}-\{pad2(zdt.day())}T\{pad2(zdt.hour())}:\{pad2(zdt.minute())}:\{pad2(zdt.second())}.\{pad3(zdt.nanosecond() / 1000000)}Z"
+}
+
+///|
+/// `data.content` に相当。data が欠落/null の場合 JS では TypeError になる。
+fn event_data(event : Json) -> Json raise {
+  match jmember(event, "data") {
+    Some(Null) | None => fail("cannot read properties of null or undefined")
+    Some(d) => d
+  }
+}
+
+///|
+fn timestamp_cmp(a : Json, b : Json) -> Int {
+  let ta = member_string(a, "timestamp")
+  let tb = member_string(b, "timestamp")
+  if ta == "" || tb == "" {
+    // new Date() が NaN を返すケースは比較結果 0 相当として扱う
+    0
+  } else {
+    compare(ta, tb)
+  }
+}
+
+///|
+/// JSONL イベント列を CopilotChatHistory 形式 (Json) に変換する
+fn convert_jsonl_to_chat_history(events : Array[Json]) -> Json raise {
+  // events.find(e => e.type === "session.start") 相当（最初の1件）
+  let mut session_found = false
+  let mut session_id = Json::string("unknown")
+  let mut start_time : Json = Json::null()
+  let user_messages : Array[Json] = []
+  let assistant_messages : Array[Json] = []
+  for e in events {
+    match member_string(e, "type") {
+      "session.start" =>
+        if !session_found {
+          session_found = true
+          // sessionStart?.id || "unknown" / sessionStart?.timestamp || now
+          session_id = match jmember(e, "id") {
+            v => if js_falsy(v) { Json::string("unknown") } else { v.unwrap() }
+          }
+          start_time = match jmember(e, "timestamp") {
+            v =>
+              if js_falsy(v) {
+                Json::string(now_iso_string())
+              } else {
+                v.unwrap()
+              }
+          }
+        }
+      "user.message" => user_messages.push(e)
+      "assistant.message" => assistant_messages.push(e)
+      _ => ()
+    }
+  }
+  if !session_found {
+    start_time = Json::string(now_iso_string())
+  }
+  let st = start_time
+
+  // user → assistant の順に連結して timestamp で安定ソート
+  let all_messages : Array[Json] = []
+  all_messages.append(user_messages)
+  all_messages.append(assistant_messages)
+  let decorated = all_messages.mapi(fn(i, e) { (i, e) })
+  decorated.sort_by(fn(x, y) {
+    let (i, a) = x
+    let (j, b) = y
+    let c = timestamp_cmp(a, b)
+    if c != 0 {
+      c
+    } else {
+      compare(i, j)
+    }
+  })
+
+  let chat_messages : Array[Json] = []
+  for (_, event) in decorated {
+    let data = event_data(event)
+    let msg : Map[String, Json] = Map([])
+    match jmember(event, "id") {
+      Some(v) => msg["id"] = v
+      None => ()
+    }
+    match jmember(event, "timestamp") {
+      Some(v) => msg["timestamp"] = v
+      None => ()
+    }
+    match jmember(event, "type") {
+      Some(v) => msg["type"] = v
+      None => ()
+    }
+    match member_string(event, "type") {
+      "user.message" => {
+        msg["role"] = Json::string("user")
+        let text = js_or_empty(jmember(data, "content"))
+        msg["text"] = text
+        msg["content"] = text
+      }
+      _ => {
+        msg["role"] = Json::string("assistant")
+        let text = js_or_empty(jmember(data, "content"))
+        msg["text"] = text
+        msg["content"] = text
+        let tool_requests = jmember(data, "toolRequests")
+        let trs = match tool_requests {
+          Some(Array(arr)) => arr
+          Some(other) =>
+            if js_falsy(Some(other)) {
+              []
+            } else {
+              fail("toolRequests.map is not a function")
+            }
+          None => []
+        }
+        let tool_calls : Array[Json] = []
+        for tr in trs {
+          if tr is Null {
+            fail("cannot read properties of null (reading 'toolCallId')")
+          }
+          let tc : Map[String, Json] = Map([])
+          match jmember(tr, "toolCallId") {
+            Some(v) => tc["id"] = v
+            None => ()
+          }
+          tc["type"] = Json::string("function")
+          let f : Map[String, Json] = Map([])
+          match jmember(tr, "name") {
+            Some(v) => f["name"] = v
+            None => ()
+          }
+          match jmember(tr, "arguments") {
+            Some(v) => f["arguments"] = Json::string(v.stringify())
+            None => ()
+          }
+          tc["function"] = Json::object(f)
+          tool_calls.push(Json::object(tc))
+        }
+        if tool_calls.length() > 0 {
+          msg["tool_calls"] = Json::array(tool_calls)
+        }
+      }
+    }
+    chat_messages.push(Json::object(msg))
+  }
+  Json::object(
+    Map([
+      ("sessionId", session_id),
+      ("startTime", st),
+      ("chatMessages", Json::array(chat_messages)),
+    ]),
+  )
+}
+
+///|
+fn format_chat_history_to_markdown(
+  json_data_string : String,
+  with_tool_calls~ : Bool,
+  user_name~ : String,
+  assistant_name~ : String,
+  only_user_inputs~ : Bool,
+) -> String raise {
+  let chat_history = @json.parse(json_data_string)
+  let chat_messages = match jmember(chat_history, "chatMessages") {
+    Some(Array(arr)) => arr
+    _ => fail("chatHistory.chatMessages is not iterable")
+  }
+  let output_parts : Array[String] = []
+  if only_user_inputs {
+    output_parts.push("## ユーザー入力履歴\n\n")
+    let user_messages = chat_messages.filter(fn(m) {
+      member_string(m, "role") == "user"
+    })
+    for i, msg in user_messages {
+      let text = pick_text(msg)
+      let trimmed = text.trim().to_owned()
+      if trimmed == "" {
+        continue
+      }
+      output_parts.push("\{user_name}:\n\{trimmed}")
+      if i < user_messages.length() - 1 {
+        output_parts.push("\n\n---\n\n")
+      } else {
+        output_parts.push("\n\n")
+      }
+    }
+    if user_messages.length() == 0 {
+      output_parts.push("\n")
+    }
+  } else {
+    output_parts.push("## 対話履歴\n\n")
+    let display_blocks : Array[Array[String]] = []
+    for msg in chat_messages {
+      let role = match member_string(msg, "role") {
+        "copilot" => "assistant"
+        r => r
+      }
+      let text = pick_text(msg)
+      if role == "user" {
+        let trimmed = text.trim().to_owned()
+        if trimmed == "" {
+          continue
+        }
+        display_blocks.push(["\{user_name}:\n\{trimmed}"])
+      } else if role == "assistant" {
+        let assistant_content : Array[String] = []
+        let trimmed = text.trim().to_owned()
+        if trimmed != "" {
+          assistant_content.push("\{assistant_name}:\n\{trimmed}")
+        }
+        let tool_calls = jmember(msg, "tool_calls")
+        let tool_call_list = match tool_calls {
+          Some(Array(arr)) => arr
+          Some(String(s)) =>
+            if s != "" && with_tool_calls {
+              fail("tool_calls.forEach is not a function")
+            } else {
+              []
+            }
+          _ => []
+        }
+        if tool_call_list.length() > 0 && with_tool_calls {
+          if assistant_content.length() > 0 {
+            assistant_content.push("")
+          }
+          assistant_content.push("<details>")
+          assistant_content.push("<summary>ツール呼び出し</summary>")
+          assistant_content.push("")
+          for i, tool_call in tool_call_list {
+            assistant_content.push("### Tool Call \{i + 1}")
+            assistant_content.push(
+              "**ID**: `\{js_template_str(jmember(tool_call, "id"))}`",
+            )
+            assistant_content.push(
+              "**Type**: `\{js_template_str(jmember(tool_call, "type"))}`",
+            )
+            // toolCall.function が null/undefined なら JS では TypeError。
+            // プリミティブなら (v).name → undefined → "undefined" と表示される。
+            let (fname, fargs) = match jmember(tool_call, "function") {
+              Some(Null) | None =>
+                fail(
+                  "cannot read properties of null or undefined (reading 'name')",
+                )
+              Some(f) =>
+                match f {
+                  Object(_) =>
+                    (
+                      js_template_str(jmember(f, "name")),
+                      jmember(f, "arguments"),
+                    )
+                  _ => ("undefined", None)
+                }
+            }
+            assistant_content.push("**Function**: `\{fname}`")
+            assistant_content.push("**Arguments**:")
+            assistant_content.push("```json")
+            match fargs {
+              None => assistant_content.push("")
+              Some(v) => {
+                // JSON.parse(arguments) → 成功なら pretty print、失敗なら生値
+                let raw = js_template_str(Some(v))
+                if @json.valid(raw) {
+                  assistant_content.push(@json.parse(raw).stringify(indent=2))
+                } else {
+                  assistant_content.push(raw)
+                }
+              }
+            }
+            assistant_content.push("```")
+            if i < tool_call_list.length() - 1 {
+              assistant_content.push("")
+            }
+          }
+          assistant_content.push("</details>")
+        }
+        if assistant_content.length() > 0 {
+          display_blocks.push(assistant_content)
+        }
+      }
+    }
+    for i, block in display_blocks {
+      output_parts.push(block.join("\n"))
+      if i < display_blocks.length() - 1 {
+        output_parts.push("\n\n---\n\n")
+      } else {
+        output_parts.push("\n\n")
+      }
+    }
+    if display_blocks.length() == 0 {
+      output_parts.push("\n")
+    }
+  }
+
+  // メタデータ (JSON.stringify は undefined 値のキーを落とすので同様に扱う)
+  let meta : Map[String, Json] = Map([])
+  match jmember(chat_history, "sessionId") {
+    Some(v) => meta["sessionId"] = v
+    None => ()
+  }
+  match jmember(chat_history, "startTime") {
+    Some(v) => meta["startTime"] = v
+    None => ()
+  }
+  meta["messageCount"] = Json::number(chat_messages.length().to_double())
+  output_parts.push("## メタデータ\n\n")
+  output_parts.push("```json\n")
+  output_parts.push(Json::object(meta).stringify(indent=2))
+  output_parts.push("\n```\n")
+  output_parts.join("")
+}
+
+///|
+fn usage() -> Unit {
+  eprintln(
+    "エラー: JSONファイルへのパスを引数として指定してください。",
+  )
+  eprintln(
+    "使用法: github-copilot-cli-to-markdown <file.json|file.jsonl> [options]",
+  )
+  eprintln("オプション:")
+  eprintln(
+    "  -t, --with-tool-calls       ツール呼び出しを表示します",
+  )
+  eprintln(
+    "      --user-name <name>      ユーザー名を指定します (デフォルト: User)",
+  )
+  eprintln(
+    "      --assistant-name <name>  アシスタント名を指定します (デフォルト: Assistant)",
+  )
+  eprintln(
+    "      --ou, --only-user-inputs ユーザー入力のみを表示します",
+  )
+}
+
+///|
+fn main {
+  let matches = @argparse.Command(
+    "github-copilot-cli-to-markdown",
+    about="GitHub Copilot CLI の対話履歴を markdown に変換",
+    flags=[
+      FlagArg(
+        "with-tool-calls",
+        short='t',
+        about="ツール呼び出しを表示",
+      ),
+      FlagArg("only-user-inputs", about="ユーザー入力のみを表示"),
+      FlagArg("ou", about="--only-user-inputs の別名"),
+    ],
+    options=[
+      OptionArg("user-name", about="ユーザー名 (default: User)"),
+      OptionArg(
+        "assistant-name",
+        about="アシスタント名 (default: Assistant)",
+      ),
+    ],
+    positionals=[
+      PositionArg(
+        "file",
+        about="JSON/JSONLファイルのパス",
+        num_args=ValueRange(upper=1),
+      ),
+    ],
+  ).parse(argv=@env.args()[1:]) catch {
+    _ => {
+      usage()
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  let file = match matches.values {
+    { "file": [file, ..], .. } => file
+    _ => {
+      usage()
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  let user_name = match matches.values {
+    { "user-name": [name, ..], .. } => name
+    _ => "User"
+  }
+  let assistant_name = match matches.values {
+    { "assistant-name": [name, ..], .. } => name
+    _ => "Assistant"
+  }
+  let with_tool_calls = matches.flags.get("with-tool-calls").unwrap_or(false)
+  let only_user_inputs = matches.flags.get("only-user-inputs").unwrap_or(false) ||
+    matches.flags.get("ou").unwrap_or(false)
+  let file_content = @fs.read_file_to_string(file) catch {
+    IOError(msg) => {
+      eprintln("ファイル読み込みエラー \{file}: \{msg}")
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  let markdown = convert_and_format(
+    file_content, with_tool_calls, user_name, assistant_name, only_user_inputs,
+  ) catch {
+    e => {
+      eprintln(
+        "JSONデータの処理中にエラーが発生しました: \{e}",
+      )
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  println(markdown)
+}
+
+///|
+fn convert_and_format(
+  file_content : String,
+  with_tool_calls : Bool,
+  user_name : String,
+  assistant_name : String,
+  only_user_inputs : Bool,
+) -> String raise {
+  // JSONL形式かどうかを判定（複数行で各行が{で始まる）
+  let lines = file_content.trim().split("\n").collect()
+  let is_jsonl = lines.length() > 1 &&
+    lines
+    .iter()
+    .all(fn(l) {
+      let t = l.trim()
+      t == "" || t.has_prefix("{")
+    })
+  let json_string = if is_jsonl {
+    let events : Array[Json] = []
+    for line in lines {
+      if line.trim() == "" {
+        continue
+      }
+      events.push(@json.parse(line))
+    }
+    convert_jsonl_to_chat_history(events).stringify()
+  } else {
+    file_content
+  }
+  format_chat_history_to_markdown(
+    json_string,
+    with_tool_calls=with_tool_calls && !only_user_inputs,
+    user_name~,
+    assistant_name~,
+    only_user_inputs~,
+  )
+}
