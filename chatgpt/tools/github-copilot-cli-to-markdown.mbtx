@@ -307,14 +307,15 @@ fn format_chat_history_to_markdown(
         "copilot" => "assistant"
         r => r
       }
-      let text = pick_text(msg)
       if role == "user" {
+        let text = pick_text(msg)
         let trimmed = text.trim().to_owned()
         if trimmed == "" {
           continue
         }
         display_blocks.push(["\{user_name}:\n\{trimmed}"])
       } else if role == "assistant" {
+        let text = pick_text(msg)
         let assistant_content : Array[String] = []
         let trimmed = text.trim().to_owned()
         if trimmed != "" {
