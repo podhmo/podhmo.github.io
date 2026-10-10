@@ -17,7 +17,7 @@ import {
 ///   - JSON : `{ sessionId, startTime, chatMessages[] }` 形式。
 
 ///|
-fn jmember(json : Json, key : String) -> Json? {
+fn jmember(json : Json, key~ : String) -> Json? {
   match json {
     Object(obj) => obj.get(key)
     _ => None
@@ -25,8 +25,8 @@ fn jmember(json : Json, key : String) -> Json? {
 }
 
 ///|
-fn member_string(json : Json, key : String) -> String {
-  match jmember(json, key) {
+fn member_string(json : Json, key~ : String) -> String {
+  match jmember(json, key~) {
     Some(String(s)) => s
     _ => ""
   }
@@ -79,8 +79,8 @@ fn js_or_empty(v : Json?) -> Json {
 /// `msg.text || msg.content || ""` 相当。truthy な非文字列は
 /// JS では text.trim() が TypeError になるのでエラーにする。
 fn pick_text(msg : Json) -> String raise {
-  let t = jmember(msg, "text")
-  let v = if js_falsy(t) { jmember(msg, "content") } else { t }
+  let t = jmember(msg, key="text")
+  let v = if js_falsy(t) { jmember(msg, key="content") } else { t }
   match v {
     Some(String(s)) => s
     _ => if js_falsy(v) { "" } else { fail("text.trim is not a function") }
@@ -122,16 +122,16 @@ fn now_iso_string() -> String raise {
 ///|
 /// `data.content` に相当。data が欠落/null の場合 JS では TypeError になる。
 fn event_data(event : Json) -> Json raise {
-  match jmember(event, "data") {
+  match jmember(event, key="data") {
     Some(Null) | None => fail("cannot read properties of null or undefined")
     Some(d) => d
   }
 }
 
 ///|
-fn timestamp_cmp(a : Json, b : Json) -> Int {
-  let ta = member_string(a, "timestamp")
-  let tb = member_string(b, "timestamp")
+fn timestamp_cmp(a : Json, b~ : Json) -> Int {
+  let ta = member_string(a, key="timestamp")
+  let tb = member_string(b, key="timestamp")
   if ta == "" || tb == "" {
     // new Date() が NaN を返すケースは比較結果 0 相当として扱う
     0
@@ -146,38 +146,24 @@ fn timestamp_cmp(a : Json, b : Json) -> Int {
 /// JSONL イベント列を CopilotChatHistory 形式 (Json) に変換する
 fn convert_jsonl_to_chat_history(events : Array[Json]) -> Json raise {
   // events.find(e => e.type === "session.start") 相当（最初の1件）
-  let mut session_found = false
-  let mut session_id = Json::string("unknown")
-  let mut start_time : Json = Json::null()
-  let user_messages : Array[Json] = []
-  let assistant_messages : Array[Json] = []
-  for e in events {
-    match member_string(e, "type") {
-      "session.start" =>
-        if !session_found {
-          session_found = true
-          // sessionStart?.id || "unknown" / sessionStart?.timestamp || now
-          session_id = match jmember(e, "id") {
-            v => if js_falsy(v) { Json::string("unknown") } else { v.unwrap() }
-          }
-          start_time = match jmember(e, "timestamp") {
-            v =>
-              if js_falsy(v) {
-                Json::string(now_iso_string())
-              } else {
-                v.unwrap()
-              }
-          }
-        }
-      "user.message" => user_messages.push(e)
-      "assistant.message" => assistant_messages.push(e)
-      _ => ()
-    }
-  }
-  if !session_found {
-    start_time = Json::string(now_iso_string())
-  }
-  let st = start_time
+  let session_start = events.iter().find_first(fn(e) {
+    member_string(e, key="type") == "session.start"
+  })
+  // sessionStart?.id || "unknown" / sessionStart?.timestamp || now
+  let session_id = session_start
+    .bind(fn(e) { jmember(e, key="id") })
+    .filter(fn(v) { !js_falsy(Some(v)) })
+    .unwrap_or(Json::string("unknown"))
+  let st = session_start
+    .bind(fn(e) { jmember(e, key="timestamp") })
+    .filter(fn(v) { !js_falsy(Some(v)) })
+    .unwrap_or(Json::string(now_iso_string()))
+  let user_messages = events.filter(fn(e) {
+    member_string(e, key="type") == "user.message"
+  })
+  let assistant_messages = events.filter(fn(e) {
+    member_string(e, key="type") == "assistant.message"
+  })
 
   // user → assistant の順に連結して timestamp で安定ソート
   let all_messages : Array[Json] = []
@@ -187,7 +173,7 @@ fn convert_jsonl_to_chat_history(events : Array[Json]) -> Json raise {
   decorated.sort_by(fn(x, y) {
     let (i, a) = x
     let (j, b) = y
-    let c = timestamp_cmp(a, b)
+    let c = timestamp_cmp(a, b~)
     if c != 0 {
       c
     } else {
@@ -199,31 +185,31 @@ fn convert_jsonl_to_chat_history(events : Array[Json]) -> Json raise {
   for (_, event) in decorated {
     let data = event_data(event)
     let msg : Map[String, Json] = Map([])
-    match jmember(event, "id") {
+    match jmember(event, key="id") {
       Some(v) => msg["id"] = v
       None => ()
     }
-    match jmember(event, "timestamp") {
+    match jmember(event, key="timestamp") {
       Some(v) => msg["timestamp"] = v
       None => ()
     }
-    match jmember(event, "type") {
+    match jmember(event, key="type") {
       Some(v) => msg["type"] = v
       None => ()
     }
-    match member_string(event, "type") {
+    match member_string(event, key="type") {
       "user.message" => {
         msg["role"] = Json::string("user")
-        let text = js_or_empty(jmember(data, "content"))
+        let text = js_or_empty(jmember(data, key="content"))
         msg["text"] = text
         msg["content"] = text
       }
       _ => {
         msg["role"] = Json::string("assistant")
-        let text = js_or_empty(jmember(data, "content"))
+        let text = js_or_empty(jmember(data, key="content"))
         msg["text"] = text
         msg["content"] = text
-        let tool_requests = jmember(data, "toolRequests")
+        let tool_requests = jmember(data, key="toolRequests")
         let trs = match tool_requests {
           Some(Array(arr)) => arr
           Some(other) =>
@@ -240,17 +226,17 @@ fn convert_jsonl_to_chat_history(events : Array[Json]) -> Json raise {
             fail("cannot read properties of null (reading 'toolCallId')")
           }
           let tc : Map[String, Json] = Map([])
-          match jmember(tr, "toolCallId") {
+          match jmember(tr, key="toolCallId") {
             Some(v) => tc["id"] = v
             None => ()
           }
           tc["type"] = Json::string("function")
           let f : Map[String, Json] = Map([])
-          match jmember(tr, "name") {
+          match jmember(tr, key="name") {
             Some(v) => f["name"] = v
             None => ()
           }
-          match jmember(tr, "arguments") {
+          match jmember(tr, key="arguments") {
             Some(v) => f["arguments"] = Json::string(v.stringify())
             None => ()
           }
@@ -282,7 +268,7 @@ fn format_chat_history_to_markdown(
   only_user_inputs~ : Bool,
 ) -> String raise {
   let chat_history = @json.parse(json_data_string)
-  let chat_messages = match jmember(chat_history, "chatMessages") {
+  let chat_messages = match jmember(chat_history, key="chatMessages") {
     Some(Array(arr)) => arr
     _ => fail("chatHistory.chatMessages is not iterable")
   }
@@ -290,7 +276,7 @@ fn format_chat_history_to_markdown(
   if only_user_inputs {
     output_parts.push("## ユーザー入力履歴\n\n")
     let user_messages = chat_messages.filter(fn(m) {
-      member_string(m, "role") == "user"
+      member_string(m, key="role") == "user"
     })
     for i, msg in user_messages {
       let text = pick_text(msg)
@@ -312,7 +298,7 @@ fn format_chat_history_to_markdown(
     output_parts.push("## 対話履歴\n\n")
     let display_blocks : Array[Array[String]] = []
     for msg in chat_messages {
-      let role = match member_string(msg, "role") {
+      let role = match member_string(msg, key="role") {
         "copilot" => "assistant"
         r => r
       }
@@ -330,7 +316,7 @@ fn format_chat_history_to_markdown(
         if trimmed != "" {
           assistant_content.push("\{assistant_name}:\n\{trimmed}")
         }
-        let tool_calls = jmember(msg, "tool_calls")
+        let tool_calls = jmember(msg, key="tool_calls")
         let tool_call_list = match tool_calls {
           Some(Array(arr)) => arr
           Some(String(s)) =>
@@ -351,14 +337,14 @@ fn format_chat_history_to_markdown(
           for i, tool_call in tool_call_list {
             assistant_content.push("### Tool Call \{i + 1}")
             assistant_content.push(
-              "**ID**: `\{js_template_str(jmember(tool_call, "id"))}`",
+              "**ID**: `\{js_template_str(jmember(tool_call, key="id"))}`",
             )
             assistant_content.push(
-              "**Type**: `\{js_template_str(jmember(tool_call, "type"))}`",
+              "**Type**: `\{js_template_str(jmember(tool_call, key="type"))}`",
             )
             // toolCall.function が null/undefined なら JS では TypeError。
             // プリミティブなら (v).name → undefined → "undefined" と表示される。
-            let (fname, fargs) = match jmember(tool_call, "function") {
+            let (fname, fargs) = match jmember(tool_call, key="function") {
               Some(Null) | None =>
                 fail(
                   "cannot read properties of null or undefined (reading 'name')",
@@ -367,8 +353,8 @@ fn format_chat_history_to_markdown(
                 match f {
                   Object(_) =>
                     (
-                      js_template_str(jmember(f, "name")),
-                      jmember(f, "arguments"),
+                      js_template_str(jmember(f, key="name")),
+                      jmember(f, key="arguments"),
                     )
                   _ => ("undefined", None)
                 }
@@ -415,11 +401,11 @@ fn format_chat_history_to_markdown(
 
   // メタデータ (JSON.stringify は undefined 値のキーを落とすので同様に扱う)
   let meta : Map[String, Json] = Map([])
-  match jmember(chat_history, "sessionId") {
+  match jmember(chat_history, key="sessionId") {
     Some(v) => meta["sessionId"] = v
     None => ()
   }
-  match jmember(chat_history, "startTime") {
+  match jmember(chat_history, key="startTime") {
     Some(v) => meta["startTime"] = v
     None => ()
   }
@@ -516,7 +502,11 @@ fn main {
     }
   }
   let markdown = convert_and_format(
-    file_content, with_tool_calls, user_name, assistant_name, only_user_inputs,
+    file_content,
+    with_tool_calls~,
+    user_name~,
+    assistant_name~,
+    only_user_inputs~,
   ) catch {
     e => {
       eprintln(
@@ -532,10 +522,10 @@ fn main {
 ///|
 fn convert_and_format(
   file_content : String,
-  with_tool_calls : Bool,
-  user_name : String,
-  assistant_name : String,
-  only_user_inputs : Bool,
+  with_tool_calls~ : Bool,
+  user_name~ : String,
+  assistant_name~ : String,
+  only_user_inputs~ : Bool,
 ) -> String raise {
   // JSONL形式かどうかを判定（複数行で各行が{で始まる）
   let lines = file_content.trim().split("\n").collect()
@@ -547,13 +537,7 @@ fn convert_and_format(
       t == "" || t.has_prefix("{")
     })
   let json_string = if is_jsonl {
-    let events : Array[Json] = []
-    for line in lines {
-      if line.trim() == "" {
-        continue
-      }
-      events.push(@json.parse(line))
-    }
+    let events = [ for line in lines if line.trim() != "" => @json.parse(line) ]
     convert_jsonl_to_chat_history(events).stringify()
   } else {
     file_content

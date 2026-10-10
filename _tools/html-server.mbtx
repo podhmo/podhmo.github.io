@@ -66,13 +66,13 @@ fn html_escape(s : String) -> String {
 ///|
 /// ディレクトリ一覧ページ (deno 版と同じ骨格の <ul><li><a> 一覧、
 /// エントリは全ファイル。ディレクトリは末尾 `/`)。
-fn build_index(fs_dir : String, url_path : String) -> String {
+fn build_index(fs_dir : String, url_path~ : String) -> String {
   let names = @fs.read_dir(fs_dir).to_owned() catch { _ => [] }
   // JS 互換の符号位置順で並べる (`Compare for String` は shortlex なので不可)
   names.sort_by(fn(a, b) { a.lexical_compare(b) })
   let items = StringBuilder()
   if url_path != "/" {
-    items.write_string("<li><a href=\"../\">../</a></li>\n")
+    items <+ "<li><a href=\"../\">../</a></li>\n"
   }
   for n in names {
     let display = if (@fs.is_dir("\{fs_dir}/\{n}") catch { _ => false }) {
@@ -81,7 +81,7 @@ fn build_index(fs_dir : String, url_path : String) -> String {
       n
     }
     let escaped = html_escape(display)
-    items.write_string("<li><a href=\"\{escaped}\">\{escaped}</a></li>\n")
+    items <+ "<li><a href=\"\{escaped}\">\{escaped}</a></li>\n"
   }
   "<html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><body class=\"container\"><ul>\n\{items.to_string()}</ul></body></html>"
 }
@@ -89,11 +89,11 @@ fn build_index(fs_dir : String, url_path : String) -> String {
 ///|
 async fn send_response(
   tcp : @socket.Tcp,
-  code : Int,
-  reason : String,
-  content_type : String,
-  body : Bytes,
-  head_only : Bool,
+  code~ : Int,
+  reason~ : String,
+  content_type~ : String,
+  body~ : Bytes,
+  head_only~ : Bool,
 ) -> Unit {
   let head = "HTTP/1.1 \{code} \{reason}\r\n" +
     "Content-Type: \{content_type}\r\n" +
@@ -106,22 +106,22 @@ async fn send_response(
 }
 
 ///|
-async fn send_404(tcp : @socket.Tcp, head_only : Bool) -> Unit {
+async fn send_404(tcp : @socket.Tcp, head_only~ : Bool) -> Unit {
   send_response(
     tcp,
-    404,
-    "Not Found",
-    "text/plain",
-    @utf8.encode("404 Not Found"),
-    head_only,
+    code=404,
+    reason="Not Found",
+    content_type="text/plain",
+    body=@utf8.encode("404 Not Found"),
+    head_only~,
   )
 }
 
 ///|
 async fn send_redirect(
   tcp : @socket.Tcp,
-  location : String,
-  head_only : Bool,
+  location~ : String,
+  head_only~ : Bool,
 ) -> Unit {
   let body = @utf8.encode("301 Moved Permanently: \{location}")
   let head = "HTTP/1.1 301 Moved Permanently\r\n" +
@@ -138,17 +138,13 @@ async fn send_redirect(
 ///|
 /// URL パス (クエリ除く、%XX はデコードしない = deno URL.pathname 相当)
 /// をルート配下の fs パスに正規化。".." セグメントを含む場合は拒否。
-fn resolve_fs_path(root : String, url_path : String) -> String? {
-  let segs : Array[String] = []
-  for s in url_path.split("/") {
-    let seg = s.to_owned()
-    if seg == ".." {
-      return None
-    }
-    if seg != "" && seg != "." {
-      segs.push(seg)
-    }
+fn resolve_fs_path(root : String, url_path~ : String) -> String? {
+  if url_path.split("/").iter().any(fn(s) { s == ".." }) {
+    return None
   }
+  let segs = [
+    for s in url_path.split("/") if s != "" && s != "." => s.to_owned()
+  ]
   if segs.length() == 0 {
     Some(root)
   } else {
@@ -160,7 +156,7 @@ fn resolve_fs_path(root : String, url_path : String) -> String? {
 async fn serve_conn(
   tcp : @socket.Tcp,
   _addr : @socket.Addr,
-  root : String,
+  root~ : String,
 ) -> Unit {
   let head = match (tcp.read_until("\r\n\r\n") catch { _ => None }) {
     Some(h) => h
@@ -180,43 +176,43 @@ async fn serve_conn(
   let url_path = parts[1].split("?").next().unwrap_or("/")
   // favicon は元の挙動どおり常に 404
   if url_path == "/favicon.ico" {
-    send_404(tcp, head_only)
+    send_404(tcp, head_only~)
     return
   }
-  match resolve_fs_path(root, url_path.to_owned()) {
-    None => send_404(tcp, head_only)
+  match resolve_fs_path(root, url_path=url_path.to_owned()) {
+    None => send_404(tcp, head_only~)
     Some(fs_path) => {
       let is_dir = @fs.is_dir(fs_path) catch { _ => false }
       if is_dir {
         // ディレクトリは末尾スラッシュへリダイレクト (python http.server 相当)
         if !url_path.has_suffix("/") {
-          send_redirect(tcp, "\{url_path}/", head_only)
+          send_redirect(tcp, location="\{url_path}/", head_only~)
         } else {
           // deno 版と同様、index.html があっても常に一覧を返す
-          let html = build_index(fs_path, url_path.to_owned())
+          let html = build_index(fs_path, url_path=url_path.to_owned())
           send_response(
             tcp,
-            200,
-            "OK",
-            "text/html",
-            @utf8.encode(html),
-            head_only,
+            code=200,
+            reason="OK",
+            content_type="text/html",
+            body=@utf8.encode(html),
+            head_only~,
           )
         }
       } else {
         let body = @fs.read_file_to_bytes(fs_path) catch {
           _ => {
-            send_404(tcp, head_only)
+            send_404(tcp, head_only~)
             return
           }
         }
         send_response(
           tcp,
-          200,
-          "OK",
-          mime_type(url_path.to_owned()),
-          body,
-          head_only,
+          code=200,
+          reason="OK",
+          content_type=mime_type(url_path.to_owned()),
+          body~,
+          head_only~,
         )
       }
     }
@@ -276,5 +272,5 @@ async fn main {
     }
   }
   println("listening on http://\{addr}")
-  server.run_forever(async fn(tcp, addr) { serve_conn(tcp, addr, root) })
+  server.run_forever(async fn(tcp, addr) { serve_conn(tcp, addr, root~) })
 }
