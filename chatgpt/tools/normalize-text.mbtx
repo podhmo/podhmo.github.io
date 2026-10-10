@@ -1,0 +1,35 @@
+///|
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/fs",
+  "moonbitlang/async/stdio",
+  "moonbitlang/core/env",
+}
+
+///|
+/// テキストフィルタ:
+/// - 引数なし: 標準入力を読む / 引数あり: 全ファイルを読んで \n で連結
+/// - HOME (または USERPROFILE) を ~ に置換
+/// - \t をタブに、\n を改行に変換して標準出力へ
+async fn main {
+  let args = @env.args()[1:]
+  let input = if args.length() == 0 {
+    @stdio.stdin.read_all().text()
+  } else {
+    let parts : Array[String] = []
+    for path in args {
+      parts.push(@fs.read_file(path).text())
+    }
+    parts.join("\n")
+  }
+  let home = @env.get_env_var("HOME").unwrap_or(
+    @env.get_env_var("USERPROFILE").unwrap_or(""),
+  )
+  let mut output = input
+  if home != "" {
+    output = output.replace_all(old=home, new="~")
+  }
+  output = output.replace_all(old="\\t", new="\t")
+  output = output.replace_all(old="\\n", new="\n")
+  println(output)
+}
