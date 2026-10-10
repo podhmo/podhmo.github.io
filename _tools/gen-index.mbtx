@@ -1,0 +1,44 @@
+///|
+import {
+  "moonbitlang/core/env",
+}
+
+///|
+fn parse_args(args : ArrayView[String]) -> (String, Array[String]) {
+  let mut baseurl = ""
+  let files : Array[String] = []
+  let mut i = 0
+  while i < args.length() {
+    let arg = args[i]
+    if arg == "--baseurl" {
+      if i + 1 < args.length() {
+        baseurl = args[i + 1]
+        i += 1
+      }
+    } else if arg.has_prefix("--baseurl=") {
+      baseurl = arg.view(start_offset=10).to_owned()
+    } else if arg == "--debug" {
+      ()
+    } else {
+      files.push(arg)
+    }
+    i += 1
+  }
+  (baseurl, files)
+}
+
+///|
+fn main {
+  let (baseurl, files) = parse_args(@env.args()[1:])
+  println("<!DOCTYPE html>")
+  println("<html lang=\"ja\">")
+  println(
+    "<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"with=device-width, initial-scale=1.0\"></head>",
+  )
+  println("<ul>")
+  for filename in files {
+    println("<li><a href=\"\{baseurl}\{filename}\">\{filename}</a></li>")
+  }
+  println("</ul>")
+  println("</html>")
+}
