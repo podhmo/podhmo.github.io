@@ -127,7 +127,9 @@ fn timestamp_cmp(a : Json, b : Json) -> Int {
     // new Date() が NaN を返すケースは比較結果 0 相当として扱う
     0
   } else {
-    compare(ta, tb)
+    // JS の文字列 `<` は符号位置順なので shortlex の `compare` ではなく
+    // lexical_compare を使う (ISO-8601 なら時系列と一致する)
+    ta.lexical_compare(tb)
   }
 }
 
