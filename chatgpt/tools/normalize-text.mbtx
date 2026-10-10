@@ -22,9 +22,13 @@ async fn main {
     }
     parts.join("\n")
   }
-  let home = @env.get_env_var("HOME").unwrap_or(
-    @env.get_env_var("USERPROFILE").unwrap_or(""),
-  )
+  // JS の `HOME || USERPROFILE || ""` 相当: 空文字列も falsy として扱う
+  let home_var = @env.get_env_var("HOME").unwrap_or("")
+  let home = if home_var == "" {
+    @env.get_env_var("USERPROFILE").unwrap_or("")
+  } else {
+    home_var
+  }
   let mut output = input
   if home != "" {
     output = output.replace_all(old=home, new="~")
