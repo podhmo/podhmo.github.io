@@ -53,7 +53,16 @@ fn js_template_str(v : Json?) -> String {
     Some(False) => "false"
     Some(Null) => "null"
     Some(Object(_)) => "[object Object]"
-    Some(Array(arr)) => arr.map(fn(x) { js_template_str(Some(x)) }).join(",")
+    Some(Array(arr)) =>
+      arr
+      .map(fn(x) {
+        match x {
+          // JS の arr.join() は null/undefined を空文字に変換する
+          Null => ""
+          _ => js_template_str(Some(x))
+        }
+      })
+      .join(",")
   }
 }
 
