@@ -1,0 +1,357 @@
+///|
+import {
+  "moonbitlang/core/argparse",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/x@0.5.5/fs",
+  "moonbitlang/x@0.5.5/sys",
+}
+
+///|
+/// Claude Code の会話ログ (JSONL) を markdown に変換する
+///
+/// Claude Code の会話ログは JSONL 形式（1行1JSONオブジェクト）で、以下の type が存在する。
+///
+/// 【出力対象】
+///   - "user"      : ユーザーメッセージ。ただし message.content が文字列の場合のみ実際の入力として出力する。
+///   - "assistant" : アシスタントメッセージ。content[].type === "text" のブロックを出力する。
+///
+/// 【スキップされるもの】
+///   - "user" で message.content が配列の場合: ツール実行結果のフィードバック（tool_result）であり会話本文ではない
+///   - "assistant" の重複エントリ: 同一 message.id を持つ複数行はストリーミング断片。最後の1つだけ採用する
+///   - "file-history-snapshot" / "permission-mode" / "last-prompt" / "attachment" /
+///     "system" / "queue-operation" などの非対話エントリ
+///
+/// 【assistant content ブロックのうちスキップされるもの】
+///   - "thinking" : モデルの思考過程（extended thinking）
+///   - "tool_use" : ツール呼び出し。--with-tool-calls 指定時のみ表示する
+
+///|
+fn jmember(json : Json, key : String) -> Json? {
+  match json {
+    Object(obj) => obj.get(key)
+    _ => None
+  }
+}
+
+///|
+fn member_string(json : Json, key : String) -> String {
+  match jmember(json, key) {
+    Some(String(s)) => s
+    _ => ""
+  }
+}
+
+///|
+struct ToolCall {
+  id : String
+  name : String
+  input : Json
+}
+
+///|
+struct Message {
+  role : String
+  text : String
+  tool_calls : Array[ToolCall]
+}
+
+///|
+fn assistant_msg_id(entry : Json) -> String? {
+  match jmember(entry, "message") {
+    Some(msg) =>
+      match jmember(msg, "id") {
+        Some(String(id)) => Some(id)
+        _ => None
+      }
+    None => None
+  }
+}
+
+///|
+fn parse_jsonl(file_content : String) -> Array[Message] raise {
+  let entries : Array[Json] = []
+  for line in file_content.trim().split("\n") {
+    if line.trim() == "" {
+      continue
+    }
+    entries.push(@json.parse(line))
+  }
+
+  // assistant エントリを message.id で重複排除（最後のものを採用）
+  let assistant_by_msg_id : Map[String, Json] = Map([])
+  for entry in entries {
+    if member_string(entry, "type") == "assistant" {
+      match assistant_msg_id(entry) {
+        Some(id) => assistant_by_msg_id[id] = entry
+        None => ()
+      }
+    }
+  }
+
+  // 出力順を保持するために元の登場順でメッセージを収集
+  let seen_msg_ids : Map[String, Bool] = Map([])
+  let messages : Array[Message] = []
+  for entry in entries {
+    match member_string(entry, "type") {
+      "user" => {
+        let message = match jmember(entry, "message") {
+          Some(msg) => msg
+          None =>
+            fail("cannot read properties of undefined (reading 'content')")
+        }
+        // tool_result を含む配列は表示しない（ツール実行結果）
+        match jmember(message, "content") {
+          Some(String(s)) =>
+            messages.push({ role: "user", text: s, tool_calls: [], })
+          _ => ()
+        }
+      }
+      "assistant" =>
+        match assistant_msg_id(entry) {
+          Some(id) => {
+            if seen_msg_ids.contains(id) {
+              continue
+            }
+            seen_msg_ids[id] = true
+            // 重複排除後の最終バージョンを取得
+            let fin = assistant_by_msg_id.get(id).unwrap_or(entry)
+            let content = match jmember(fin, "message") {
+              Some(msg) => jmember(msg, "content")
+              None => fail("cannot read properties of undefined")
+            }
+            let blocks = match content {
+              Some(Array(arr)) => arr
+              _ => fail("content.filter is not a function")
+            }
+            let text_parts : Array[String] = []
+            let tool_calls : Array[ToolCall] = []
+            for block in blocks {
+              match jmember(block, "type") {
+                Some(String("text")) =>
+                  match jmember(block, "text") {
+                    Some(String(t)) => text_parts.push(t)
+                    _ => ()
+                  }
+                Some(String("tool_use")) => {
+                  let input = jmember(block, "input").unwrap_or(Json::null())
+                  tool_calls.push({
+                    id: member_string(block, "id"),
+                    name: member_string(block, "name"),
+                    input,
+                  })
+                }
+                _ => ()
+              }
+            }
+            let text = text_parts.join("")
+            if text.trim() != "" || tool_calls.length() > 0 {
+              messages.push({ role: "assistant", text, tool_calls, })
+            }
+          }
+          None => ()
+        }
+      _ => ()
+    }
+  }
+  messages
+}
+
+///|
+fn format_to_markdown(
+  messages : Array[Message],
+  with_tool_calls~ : Bool,
+  user_name~ : String,
+  assistant_name~ : String,
+  only_user_inputs~ : Bool,
+) -> String {
+  let output_parts : Array[String] = []
+  if only_user_inputs {
+    output_parts.push("## ユーザー入力履歴\n\n")
+    let user_messages = messages.filter(fn(m) { m.role == "user" })
+    for i, msg in user_messages {
+      let text = msg.text.trim().to_owned()
+      if text == "" {
+        continue
+      }
+      output_parts.push("\{user_name}:\n\{text}")
+      if i < user_messages.length() - 1 {
+        output_parts.push("\n\n---\n\n")
+      } else {
+        output_parts.push("\n\n")
+      }
+    }
+    if user_messages.length() == 0 {
+      output_parts.push("\n")
+    }
+  } else {
+    output_parts.push("## 対話履歴\n\n")
+    let display_blocks : Array[Array[String]] = []
+    for msg in messages {
+      if msg.role == "user" {
+        let text = msg.text.trim().to_owned()
+        if text == "" {
+          continue
+        }
+        display_blocks.push(["\{user_name}:\n\{text}"])
+      } else {
+        let assistant_content : Array[String] = []
+        let text = msg.text.trim().to_owned()
+        if text != "" {
+          assistant_content.push("\{assistant_name}:\n\{text}")
+        }
+        if msg.tool_calls.length() > 0 && with_tool_calls {
+          if assistant_content.length() > 0 {
+            assistant_content.push("")
+          }
+          assistant_content.push("<details>")
+          assistant_content.push("<summary>ツール呼び出し</summary>")
+          assistant_content.push("")
+          for i, tool_call in msg.tool_calls {
+            assistant_content.push("### Tool Call \{i + 1}")
+            assistant_content.push("**ID**: `\{tool_call.id}`")
+            assistant_content.push("**Function**: `\{tool_call.name}`")
+            assistant_content.push("**Arguments**:")
+            assistant_content.push("```json")
+            assistant_content.push(tool_call.input.stringify(indent=2))
+            assistant_content.push("```")
+            if i < msg.tool_calls.length() - 1 {
+              assistant_content.push("")
+            }
+          }
+          assistant_content.push("</details>")
+        }
+        if assistant_content.length() > 0 {
+          display_blocks.push(assistant_content)
+        }
+      }
+    }
+    for i, block in display_blocks {
+      output_parts.push(block.join("\n"))
+      if i < display_blocks.length() - 1 {
+        output_parts.push("\n\n---\n\n")
+      } else {
+        output_parts.push("\n\n")
+      }
+    }
+    if display_blocks.length() == 0 {
+      output_parts.push("\n")
+    }
+  }
+
+  // メタデータ
+  let user_count = messages.filter(fn(m) { m.role == "user" }).length()
+  let assistant_count = messages
+    .filter(fn(m) { m.role == "assistant" })
+    .length()
+  output_parts.push("## メタデータ\n\n")
+  output_parts.push("```json\n")
+  output_parts.push(
+    "{\n  \"userMessageCount\": \{user_count},\n  \"assistantMessageCount\": \{assistant_count}\n}",
+  )
+  output_parts.push("\n```\n")
+  output_parts.join("")
+}
+
+///|
+fn usage() -> Unit {
+  eprintln(
+    "エラー: ファイルへのパスを引数として指定してください。",
+  )
+  eprintln(
+    "使用法: claude-code-to-markdown <file.json|file.jsonl> [options]",
+  )
+  eprintln("オプション:")
+  eprintln(
+    "  -t, --with-tool-calls       ツール呼び出しを表示します",
+  )
+  eprintln(
+    "      --user-name <name>       ユーザー名を指定します (デフォルト: User)",
+  )
+  eprintln(
+    "      --assistant-name <name>  アシスタント名を指定します (デフォルト: Assistant)",
+  )
+  eprintln(
+    "      --ou, --only-user-inputs  ユーザー入力のみを表示します",
+  )
+}
+
+///|
+fn main {
+  let matches = @argparse.Command(
+    "claude-code-to-markdown",
+    about="Claude Code の会話ログ (JSONL) を markdown に変換",
+    flags=[
+      FlagArg(
+        "with-tool-calls",
+        short='t',
+        about="ツール呼び出しを表示",
+      ),
+      FlagArg("only-user-inputs", about="ユーザー入力のみを表示"),
+      FlagArg("ou", about="--only-user-inputs の別名"),
+    ],
+    options=[
+      OptionArg("user-name", about="ユーザー名 (default: User)"),
+      OptionArg(
+        "assistant-name",
+        about="アシスタント名 (default: Assistant)",
+      ),
+    ],
+    positionals=[
+      PositionArg(
+        "file",
+        about="JSONLファイルのパス",
+        num_args=ValueRange(upper=1),
+      ),
+    ],
+  ).parse(argv=@env.args()[1:]) catch {
+    _ => {
+      usage()
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  let file = match matches.values {
+    { "file": [file, ..], .. } => file
+    _ => {
+      usage()
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  let user_name = match matches.values {
+    { "user-name": [name, ..], .. } => name
+    _ => "User"
+  }
+  let assistant_name = match matches.values {
+    { "assistant-name": [name, ..], .. } => name
+    _ => "Assistant"
+  }
+  let with_tool_calls = matches.flags.get("with-tool-calls").unwrap_or(false)
+  let only_user_inputs = matches.flags.get("only-user-inputs").unwrap_or(false) ||
+    matches.flags.get("ou").unwrap_or(false)
+  let file_content = @fs.read_file_to_string(file) catch {
+    IOError(msg) => {
+      eprintln("ファイル読み込みエラー \{file}: \{msg}")
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  let messages = parse_jsonl(file_content) catch {
+    e => {
+      eprintln(
+        "ファイルの処理中にエラーが発生しました: \{e}",
+      )
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  let markdown = format_to_markdown(
+    messages,
+    with_tool_calls=with_tool_calls && !only_user_inputs,
+    user_name~,
+    assistant_name~,
+    only_user_inputs~,
+  )
+  println(markdown)
+}
