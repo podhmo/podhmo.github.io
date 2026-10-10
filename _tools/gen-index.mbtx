@@ -8,9 +8,16 @@ fn parse_args(args : ArrayView[String]) -> (String, Array[String]) {
   let mut baseurl = ""
   let files : Array[String] = []
   let mut i = 0
+  // deno parseArgs と同様 `--` はオプション終端。以降は位置引数として扱い
+  // `--` 自体は含めない
+  let mut opts_done = false
   while i < args.length() {
     let arg = args[i]
-    if arg == "--baseurl" {
+    if opts_done {
+      files.push(arg)
+    } else if arg == "--" {
+      opts_done = true
+    } else if arg == "--baseurl" {
       if i + 1 < args.length() {
         baseurl = args[i + 1]
         i += 1
