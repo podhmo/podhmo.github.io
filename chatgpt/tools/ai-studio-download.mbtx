@@ -1,0 +1,916 @@
+///|
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/fs",
+  "moonbitlang/async/http",
+  "moonbitlang/async/io",
+  "moonbitlang/async/process",
+  "moonbitlang/async/stdio",
+  "moonbitlang/core/argparse",
+  "moonbitlang/core/bigint",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/core/string",
+  "moonbitlang/x@0.5.5/crypto",
+  "moonbitlang/x@0.5.5/path",
+  "moonbitlang/x@0.5.5/sys",
+  "moonbitlang/x@0.5.5/time",
+}
+
+///|
+const DRIVE_API_URL : String = "https://www.googleapis.com/drive/v3"
+
+///|
+const AI_STUDIO_FOLDER_NAME : String = "Google AI Studio"
+
+///|
+const DRIVE_SCOPE : String = "https://www.googleapis.com/auth/drive.readonly"
+
+///|
+const DEFAULT_TOKEN_URI : String = "https://oauth2.googleapis.com/token"
+
+///|
+fn jmember(j : Json, key : String) -> Json? {
+  match j {
+    Object(obj) => obj.get(key)
+    _ => None
+  }
+}
+
+///|
+fn jstring(j : Json?) -> String? {
+  match j {
+    Some(String(s)) => Some(s)
+    _ => None
+  }
+}
+
+///|
+/// base64url (no padding) encode.
+fn b64url_encode(data : BytesView) -> String {
+  let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+  let out = StringBuilder()
+  let n = data.length()
+  let mut i = 0
+  while i + 3 <= n {
+    let b0 = data[i].to_int()
+    let b1 = data[i + 1].to_int()
+    let b2 = data[i + 2].to_int()
+    out.write_char(alphabet.get_char(b0 >> 2).unwrap())
+    out.write_char(alphabet.get_char(((b0 & 0x03) << 4) | (b1 >> 4)).unwrap())
+    out.write_char(alphabet.get_char(((b1 & 0x0F) << 2) | (b2 >> 6)).unwrap())
+    out.write_char(alphabet.get_char(b2 & 0x3F).unwrap())
+    i = i + 3
+  }
+  if n - i == 1 {
+    let b0 = data[i].to_int()
+    out.write_char(alphabet.get_char(b0 >> 2).unwrap())
+    out.write_char(alphabet.get_char((b0 & 0x03) << 4).unwrap())
+  } else if n - i == 2 {
+    let b0 = data[i].to_int()
+    let b1 = data[i + 1].to_int()
+    out.write_char(alphabet.get_char(b0 >> 2).unwrap())
+    out.write_char(alphabet.get_char(((b0 & 0x03) << 4) | (b1 >> 4)).unwrap())
+    out.write_char(alphabet.get_char((b1 & 0x0F) << 2).unwrap())
+  }
+  out.to_string()
+}
+
+///|
+fn b64_value(c : Char) -> Int {
+  match c {
+    'A'..='Z' => c.to_int() - 'A'.to_int()
+    'a'..='z' => c.to_int() - 'a'.to_int() + 26
+    '0'..='9' => c.to_int() - '0'.to_int() + 52
+    '+' => 62
+    '/' => 63
+    '-' => 62
+    '_' => 63
+    _ => -1
+  }
+}
+
+///|
+/// Standard base64 decode (PEM payload). Ignores whitespace, '=' padding.
+fn b64_decode(s : String) -> Bytes {
+  let vals : Array[Int] = []
+  for c in s {
+    let v = b64_value(c)
+    if v >= 0 {
+      vals.push(v)
+    }
+  }
+  let out : Array[Byte] = []
+  let mut i = 0
+  while i + 4 <= vals.length() {
+    let acc = (vals[i] << 18) |
+      (vals[i + 1] << 12) |
+      (vals[i + 2] << 6) |
+      vals[i + 3]
+    out.push(((acc >> 16) & 0xFF).to_byte())
+    out.push(((acc >> 8) & 0xFF).to_byte())
+    out.push((acc & 0xFF).to_byte())
+    i = i + 4
+  }
+  let rem = vals.length() - i
+  if rem == 2 {
+    let acc = (vals[i] << 18) | (vals[i + 1] << 12)
+    out.push(((acc >> 16) & 0xFF).to_byte())
+  } else if rem == 3 {
+    let acc = (vals[i] << 18) | (vals[i + 1] << 12) | (vals[i + 2] << 6)
+    out.push(((acc >> 16) & 0xFF).to_byte())
+    out.push(((acc >> 8) & 0xFF).to_byte())
+  }
+  Bytes::from_array(out)
+}
+
+///|
+/// Extract the base64 payload of a PEM block and decode it to DER bytes.
+fn pem_decode(pem : String) -> Bytes? {
+  let mut in_body = false
+  let buf = StringBuilder()
+  for line_view in pem.split("\n") {
+    let line = line_view.trim()
+    if line.has_prefix("-----BEGIN") {
+      in_body = true
+      continue
+    }
+    if line.has_prefix("-----END") {
+      break
+    }
+    if in_body {
+      buf.write_stringview(line)
+    }
+  }
+  let b64 = buf.to_string()
+  if b64 == "" {
+    None
+  } else {
+    Some(b64_decode(b64))
+  }
+}
+
+///|
+/// Read one DER TLV at `pos`. Returns (content_view, next_pos).
+fn der_tlv(b : BytesView, pos : Int) -> (BytesView, Int) raise {
+  if pos >= b.length() {
+    fail("DER: truncated")
+  }
+  let mut p = pos + 1 // skip tag
+  let l0 = b[p].to_int()
+  p = p + 1
+  let mut len = l0
+  if l0 >= 0x80 {
+    let n = l0 - 0x80
+    len = 0
+    for i in 0..<n {
+      len = (len << 8) | b[p + i].to_int()
+    }
+    p = p + n
+  }
+  if p + len > b.length() {
+    fail("DER: length out of range")
+  }
+  (b[p:p + len], p + len)
+}
+
+///|
+/// Return the content views of all children of a DER SEQUENCE/OCTET STRING.
+fn der_children(b : BytesView) -> Array[BytesView] raise {
+  let out : Array[BytesView] = []
+  let mut pos = 0
+  while pos < b.length() {
+    let (content, next) = der_tlv(b, pos)
+    out.push(content)
+    pos = next
+  }
+  out
+}
+
+///|
+/// Strip the top-level SEQUENCE wrapper.
+fn der_seq_content(b : BytesView) -> BytesView raise {
+  let (content, _) = der_tlv(b, 0)
+  content
+}
+
+///|
+/// Parse a PKCS#1 RSAPrivateKey or a PKCS#8 PrivateKeyInfo and return
+/// (n, e, d). Only the fields needed for RS256 signing are extracted.
+fn parse_rsa_key(
+  pem : String,
+) -> (@bigint.BigInt, @bigint.BigInt, @bigint.BigInt) raise {
+  let der = match pem_decode(pem) {
+    Some(d) => d
+    None => fail("PEM decode failed")
+  }
+  let parts = if pem.contains("RSA PRIVATE") {
+    // PKCS#1: the top SEQUENCE is RSAPrivateKey itself
+    der_children(der_seq_content(der[:]))
+  } else {
+    // PKCS#8: { INTEGER ver, SEQUENCE algid, OCTET STRING(pkcs1) }
+    let top = der_children(der_seq_content(der[:]))
+    if top.length() < 3 {
+      fail("DER: PKCS#8 PrivateKeyInfo has too few fields")
+    }
+    der_children(der_seq_content(top[2]))
+  }
+  if parts.length() < 4 {
+    fail("DER: RSAPrivateKey has too few fields")
+  }
+  let n = @bigint.BigInt::from_octets(parts[1])
+  let e = @bigint.BigInt::from_octets(parts[2])
+  let d = @bigint.BigInt::from_octets(parts[3])
+  (n, e, d)
+}
+
+///|
+/// Modular exponentiation (square-and-multiply), for RS1 signing.
+fn mod_pow(
+  base : @bigint.BigInt,
+  exp : @bigint.BigInt,
+  modulus : @bigint.BigInt,
+) -> @bigint.BigInt {
+  let mut result = @bigint.BigInt::from_int(1)
+  let mut b = base % modulus
+  let mut e = exp
+  let two = @bigint.BigInt::from_int(2)
+  let zero = @bigint.BigInt::from_int(0)
+  while e.compare(zero) > 0 {
+    if (e % two).compare_int(1) == 0 {
+      result = result * b % modulus
+    }
+    b = b * b % modulus
+    e = e / two
+  }
+  result
+}
+
+///|
+/// RS256 sign: PKCS#1 v1.5 + SHA-256, RSA private exponent.
+fn rsa_sign_sha256(
+  input : String,
+  n : @bigint.BigInt,
+  d : @bigint.BigInt,
+) -> Bytes {
+  let digest = @crypto.sha256(@utf8.encode(input))
+  // DigestInfo prefix for SHA-256 (RFC 8017)
+  let digest_info_prefix : Array[Byte] = [
+    0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04,
+    0x02, 0x01, 0x05, 0x00, 0x04, 0x20,
+  ]
+  let k = (n.bit_length() + 7) / 8
+  let em : Array[Byte] = [0x00, 0x01]
+  let pad_len = k - 3 - digest_info_prefix.length() - digest.length()
+  for _ in 0..<pad_len {
+    em.push(0xFF)
+  }
+  em.push(0x00)
+  for b in digest_info_prefix {
+    em.push(b)
+  }
+  for b in digest {
+    em.push(b)
+  }
+  let m = @bigint.BigInt::from_octets(Bytes::from_array(em)[:])
+  let s = mod_pow(m, d, n)
+  s.to_octets(length=k)
+}
+
+///|
+fn json_stringify(j : Json) -> String {
+  j.stringify()
+}
+
+///|
+/// Build a service-account JWT (RS256) for the OAuth token exchange.
+fn make_jwt(
+  iss : String,
+  scope : String,
+  aud : String,
+  iat : Int64,
+  exp : Int64,
+  n : @bigint.BigInt,
+  d : @bigint.BigInt,
+) -> String {
+  let header = json_stringify(
+    Json::object(
+      Map([("alg", Json::string("RS256")), ("typ", Json::string("JWT"))]),
+    ),
+  )
+  let payload = json_stringify(
+    Json::object(
+      Map([
+        ("iss", Json::string(iss)),
+        ("scope", Json::string(scope)),
+        ("aud", Json::string(aud)),
+        ("iat", Json::number(iat.to_double())),
+        ("exp", Json::number(exp.to_double())),
+      ]),
+    ),
+  )
+  let signing_input = b64url_encode(@utf8.encode(header)[:]) +
+    "." +
+    b64url_encode(@utf8.encode(payload)[:])
+  let sig = rsa_sign_sha256(signing_input, n, d)
+  signing_input + "." + b64url_encode(sig[:])
+}
+
+///|
+/// application/x-www-form-urlencoded component encoding
+/// (URLSearchParams semantics: space -> '+', unreserved = alnum * - . _).
+fn url_encode(s : String) -> String {
+  let out = StringBuilder()
+  for byte in @utf8.encode(s) {
+    let c = byte.to_int()
+    if (c >= 'A'.to_int() && c <= 'Z'.to_int()) ||
+      (c >= 'a'.to_int() && c <= 'z'.to_int()) ||
+      (c >= '0'.to_int() && c <= '9'.to_int()) ||
+      c == '*'.to_int() ||
+      c == '-'.to_int() ||
+      c == '.'.to_int() ||
+      c == '_'.to_int() {
+      out.write_char(c.unsafe_to_char())
+    } else if c == ' '.to_int() {
+      out.write_char('+')
+    } else {
+      out.write_char("0123456789ABCDEF".get_char(c >> 4).unwrap())
+      out.write_char("0123456789ABCDEF".get_char(c & 0x0F).unwrap())
+    }
+  }
+  out.to_string()
+}
+
+///|
+fn auth_headers(token : String) -> Map[@http.CaseInsensitiveString, String] {
+  let m : Map[@http.CaseInsensitiveString, String] = Map([])
+  m["Authorization"] = "Bearer \{token}"
+  m
+}
+
+///|
+/// Drive API GET helper. `query` is already-urlencoded pairs.
+async fn drive_get(
+  token : String,
+  path : String,
+  query : Array[(String, String)],
+) -> Json {
+  let qs = query
+    .map(fn(p) { url_encode(p.0) + "=" + url_encode(p.1) })
+    .join("&")
+  let url = "\{DRIVE_API_URL}\{path}?\{qs}"
+  let (res, data) = @http.get(url, headers=auth_headers(token))
+  if !(200 <= res.code && res.code < 300) {
+    let body = data.text() catch { _ => "" }
+    fail("drive api error: \{res.code} \{res.reason} \{body}")
+  }
+  data.json()
+}
+
+///|
+let usage_text : String =
+  #|
+  #|Google AI Studio 対話履歴ダウンローダー
+  #|
+  #|スクリプトを実行すると、"Google AI Studio" フォルダ内の対話履歴が
+  #|更新日時順に一覧表示されます。カーソルキーでダウンロードしたいファイルを選択し、
+  #|Enterキーで決定してください。
+  #|
+  #|オプション:
+  #|  -o, --output <パス> ダウンロード先のディレクトリを指定します。
+  #|                      省略時はカレントディレクトリに保存されます。
+  #|  --keyFile <パス>    サービスアカウントキーファイルへのパスを指定します。
+  #|                      (環境変数 GOOGLE_APPLICATION_CREDENTIALS より優先)
+  #|  -h, --help          このヘルプメッセージを表示します。
+  #|
+  #|環境変数:
+  #|  GOOGLE_APPLICATION_CREDENTIALS  サービスアカウントキーJSONファイルへのパス。
+  #|
+  #|例:
+  #|  ai-studio-download
+  #|  ai-studio-download -o ./downloaded_histories
+  #|  ai-studio-download --keyFile ./path/to/your-service-account-key.json
+  #|
+
+///|
+fn print_usage() -> Unit {
+  println(usage_text)
+}
+
+///|
+fn[T] auth_failed(detail : String) -> T {
+  eprintln(
+    "認証クライアントの取得に失敗しました。環境変数 GOOGLE_APPLICATION_CREDENTIALS が正しく設定されているか、サービスアカウントキーファイルへのアクセス権限があるか確認してください。",
+  )
+  eprintln("エラー詳細: \{detail}")
+  @sys.exit(1)
+  abort("unreachable")
+}
+
+///|
+struct ServiceAccount {
+  client_email : String
+  private_key : String
+  token_uri : String
+}
+
+///|
+async fn get_access_token(key_path : String) -> String {
+  let sa = parse_service_account(key_path)
+  let (n, _e, d) = parse_rsa_key(sa.private_key) catch {
+    e => auth_failed(err_string(e))
+  }
+  let now = @env.now() / 1000
+  let iat = now.reinterpret_as_int64() - 30
+  let exp = iat + 3600
+  let jwt = make_jwt(sa.client_email, DRIVE_SCOPE, sa.token_uri, iat, exp, n, d)
+  let body = "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=" +
+    jwt
+  let headers : Map[@http.CaseInsensitiveString, String] = Map([])
+  headers["Content-Type"] = "application/x-www-form-urlencoded"
+  let (res, data) = @http.post(sa.token_uri, body, headers~) catch {
+    e => auth_failed(err_string(e))
+  }
+  let text = data.text() catch { _ => "" }
+  if !(200 <= res.code && res.code < 300) {
+    auth_failed("token exchange failed: \{res.code} \{res.reason} \{text}")
+  }
+  let j = @json.parse(text) catch { e => auth_failed(err_string(e)) }
+  match jstring(jmember(j, "access_token")) {
+    Some(t) => t
+    None => auth_failed("token exchange response has no access_token")
+  }
+}
+
+///|
+fn err_string(e : Error) -> String {
+  e.to_string()
+}
+
+///|
+async fn parse_service_account(key_path : String) -> ServiceAccount {
+  let text = @fs.read_file(key_path).text() catch {
+    e => auth_failed(err_string(e))
+  }
+  let j = @json.parse(text) catch { e => auth_failed(err_string(e)) }
+  let client_email = jstring(jmember(j, "client_email")).unwrap_or("")
+  let private_key = jstring(jmember(j, "private_key")).unwrap_or("")
+  let token_uri = jstring(jmember(j, "token_uri")).unwrap_or(DEFAULT_TOKEN_URI)
+  if client_email == "" || private_key == "" {
+    auth_failed(
+      "service account key file is missing client_email or private_key",
+    )
+  }
+  { client_email, private_key, token_uri, }
+}
+
+///|
+async fn find_ai_studio_folder_id(token : String) -> String? {
+  let j = drive_get(token, "/files", [
+    (
+      "q",
+      "name='\{AI_STUDIO_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+    ),
+    ("fields", "files(id, name)"),
+    ("pageSize", "1"),
+  ]) catch {
+    e => {
+      eprintln(
+        "\"\{AI_STUDIO_FOLDER_NAME}\" フォルダの検索中にエラーが発生しました: \{err_string(e)}",
+      )
+      return None
+    }
+  }
+  match jmember(j, "files") {
+    Some(Array(arr)) =>
+      if arr.length() > 0 {
+        jstring(jmember(arr[0], "id"))
+      } else {
+        eprintln(
+          "フォルダ \"\{AI_STUDIO_FOLDER_NAME}\" が見つかりませんでした。",
+        )
+        None
+      }
+    _ => {
+      eprintln(
+        "フォルダ \"\{AI_STUDIO_FOLDER_NAME}\" が見つかりませんでした。",
+      )
+      None
+    }
+  }
+}
+
+///|
+struct DriveFile {
+  id : String
+  name : String
+  modified_time : String
+}
+
+///|
+async fn list_files(token : String, folder_id : String) -> Array[DriveFile] {
+  let files : Array[DriveFile] = []
+  let mut page_token = ""
+  let mut first = true
+  while first || page_token != "" {
+    first = false
+    let j = drive_get(token, "/files", [
+      (
+        "q",
+        "'\{folder_id}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed=false",
+      ),
+      ("fields", "nextPageToken, files(id, name, modifiedTime)"),
+      ("orderBy", "modifiedTime desc"),
+      ("pageSize", "100"),
+      ("pageToken", page_token),
+    ]) catch {
+      e => {
+        eprintln(
+          "ファイル一覧の取得中にエラーが発生しました: \{err_string(e)}",
+        )
+        return files
+      }
+    }
+    match jmember(j, "files") {
+      Some(Array(arr)) =>
+        for f in arr {
+          files.push({
+            id: jstring(jmember(f, "id")).unwrap_or(""),
+            name: jstring(jmember(f, "name")).unwrap_or(""),
+            modified_time: jstring(jmember(f, "modifiedTime")).unwrap_or(""),
+          })
+        }
+      _ => ()
+    }
+    page_token = jstring(jmember(j, "nextPageToken")).unwrap_or("")
+  }
+  files
+}
+
+///|
+/// days_from_civil (Howard Hinnant): y-m-d -> days since 1970-01-01.
+fn days_from_civil(y : Int, m : Int, d : Int) -> Int64 {
+  let yy = if m <= 2 { y - 1 } else { y }
+  let y2 = if yy >= 0 { yy } else { yy - 399 }
+  let era = y2 / 400
+  let yoe = yy - era * 400
+  let mp = (m + 9) % 12
+  let doy = (153 * mp + 2) / 5 + d - 1
+  let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+  (era * 146097 + doe - 719468).to_int64()
+}
+
+///|
+/// Parse "2026-10-09T12:34:56.789Z" style ISO8601 (UTC) to unix seconds.
+fn parse_iso_seconds(s : String) -> Int64? {
+  if s.length() < 19 {
+    return None
+  }
+  fn two(a : StringView) -> Int? {
+    let v = @string.parse_int(a) catch { _ => return None }
+    Some(v)
+  }
+
+  let y = two(s[0:4])
+  let mo = two(s[5:7])
+  let d = two(s[8:10])
+  let h = two(s[11:13])
+  let mi = two(s[14:16])
+  let sec = two(s[17:19])
+  match (y, mo, d, h, mi, sec) {
+    (Some(y), Some(mo), Some(d), Some(h), Some(mi), Some(sec)) =>
+      Some(
+        days_from_civil(y, mo, d) * 86400 +
+        (h * 3600 + mi * 60 + sec).to_int64(),
+      )
+    _ => None
+  }
+}
+
+///|
+/// `date +%z` (+0900) からローカル zone を検出。失敗時は例外。
+async fn detect_local_zone() -> @time.Zone {
+  let (code, out) = @process.collect_stdout("date", ["+%z"])
+  if code != 0 {
+    fail("date +%z failed")
+  }
+  let s = out.text().trim().to_owned()
+  if s.length() != 5 {
+    fail("unexpected +%z output: \{s}")
+  }
+  let sign = if s[0:1] == "-" { -1 } else { 1 }
+  let hh = @string.parse_int(s[1:3])
+  let mm = @string.parse_int(s[3:5])
+  @time.fixed_zone("local", sign * (hh * 3600 + mm * 60))
+}
+
+///|
+/// Local zone like Deno/V8: resolved via `date +%z` (libc handles $TZ and
+/// /etc/localtime). Falls back to UTC when unavailable.
+async fn local_zone() -> @time.Zone {
+  detect_local_zone() catch {
+    _ => @time.utc_zone
+  }
+}
+
+///|
+fn pad2(n : Int) -> String {
+  if n < 10 {
+    "0\{n}"
+  } else {
+    "\{n}"
+  }
+}
+
+///|
+/// Format modifiedTime like `new Date(m).toLocaleString("ja-JP", {...})`:
+/// "YYYY/MM/DD HH:mm" in the given (local) timezone.
+fn format_mtime_in(iso : String, zone : @time.Zone) -> String {
+  match parse_iso_seconds(iso) {
+    Some(sec) => {
+      let zdt = @time.unix(sec, zone~) catch { _ => return "Invalid Date" }
+      "\{zdt.year()}/\{pad2(zdt.month())}/\{pad2(zdt.day())} \{pad2(zdt.hour())}:\{pad2(zdt.minute())}"
+    }
+    None => "Invalid Date"
+  }
+}
+
+///|
+fn is_word_char(c : Char) -> Bool {
+  ('a' <= c && c <= 'z') ||
+  ('A' <= c && c <= 'Z') ||
+  ('0' <= c && c <= '9') ||
+  c == '_'
+}
+
+///|
+/// sanitizeFileName 相当: 末尾拡張子除去 -> trim -> \s+->- -> -+->- ->
+/// 非[\wひらがなカタカナCJK._-]->_ -> 前後の[-_]除去 -> ".json" 付与。
+fn sanitize_file_name(original_name : String) -> String {
+  let n = original_name.char_length()
+  let mut name_part = original_name
+  // /\.[^.]+$/ : last '.' followed by >=1 non-dot
+  let mut last_dot = -1
+  for i, c in original_name {
+    if c == '.' {
+      last_dot = i
+    }
+  }
+  if last_dot >= 0 && last_dot < n - 1 {
+    name_part = original_name[:last_dot].to_owned()
+  }
+  let trimmed = name_part.trim().to_owned()
+  // \s+ -> '-' then -+ -> '-'
+  let step1 = StringBuilder()
+  let mut prev_space = false
+  for c in trimmed {
+    if c is ' ' ||
+      c is '\t' ||
+      c is '\r' ||
+      c is '\u000B' ||
+      c is '\u000C' ||
+      c is '\u00A0' {
+      prev_space = true
+    } else {
+      if prev_space {
+        step1.write_char('-')
+        prev_space = false
+      }
+      step1.write_char(c)
+    }
+  }
+  let s1 = step1.to_string()
+  let step2 = StringBuilder()
+  let mut prev_dash = false
+  for c in s1 {
+    if c == '-' {
+      if !prev_dash {
+        step2.write_char('-')
+      }
+      prev_dash = true
+    } else {
+      step2.write_char(c)
+      prev_dash = false
+    }
+  }
+  // [^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF._-] -> '_'
+  let step3 = StringBuilder()
+  for c in step2.to_string() {
+    let u = c.to_int()
+    let ok = is_word_char(c) ||
+      c == '.' ||
+      c == '-' ||
+      (0x3040 <= u && u <= 0x309F) ||
+      (0x30A0 <= u && u <= 0x30FF) ||
+      (0x4E00 <= u && u <= 0x9FAF)
+    if ok {
+      step3.write_char(c)
+    } else {
+      step3.write_char('_')
+    }
+  }
+  // ^[-_]+|[-_]+$ strip (both '-' and '_' at either end)
+  let s3 = step3.to_string()
+  let mut lo = 0
+  let mut hi = s3.char_length()
+  while lo < hi {
+    match s3.get_char(lo) {
+      Some('-') | Some('_') => lo = lo + 1
+      _ => break
+    }
+  }
+  while hi > lo {
+    match s3.get_char(hi - 1) {
+      Some('-') | Some('_') => hi = hi - 1
+      _ => break
+    }
+  }
+  let mut sanitized = s3[lo:hi].to_owned()
+  if sanitized == "" {
+    let fb = StringBuilder()
+    let limit = if n < 10 { n } else { 10 }
+    for i, c in original_name {
+      if i >= limit {
+        break
+      }
+      if is_word_char(c) {
+        fb.write_char(c)
+      } else {
+        fb.write_char('_')
+      }
+    }
+    sanitized = fb.to_string()
+    if sanitized == "" {
+      sanitized = "downloaded-file"
+    }
+  }
+  "\{sanitized}.json"
+}
+
+///|
+async fn download_file(
+  token : String,
+  file_id : String,
+  original_name : String,
+  output_dir : String?,
+) -> Unit {
+  let url = "\{DRIVE_API_URL}/files/\{file_id}?alt=media"
+  let (res, data) = @http.get(url, headers=auth_headers(token)) catch {
+    e => {
+      eprintln(
+        "ファイルのダウンロード中にエラーが発生しました (ID: \{file_id}): \{err_string(e)}",
+      )
+      return
+    }
+  }
+  if !(200 <= res.code && res.code < 300) {
+    let body = data.text() catch { _ => "" }
+    eprintln(
+      "ファイルのダウンロードに失敗しました (ID: \{file_id})。ステータス: \{res.code} \{body}",
+    )
+    return
+  }
+  let sanitized_name = sanitize_file_name(original_name)
+  let output_path = match output_dir {
+    Some(d) =>
+      @path.Path::Path(d).join(@path.Path::Path(sanitized_name)).to_string()
+    None => sanitized_name
+  }
+  match output_dir {
+    Some(d) =>
+      @fs.mkdir(d, recursive=true, allow_exist=true) catch {
+        e => {
+          eprintln(
+            "出力ディレクトリの作成に失敗しました: \{d} \{err_string(e)}",
+          )
+          return
+        }
+      }
+    None => ()
+  }
+  @fs.write_file(output_path, data) catch {
+    e => {
+      eprintln(
+        "ファイルのダウンロード中にエラーが発生しました (ID: \{file_id}): \{err_string(e)}",
+      )
+      return
+    }
+  }
+  println(
+    "ファイル \"\{original_name}\" を \"\{output_path}\" としてダウンロードしました。",
+  )
+}
+
+///|
+/// 番号入力版 Select.prompt 相当。有効な番号 -> Some(index)、
+/// EOF/無効入力/範囲外 -> None (選択キャンセル扱い)。
+async fn select_numbered(message : String, options : Array[String]) -> Int? {
+  println(message)
+  for i, name in options {
+    println("  \{i + 1}) \{name}")
+  }
+  @stdio.stdout.write(
+    "番号を入力してください (1-\{options.length()}): ",
+  ) catch {
+    _ => ()
+  }
+  let line = @stdio.stdin.read_until("\n") catch { _ => None }
+  let input = match line {
+    Some(s) => s.trim().to_owned()
+    None => return None
+  }
+  if input == "" {
+    return None
+  }
+  let n = @string.parse_int(input) catch { _ => return None }
+  if n >= 1 && n <= options.length() {
+    Some(n - 1)
+  } else {
+    eprintln("無効な番号です: \{input}")
+    None
+  }
+}
+
+///|
+async fn main {
+  let matches = @argparse.Command(
+    "ai-studio-download",
+    flags=[@argparse.FlagArg("help", short='h')],
+    options=[
+      @argparse.OptionArg("output", short='o'),
+      @argparse.OptionArg("keyFile"),
+    ],
+  ).parse(argv=@env.args()[1:]) catch {
+    _ => {
+      print_usage()
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  if matches.flags.get("help").unwrap_or(false) {
+    print_usage()
+    @sys.exit(0)
+  }
+  let output_dir = match matches.values {
+    { "output": [dir, ..], .. } => Some(dir)
+    _ => None
+  }
+  let key_file = match matches.values {
+    { "keyFile": [k, ..], .. } => Some(k)
+    _ => None
+  }
+  let cred_path = match key_file {
+    Some(kf) => {
+      if !@fs.can_read(kf) {
+        eprintln(
+          "指定されたサービスアカウントキーファイルが見つかりません: \{kf}",
+        )
+        @sys.exit(1)
+      }
+      kf
+    }
+    None => @env.get_env_var("GOOGLE_APPLICATION_CREDENTIALS").unwrap_or("")
+  }
+  if cred_path == "" {
+    auth_failed("GOOGLE_APPLICATION_CREDENTIALS is not set")
+  }
+  let token = get_access_token(cred_path)
+  let folder_id = match find_ai_studio_folder_id(token) {
+    Some(id) => id
+    None => {
+      @sys.exit(1)
+      abort("unreachable")
+    }
+  }
+  let files = list_files(token, folder_id)
+  if files.length() == 0 {
+    println(
+      "\"\{AI_STUDIO_FOLDER_NAME}\" フォルダ内にダウンロード可能なファイルが見つかりませんでした。",
+    )
+    @sys.exit(0)
+  }
+  let zone = local_zone()
+  let options : Array[String] = []
+  for file in files {
+    let date = format_mtime_in(file.modified_time, zone)
+    options.push("\{date} - \{file.name}")
+  }
+  match
+    select_numbered(
+      "ダウンロードする対話履歴を選択してください (↑↓キーで選択, Enterで決定):",
+      options,
+    ) {
+    Some(idx) => {
+      let file = files[idx]
+      println(
+        "\n\"\{file.name}\" (ID: \{file.id}) をダウンロードします...",
+      )
+      download_file(token, file.id, file.name, output_dir)
+    }
+    None =>
+      println(
+        "ファイルが選択されませんでした。処理を終了します。",
+      )
+  }
+}
