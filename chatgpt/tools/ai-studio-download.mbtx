@@ -505,7 +505,8 @@ async fn list_files(token : String, folder_id : String) -> Array[DriveFile] {
         eprintln(
           "ファイル一覧の取得中にエラーが発生しました: \{err_string(e)}",
         )
-        return files
+        // deno 版と同様、エラー時は部分結果を捨てて空配列を返す
+        return []
       }
     }
     match jmember(j, "files") {
