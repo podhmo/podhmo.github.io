@@ -1,0 +1,679 @@
+///|
+import {
+  "moonbitlang/core/env",
+  "moonbitlang/x@0.5.5/fs",
+  "moonbitlang/x@0.5.5/path",
+  "moonbitlang/x@0.5.5/sys",
+}
+
+///|
+const TRIGGER_WORD_GENERATE : String = "##SCAFFOLD_GENERATE##"
+
+///|
+const TRIGGER_WORD_PLAN : String = "##SCAFFOLD_PLAN##"
+
+///|
+let prompt_template : String =
+  #|【重要なお願い】
+  #|あなたは、私と対話するアシスタントです。
+  #|もし、私の**最後の発言**に特定のトリガーワードが含まれていたら、その直後のあなたの応答は特別なモードとして扱われます。
+  #|
+  #|1.  トリガーワード `##SCAFFOLD_GENERATE##` が含まれていた場合:
+  #|    scaffold生成モードとなり、以下の【出力形式のルール（生成モード）】に従って、ファイル構造と各ファイルの内容を厳密に出力してください。
+  #|
+  #|2.  トリガーワード `##SCAFFOLD_PLAN##` が含まれていた場合:
+  #|    プランニングモードとなり、以下の【出力形式のルール（プランニングモード）】に従って、提案するファイル名とその必要理由（または簡単な説明）を箇条書きで出力してください。
+  #|
+  #|トリガーワードが私の発言に含まれていない通常の対話では、これらの形式に縛られる必要はありません。**あなたの役割は、私の疑問に答えたり、設計や実装に関する相談に乗ったりすることです。**自由に回答してください。**ただし、この通常の対話モードにおいては、`##SCAFFOLD_GENERATE##` の指示があるまで、具体的な実装コード全体の生成は控えてください。**部分的なコードのアイデアや概念的な説明は問題ありませんが、完成されたコードの提供は生成モードの役割です。
+  #|
+  #|【出力形式のルール（生成モード）】
+  #|1.  各ファイルは、ファイルパスとその内容のペアで構成してください。
+  #|2.  ファイルパスは、プロジェクトのルートディレクトリからの相対パスで記述してください。
+  #|3.  ファイルの内容は、**4つのバッククォート（````）で囲まれたMarkdownのコードブロック**として記述してください。
+  #|    - コードブロックの開始行には、言語識別子（オプション）とコロン `:` に続けてファイルパスを記述してください。
+  #|    - 例: ````typescript:src/components/Button.tsx
+  #|4.  生成するファイルが複数ある場合は、上記1〜3のセットを繰り返してください。
+  #|5.  ファイルの内容にMarkdownのコードブロックが含まれる場合（例：README.md内にサンプルコードを記述する場合）、そのネストしたコードブロックは通常の3つのバッククォート（```）を使用してください。4つのバッククォートは最も外側のファイル単位のブロックでのみ使用します。
+  #|6.  出力の冒頭と末尾はdetailsタグで囲んでください。
+  #|
+  #|【出力形式のルール（プランニングモード）】
+  #|1.  提案する各ファイルについて、以下の情報を1行で記述してください。
+  #|    -   `ファイルパス - 簡単な説明や必要理由`
+  #|2.  ファイルパスは、プロジェクトのルートディレクトリからの相対パスで記述してください。
+  #|3.  箇条書き（例: `- ` や `* ` で始まる行）で列挙してください。
+  #|
+  #|【出力例（生成モード）】
+  #|私の依頼: 「挨拶をするPythonスクリプトと、その説明を書いたREADMEファイルを作って ##SCAFFOLD_GENERATE##」
+  #|
+  #|あなたの期待される回答形式:
+  #|
+  #|出力される内容は以下のようになります。
+  #|
+  #|<details>
+  #|
+  #|````python:hello.py
+  #|def greet(name):
+  #|  print(f"Hello, {name}!")
+  #|
+  #|if __name__ == "__main__":
+  #|  greet("World")
+  #|````
+  #|
+  #|````markdown:README.md
+  #|# 簡単な挨拶プログラム
+  #|
+  #|これは `hello.py` という名前のPythonスクリプトです。
+  #|実行すると挨拶メッセージを表示します。
+  #|
+  #|## 使い方
+  #|
+  #|```bash
+  #|python hello.py
+  #|```
+  #|
+  #|## コード例
+  #|
+  #|```python
+  #|def greet(name):
+  #|  print(f"Hello, {name}!")
+  #|```
+  #|````
+  #|
+  #|</details>
+  #|
+  #|【出力例（プランニングモード）】
+  #|私の依頼: 「簡単なブログシステムのファイル構成案を教えて ##SCAFFOLD_PLAN##」
+  #|
+  #|あなたの期待される回答形式:
+  #|
+  #|- `hello.py` - アプリケーションのエントリーポイント
+  #|- `README.md` - プロジェクトの説明ファイル
+  #|
+  #|これらの指示に従って、適切なモードで応答してください。
+
+///|
+let trigger_explanation : String =
+  #|
+  #|---
+  #|トリガーワードについて:
+  #|LLMへの指示の最後に以下のトリガーワードを含めることで、ツールの動作モードを指定できます。
+  #|
+  #|- `##SCAFFOLD_PLAN##`: プランニングモード。ファイル構成案（ファイルパスと説明）をLLMに出力させます。
+  #|                       `llm-scaffold plan` コマンドでこの出力を確認できます。
+  #|- `##SCAFFOLD_GENERATE##`: 生成モード。実際のファイル内容を含んだscaffoldをLLMに出力させます。
+  #|                         `llm-scaffold plan` (内容確認) や `llm-scaffold apply` コマンドで利用します。
+  #|
+  #|これらのトリガーワードの後のLLMの応答を、各コマンドの入力として与えてください。
+  #|---
+  #|  
+
+///|
+let help_text : String =
+  #|
+  #|llm-scaffold: A tool to scaffold projects from LLM outputs and prepare inputs for LLMs.
+  #|
+  #|Usage:
+  #|  llm-scaffold <command> [options]
+  #|
+  #|Commands:
+  #|  init                      Prints the recommended prompt for LLM interaction and
+  #|                            explains trigger words to stderr.
+  #|
+  #|  plan <input_file>         Parses the LLM output file and lists the planned files
+  #|                            (from ##SCAFFOLD_PLAN## mode) or files to be generated
+  #|                            (from ##SCAFFOLD_GENERATE## mode) without creating them.
+  #|                            - <input_file>: Path to the file containing LLM output.
+  #|
+  #|  apply <input_file> [target_directory]
+  #|                            Parses the LLM output file (expected to be in 'generate'
+  #|                            mode format) and applies the scaffold, creating files
+  #|                            and directories.
+  #|                            - <input_file>: Path to the file containing LLM output.
+  #|                            - [target_directory]: Optional. Directory to scaffold into.
+  #|                                                  Defaults to the current working directory.
+  #|
+  #|  encode <path_or_paths...>
+  #|                            Reads specified files and/or files within specified
+  #|                            directories and outputs their content in the format
+  #|                            expected by the LLM for generation tasks (quadruple backticks).
+  #|                            This is useful for providing existing code to an LLM.
+  #|                            - <path_or_paths...>: One or more file or directory paths.
+  #|                                                  Output paths are relative to the CWD if given as such,
+  #|                                                  or based on the directory structure provided.
+  #|                                                  Ignored Dirs: .git, node_modules, .vscode, .idea, dist, build, target, out
+  #|                                                  Example: 'encode src/component.ts README.md ./utils'
+  #|
+  #|  help, -h, --help          Show this help message.
+  #|
+  #|Example Workflow:
+  #|1. Get the prompt for instructing the LLM:
+  #|   llm-scaffold init > my_prompt.txt
+  #|   (Review trigger word explanations on stderr)
+  #|2. Use 'my_prompt.txt' with your LLM.
+  #|   - For planning: End your request with ##SCAFFOLD_PLAN##.
+  #|   - For direct generation: End your request with ##SCAFFOLD_GENERATE##.
+  #|3. Save LLM's response to a file (e.g., llm_plan_output.txt or llm_generate_output.txt).
+  #|4. Preview the LLM's plan or proposed file generation:
+  #|   llm-scaffold plan llm_generate_output.txt
+  #|5. Apply the scaffold (if output was for generation):
+  #|   llm-scaffold apply llm_generate_output.txt ./my_new_project
+  #|6. To provide existing code to LLM (e.g., for modification):
+  #|   llm-scaffold encode ./src/existing_module README.md > for_llm_input.txt
+  #|   (Then, paste content of for_llm_input.txt into your LLM prompt)
+  #|
+
+///|
+/// A file block proposed by the LLM (````lang:filepath ... ````).
+struct ScaffoldFile {
+  filepath : String
+  content : String
+}
+
+///|
+/// A plan item proposed by the LLM (`filepath - description`).
+struct ScaffoldPlanItem {
+  filepath : String
+  description : String
+}
+
+///|
+fn pjoin(a : String, b : String) -> String {
+  @path.Path::Path(a).join(@path.Path::Path(b)).to_string()
+}
+
+///|
+fn is_scaffold_space(c : Char) -> Bool {
+  match c {
+    ' '
+    | '\t'
+    | '\r'
+    | '\u000B'
+    | '\u000C'
+    | '\u00A0'
+    | '\u1680'
+    | '\u2000'
+    | '\u2001'
+    | '\u2002'
+    | '\u2003'
+    | '\u2004'
+    | '\u2005'
+    | '\u2006'
+    | '\u2007'
+    | '\u2008'
+    | '\u2009'
+    | '\u200A'
+    | '\u2028'
+    | '\u2029'
+    | '\u202F'
+    | '\u205F'
+    | '\u3000'
+    | '\uFEFF' => true
+    _ => false
+  }
+}
+
+///|
+fn is_lang_char(c : Char) -> Bool {
+  ('a' <= c && c <= 'z') ||
+  ('A' <= c && c <= 'Z') ||
+  ('0' <= c && c <= '9') ||
+  c == '-' ||
+  c == '_'
+}
+
+///|
+/// Parse a single plan line like `` `filename.txt` - description ``.
+/// Equivalent to the JS regex:
+///   /^[\s*-]*\s*(?<filepath>[^-\n]+?)\s*-\s*(?<description>.*)$/
+/// Returns (filepath, description) or None when the line does not match.
+fn parse_plan_line(line : String) -> (String, String)? {
+  // [\s*-]*\s* : strip leading whitespace, '*' and '-'
+  let n = line.char_length()
+  let mut i = 0
+  while i < n {
+    match line.get_char(i) {
+      Some(c) =>
+        if is_scaffold_space(c) || c == '*' || c == '-' {
+          i = i + 1
+        } else {
+          break
+        }
+      None => break
+    }
+  }
+  let rest = line[i:].to_owned()
+  // (?<filepath>[^-\n]+?)\s*-\s*(?<description>.*)
+  // filepath is a run of non-'-' chars; the first '-' is the separator.
+  // rest[0] is neither whitespace nor '*'/'-' so a match exists iff rest
+  // contains '-'.
+  let rn = rest.char_length()
+  let mut sep = -1
+  for j in 0..<rn {
+    match rest.get_char(j) {
+      Some('-') => {
+        sep = j
+        break
+      }
+      _ => ()
+    }
+  }
+  if sep < 0 {
+    return None
+  }
+  let filepath = rest[:sep]
+    .trim()
+    .to_owned()
+    .replace_all(old="`", new="")
+    .trim()
+    .to_owned()
+  let description = rest[sep + 1:].trim().to_owned()
+  Some((filepath, description))
+}
+
+///|
+fn parse_scaffold_plan(text : String) -> Array[ScaffoldPlanItem] {
+  let items : Array[ScaffoldPlanItem] = []
+  for line_view in text.trim().split("\n") {
+    match parse_plan_line(line_view.to_owned()) {
+      Some((filepath, description)) => items.push({ filepath, description, })
+      None => ()
+    }
+  }
+  items
+}
+
+///|
+/// Parse a ````lang:filepath header line (already checked startsWith("````")).
+/// Equivalent to /^````(?<language>[a-zA-Z0-9-_]*):(?<filepath>[^\n]+)$/.
+fn parse_generate_header(line : String) -> (String, String)? {
+  let rest = line[4:].to_owned()
+  let rn = rest.char_length()
+  for j in 0..<rn {
+    match rest.get_char(j) {
+      Some(':') => {
+        let filepath = rest[j + 1:].to_owned()
+        if filepath.length() == 0 {
+          return None
+        }
+        return Some((rest[:j].to_owned(), filepath))
+      }
+      Some(c) => if !is_lang_char(c) { return None }
+      None => return None
+    }
+  }
+  None
+}
+
+///|
+fn parse_scaffold_generate(text : String) -> Array[ScaffoldFile] {
+  let files : Array[ScaffoldFile] = []
+  let mut in_block = false
+  let mut current_file = ""
+  let buf : Array[String] = []
+  for line_view in text.split("\n") {
+    let line = line_view.to_owned()
+    if !in_block && line.has_prefix("````") {
+      match parse_generate_header(line) {
+        Some((_language, filepath)) => {
+          in_block = true
+          current_file = filepath.trim().to_owned()
+          buf.clear()
+        }
+        None => ()
+      }
+    } else if in_block && line.has_prefix("````") {
+      files.push({ filepath: current_file, content: buf.join("\n"), })
+      in_block = false
+      current_file = ""
+      buf.clear()
+    } else if in_block {
+      buf.push(line)
+    }
+  }
+  if in_block {
+    eprintln(
+      "Warning: Scaffold block for \"\{current_file}\" seems unclosed. Processing collected content.",
+    )
+    files.push({ filepath: current_file, content: buf.join("\n"), })
+  }
+  files
+}
+
+///|
+fn get_language_identifier(filepath : String) -> String {
+  let ext = @path.Path::Path(filepath).extname().to_lower().to_owned()
+  match ext {
+    ".ts" | ".tsx" => "typescript"
+    ".js" | ".jsx" => "javascript"
+    ".py" => "python"
+    ".md" => "markdown"
+    ".json" => "json"
+    ".html" => "html"
+    ".css" => "css"
+    ".java" => "java"
+    ".go" => "go"
+    ".rb" => "ruby"
+    ".php" => "php"
+    ".cs" => "csharp"
+    ".cpp" => "cpp"
+    ".c" => "c"
+    ".swift" => "swift"
+    ".kt" => "kotlin"
+    ".rs" => "rust"
+    ".scala" => "scala"
+    ".pl" => "perl"
+    ".lua" => "lua"
+    ".r" => "r"
+    ".sql" => "sql"
+    ".sh" => "bash"
+    ".ps1" => "powershell"
+    ".yml" | ".yaml" => "yaml"
+    ".xml" => "xml"
+    ".txt" => "text"
+    ".log" => "log"
+    ".env" => "text"
+    ".dockerfile" => "dockerfile"
+    ".gitignore" => "text"
+    _ => ""
+  }
+}
+
+///|
+fn print_help() -> Unit {
+  println(help_text)
+}
+
+///|
+fn handle_init() -> Unit {
+  println(prompt_template)
+  // Deno writes this block to stderr without a trailing newline; eprintln
+  // appends one. The extra byte is cosmetic (stderr is not diff-compared).
+  eprintln(trigger_explanation)
+}
+
+///|
+fn handle_plan(input_file : String) -> Unit {
+  if !@fs.path_exists(input_file) {
+    eprintln("Error: Input file not found at \"\{input_file}\"")
+    @sys.exit(1)
+  }
+  let content = @fs.read_file_to_string(input_file) catch {
+    IOError(m) => {
+      eprintln("An unexpected error occurred: \{m}")
+      @sys.exit(1)
+      ""
+    }
+  }
+  let text = content.trim().to_owned()
+  let plan_items = parse_scaffold_plan(text)
+  let files_to_generate = parse_scaffold_generate(text)
+  if plan_items.length() > 0 && files_to_generate.length() == 0 {
+    println("\n📝 Detected Plan Mode Output (Proposed by LLM):")
+    for item in plan_items {
+      println("  📄 \{item.filepath} - \{item.description}")
+    }
+  } else if files_to_generate.length() > 0 {
+    println(
+      "\n⚙️  Detected Generate Mode Output (Files to be created by 'apply' command):",
+    )
+    for file in files_to_generate {
+      println("  📁 \{file.filepath}")
+    }
+  } else {
+    eprintln(
+      "\n⚠️ Could not determine mode or parse LLM output effectively.",
+    )
+    println(
+      "Ensure the input file contains either the '\{TRIGGER_WORD_PLAN}' or '\{TRIGGER_WORD_GENERATE}' trigger and the correct format.",
+    )
+  }
+}
+
+///|
+fn handle_apply(input_file : String, target_dir : String?) -> Unit {
+  let project_root = match target_dir {
+    Some(d) => d
+    None => @env.current_dir().unwrap_or("")
+  }
+  if !@fs.path_exists(input_file) {
+    eprintln("Error: Input file not found at \"\{input_file}\"")
+    @sys.exit(1)
+  }
+  let content = @fs.read_file_to_string(input_file) catch {
+    IOError(m) => {
+      eprintln("An unexpected error occurred: \{m}")
+      @sys.exit(1)
+      ""
+    }
+  }
+  let text = content.trim().to_owned()
+  let files_to_generate = parse_scaffold_generate(text)
+  if files_to_generate.length() == 0 {
+    eprintln(
+      "Warning: No scaffold file blocks found in \"\{input_file}\" to apply.",
+    )
+    eprintln(
+      "Please check the input file and the '```language:filepath' format.",
+    )
+    eprintln(
+      "Ensure the file generation trigger ('\{TRIGGER_WORD_GENERATE}') was correctly included in the prompt.",
+    )
+    eprintln(
+      "Hint: The expected format for each file is:\n   ````language:path/to/file.ext\n   ...code...\n   ````",
+    )
+    return
+  }
+  @fs.create_dir(project_root) catch {
+    IOError(m) => {
+      eprintln("An unexpected error occurred: \{m}")
+      @sys.exit(1)
+    }
+  }
+  println("\n⚙️  Applying scaffold generation in \"\{project_root}\"...")
+  for file in files_to_generate {
+    if file.filepath == "" {
+      eprintln("Skipping file with empty path.")
+      continue
+    }
+    let target_path = pjoin(project_root, file.filepath)
+    let dir = @path.Path::Path(target_path).dirname().to_string()
+    if dir != "." && dir != project_root {
+      @fs.create_dir(dir) catch {
+        IOError(m) => {
+          eprintln("  ❌ Error writing file \"\{file.filepath}\": \{m}")
+          continue
+        }
+      }
+    }
+    @fs.write_string_to_file(target_path, file.content) catch {
+      IOError(m) => {
+        eprintln("  ❌ Error writing file \"\{file.filepath}\": \{m}")
+        continue
+      }
+    }
+    let rel = @path.Path::Path(target_path)
+      .relative(base=@path.Path::Path(project_root))
+      .to_string()
+    let display = if rel == "" {
+      @path.Path::Path(target_path).basename().to_owned()
+    } else {
+      rel
+    }
+    println("  ✅ Created: \{display}")
+  }
+  println("\nScaffold application complete.")
+}
+
+///|
+fn encode_file_to_string(
+  actual_file_path : String,
+  display_path : String,
+) -> String {
+  let content = @fs.read_file_to_string(actual_file_path) catch {
+    IOError(m) => {
+      eprintln("Error reading file \"\{actual_file_path}\" for encoding: \{m}")
+      return ""
+    }
+  }
+  let language = get_language_identifier(actual_file_path)
+  "````\{language}:\{display_path}\n\{content.trim_end().to_owned()}\n````\n\n"
+}
+
+///|
+fn encode_dir_to_string(
+  actual_dir_path : String,
+  display_base_path : String,
+) -> String {
+  let ignored_dirs = [
+    ".git", "node_modules", ".vscode", ".idea", "dist", "build", "target", "out",
+  ]
+  let mut encoded = ""
+  let entries = @fs.read_dir(actual_dir_path) catch {
+    IOError(m) => {
+      eprintln(
+        "Error reading directory \"\{actual_dir_path}\" for encoding: \{m}",
+      )
+      return ""
+    }
+  }
+  for entry_name in entries {
+    let current_actual_dir = pjoin(actual_dir_path, entry_name)
+    let raw_display = pjoin(display_base_path, entry_name)
+    let current_display_path = if raw_display.has_prefix("./") {
+      raw_display[2:].to_owned()
+    } else {
+      raw_display
+    }
+    let is_file = @fs.is_file(current_actual_dir) catch {
+      IOError(m) => {
+        eprintln(
+          "  ⚠️ Could not stat \{current_actual_dir}, skipping: \{m}",
+        )
+        continue
+      }
+    }
+    if is_file {
+      encoded = encoded +
+        encode_file_to_string(current_actual_dir, current_display_path)
+      continue
+    }
+    let is_dir = @fs.is_dir(current_actual_dir) catch {
+      IOError(m) => {
+        eprintln(
+          "  ⚠️ Could not stat \{current_actual_dir}, skipping: \{m}",
+        )
+        continue
+      }
+    }
+    if is_dir {
+      if ignored_dirs.contains(entry_name) {
+        eprintln("  ℹ️ Skipping directory: \{current_display_path}")
+        continue
+      }
+      encoded = encoded +
+        encode_dir_to_string(current_actual_dir, current_display_path)
+    }
+  }
+  encoded
+}
+
+///|
+fn handle_encode(paths : Array[String]) -> Unit {
+  if paths.length() == 0 {
+    eprintln(
+      "Error: At least one file or directory path is required for 'encode'.",
+    )
+    print_help()
+    @sys.exit(1)
+  }
+  let mut full_output = ""
+  for path_arg in paths {
+    let normalized = path_arg.replace_all(old="\\", new="/")
+    let normalized_display = if normalized.has_prefix("./") {
+      normalized[2:].to_owned()
+    } else {
+      normalized
+    }
+    if !@fs.path_exists(path_arg) {
+      eprintln("Error: Path not found \"\{path_arg}\"")
+      continue
+    }
+    let is_file = @fs.is_file(path_arg) catch {
+      IOError(m) => {
+        eprintln("Error processing path \"\{path_arg}\": \{m}")
+        continue
+      }
+    }
+    if is_file {
+      full_output = full_output +
+        encode_file_to_string(path_arg, normalized_display)
+      continue
+    }
+    let is_dir = @fs.is_dir(path_arg) catch {
+      IOError(m) => {
+        eprintln("Error processing path \"\{path_arg}\": \{m}")
+        continue
+      }
+    }
+    if is_dir {
+      let display_base = if path_arg == "." || path_arg == "./" {
+        ""
+      } else {
+        normalized_display
+      }
+      full_output = full_output + encode_dir_to_string(path_arg, display_base)
+      continue
+    }
+  }
+  if full_output.has_suffix("\n\n") {
+    // Deno writes the output minus one trailing '\n' without adding a
+    // newline; println re-adds it, so dropping two chars is equivalent.
+    println(full_output[:full_output.char_length() - 2].to_owned())
+  } else {
+    eprintln("No files found or processed for encoding.")
+  }
+}
+
+///|
+fn main {
+  let argv = @env.args()
+  let command = if argv.length() > 1 { Some(argv[1]) } else { None }
+  match command {
+    Some("init") => handle_init()
+    Some("plan") => {
+      let input = if argv.length() > 2 { argv[2] } else { "" }
+      if input == "" {
+        eprintln("Error: Input file path is required for 'plan' command.")
+        print_help()
+        @sys.exit(1)
+      }
+      handle_plan(input)
+    }
+    Some("apply") => {
+      let input = if argv.length() > 2 { argv[2] } else { "" }
+      if input == "" {
+        eprintln("Error: Input file path is required for 'apply' command.")
+        print_help()
+        @sys.exit(1)
+      }
+      let target = if argv.length() > 3 { Some(argv[3]) } else { None }
+      handle_apply(input, target)
+    }
+    Some("encode") => {
+      let rest : Array[String] = []
+      for i in 2..<argv.length() {
+        rest.push(argv[i])
+      }
+      handle_encode(rest)
+    }
+    Some("help") | Some("-h") | Some("--help") | None => {
+      print_help()
+      @sys.exit(0)
+    }
+    Some(c) => {
+      eprintln("Error: Unknown command \"\{c}\"")
+      print_help()
+      @sys.exit(1)
+    }
+  }
+}
