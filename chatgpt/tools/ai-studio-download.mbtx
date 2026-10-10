@@ -8,6 +8,7 @@ import {
   "moonbitlang/async/stdio",
   "moonbitlang/core/argparse",
   "moonbitlang/core/bigint",
+  "moonbitlang/core/encoding/percent",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/env",
   "moonbitlang/core/json",
@@ -318,31 +319,6 @@ fn make_jwt(
 }
 
 ///|
-/// application/x-www-form-urlencoded component encoding
-/// (URLSearchParams semantics: space -> '+', unreserved = alnum * - . _).
-fn url_encode(s : String) -> String {
-  let out = StringBuilder()
-  for byte in @utf8.encode(s) {
-    let c = byte.to_int()
-    if (c >= 'A'.to_int() && c <= 'Z'.to_int()) ||
-      (c >= 'a'.to_int() && c <= 'z'.to_int()) ||
-      (c >= '0'.to_int() && c <= '9'.to_int()) ||
-      c == '*'.to_int() ||
-      c == '-'.to_int() ||
-      c == '.'.to_int() ||
-      c == '_'.to_int() {
-      out.write_char(c.unsafe_to_char())
-    } else if c == ' '.to_int() {
-      out.write_char('+')
-    } else {
-      out.write_char("0123456789ABCDEF".get_char(c >> 4).unwrap())
-      out.write_char("0123456789ABCDEF".get_char(c & 0x0F).unwrap())
-    }
-  }
-  out.to_string()
-}
-
-///|
 fn auth_headers(token : String) -> Map[@http.CaseInsensitiveString, String] {
   let m : Map[@http.CaseInsensitiveString, String] = Map([])
   m["Authorization"] = "Bearer \{token}"
@@ -357,7 +333,7 @@ async fn drive_get(
   query : Array[(String, String)],
 ) -> Json {
   let qs = query
-    .map(fn(p) { url_encode(p.0) + "=" + url_encode(p.1) })
+    .map(fn(p) { @percent.encode(p.0) + "=" + @percent.encode(p.1) })
     .join("&")
   let url = "\{DRIVE_API_URL}\{path}?\{qs}"
   let (res, data) = @http.get(url, headers=auth_headers(token))
