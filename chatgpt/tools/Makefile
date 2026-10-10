@@ -1,4 +1,4 @@
 # install individual tools
 setup:
-	grep "deno install" README.md | bash -xe
+	grep "^mbtx-install" README.md | bash -xe
 .PHONY: setup
