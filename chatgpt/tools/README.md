@@ -16,5 +16,5 @@ deno install -f --global --allow-sys --allow-read --allow-write --allow-env=GOOG
 alias ai-studio-download="GOOGLE_APPLICATION_CREDENTIALS=~/.config/google/service-account-key.json ai-studio-download"
 mbtx-install ./normalize-text.mbtx
 mbtx-install ./github-copilot-cli-to-markdown.mbtx
-deno install -f --global --allow-net --allow-write -n sync-writing-skills ./sync-writing-skills.ts
+mbtx-install ./sync-writing-skills.mbtx
 ```

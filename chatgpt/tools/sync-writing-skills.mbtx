@@ -1,0 +1,321 @@
+///|
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/fs",
+  "moonbitlang/async/http",
+  "moonbitlang/async/io",
+  "moonbitlang/core/env",
+}
+
+///|
+/// Agent Skill リポジトリ/gist から markdown 群を取り寄せ、
+/// Prompt Template Clipper 形式 (chatgpt/Template.md と同じ) の
+/// WritingSkills.md を生成する。
+///
+/// 使い方: sync-writing-skills [output.md]
+
+///|
+const YOMIYASU_BASE : String = "https://raw.githubusercontent.com/nanaism/yomiyasu/main/skills/yomiyasu"
+
+///|
+const NATURAL_JAPANESE_BASE : String = "https://raw.githubusercontent.com/coji/natural-japanese/main/skills/natural-japanese"
+
+///|
+const JAPANESE_TECH_WRITING_GIST : String = "https://gist.githubusercontent.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d/raw"
+
+///|
+const I_HAVE_ADHD_BASE : String = "https://raw.githubusercontent.com/ayghri/i-have-adhd/main/skills/i-have-adhd"
+
+///|
+const STOP_AI_SLOP_JP_BASE : String = "https://raw.githubusercontent.com/iKora128/stop-ai-slop-jp/main"
+
+///|
+struct SkillFile {
+  url : String
+  title : String
+}
+
+///|
+struct SkillSource {
+  template_name : String
+  description : String
+  files : Array[SkillFile]
+}
+
+///|
+let header_chunk : String =
+  #|# 日本語推敲スキル
+  #|
+  #|https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14 で取り上げられた writing skill をプロンプトテンプレートにしたもの。
+  #|
+  #|ℹ️ このファイルは tools/sync-writing-skills.ts で生成している
+  #|
+
+///|
+let skill_0_description : String =
+  #|AIが生成した不自然な日本語を読みやすく直す writing skill。文の骨格(誰が・何を・どうした)や比喩動詞を具体化するタイプ。
+  #|
+  #|- 出典: https://github.com/nanaism/yomiyasu (MIT)
+  #|- 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
+  #|- scripts/ は python3 (標準ライブラリのみ) で実行可能。チャットで使う分には不要
+
+///|
+let skill_0_files : Array[SkillFile] = [
+  { url: "\{YOMIYASU_BASE}/SKILL.md", title: "SKILL.md", },
+  {
+    url: "\{YOMIYASU_BASE}/references/gemini-syntax.md",
+    title: "references/gemini-syntax.md",
+  },
+  {
+    url: "\{YOMIYASU_BASE}/references/slop-catalog.md",
+    title: "references/slop-catalog.md",
+  },
+  {
+    url: "\{YOMIYASU_BASE}/references/domains/tech.md",
+    title: "references/domains/tech.md",
+  },
+  {
+    url: "\{YOMIYASU_BASE}/references/domains/business.md",
+    title: "references/domains/business.md",
+  },
+  {
+    url: "\{YOMIYASU_BASE}/references/domains/essay.md",
+    title: "references/domains/essay.md",
+  },
+  {
+    url: "\{YOMIYASU_BASE}/scripts/yomiyasu_lint.py",
+    title: "scripts/yomiyasu_lint.py",
+  },
+  {
+    url: "\{YOMIYASU_BASE}/scripts/yomiyasu_diff.py",
+    title: "scripts/yomiyasu_diff.py",
+  },
+]
+
+///|
+let skill_1_description : String =
+  #|仕事の日本語文書を読みやすく書く・直す writing skill。「設計 → 執筆 → 検査 → 収束」の工程を持ち、文書タイプ別の型 (references/doctypes/) を含む。
+  #|
+  #|- 出典: https://github.com/coji/natural-japanese (MIT)
+  #|- 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
+  #|- scripts/ は uv run scripts/lint.py 等で実行 (PEP 723)。uv がない環境では references/manual-checklist.md を使う
+
+///|
+let skill_1_files : Array[SkillFile] = [
+  { url: "\{NATURAL_JAPANESE_BASE}/SKILL.md", title: "SKILL.md", },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/writing-constitution.md",
+    title: "references/writing-constitution.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/forbidden-patterns.md",
+    title: "references/forbidden-patterns.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/translationese.md",
+    title: "references/translationese.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/readability-principles.md",
+    title: "references/readability-principles.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/readability-antipatterns.md",
+    title: "references/readability-antipatterns.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/revision-guide.md",
+    title: "references/revision-guide.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/genre-notes.md",
+    title: "references/genre-notes.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/diagnose.md",
+    title: "references/diagnose.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/eval-rubric.md",
+    title: "references/eval-rubric.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/manual-checklist.md",
+    title: "references/manual-checklist.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/examples.md",
+    title: "references/examples.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/doctypes/minutes.md",
+    title: "references/doctypes/minutes.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/doctypes/report.md",
+    title: "references/doctypes/report.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/doctypes/guide.md",
+    title: "references/doctypes/guide.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/doctypes/memo.md",
+    title: "references/doctypes/memo.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/references/doctypes/slide.md",
+    title: "references/doctypes/slide.md",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/assets/style-profile-template.md",
+    title: "assets/style-profile-template.md",
+  },
+  { url: "\{NATURAL_JAPANESE_BASE}/scripts/lint.py", title: "scripts/lint.py", },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/scripts/outline.py",
+    title: "scripts/outline.py",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/scripts/semantic.py",
+    title: "scripts/semantic.py",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/scripts/terms.py",
+    title: "scripts/terms.py",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/scripts/textcore.py",
+    title: "scripts/textcore.py",
+  },
+  {
+    url: "\{NATURAL_JAPANESE_BASE}/scripts/calibrate.py",
+    title: "scripts/calibrate.py",
+  },
+]
+
+///|
+let skill_2_description : String =
+  #|日本語の技術文書・書籍原稿の文章規範。パラグラフライティング、論証の厳密さ、読み手の負荷、LLM っぽい空句の禁止などを定める。
+  #|
+  #|- 出典: https://gist.github.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d (Unlicense)
+  #|- 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
+
+///|
+let skill_2_files : Array[SkillFile] = [
+  { url: "\{JAPANESE_TECH_WRITING_GIST}/SKILL.md", title: "SKILL.md", },
+]
+
+///|
+let skill_3_description : String =
+  #|コーディングエージェントの応答を ADHD フレンドリーにする output style skill。回答を先に出し、手順を番号付きにし、脱線を抑えるタイプ。日本語推敲ではなく応答スタイルのルール集。
+  #|
+  #|- 出典: https://github.com/ayghri/i-have-adhd (MIT)
+  #|- SKILL.md のみで動作。リポジトリの python 群は評価ハーネス用でありチャット利用では不要
+
+///|
+let skill_3_files : Array[SkillFile] = [
+  { url: "\{I_HAVE_ADHD_BASE}/SKILL.md", title: "SKILL.md", },
+]
+
+///|
+let skill_4_description : String =
+  #|日本語の文章からAI臭を取り除く Claude Skill。立場 → 主体 → 構造 → 語彙 → 記号の優先順位でレビュー・修正するタイプ。hardikpandya/stop-slop の日本語版。
+  #|
+  #|- 出典: https://github.com/iKora128/stop-ai-slop-jp (MIT)
+  #|- 元版: https://github.com/hardikpandya/stop-slop
+
+///|
+let skill_4_files : Array[SkillFile] = [
+  { url: "\{STOP_AI_SLOP_JP_BASE}/SKILL.md", title: "SKILL.md", },
+  {
+    url: "\{STOP_AI_SLOP_JP_BASE}/references/phrases.md",
+    title: "references/phrases.md",
+  },
+  {
+    url: "\{STOP_AI_SLOP_JP_BASE}/references/structures.md",
+    title: "references/structures.md",
+  },
+  {
+    url: "\{STOP_AI_SLOP_JP_BASE}/references/examples.md",
+    title: "references/examples.md",
+  },
+]
+
+///|
+let skills : Array[SkillSource] = [
+  {
+    template_name: "yomiyasu",
+    description: skill_0_description,
+    files: skill_0_files,
+  },
+  {
+    template_name: "natural-japanese",
+    description: skill_1_description,
+    files: skill_1_files,
+  },
+  {
+    template_name: "japanese-tech-writing",
+    description: skill_2_description,
+    files: skill_2_files,
+  },
+  {
+    template_name: "i-have-adhd",
+    description: skill_3_description,
+    files: skill_3_files,
+  },
+  {
+    template_name: "stop-ai-slop-jp",
+    description: skill_4_description,
+    files: skill_4_files,
+  },
+]
+
+///|
+async fn fetch_text(url : String) -> String {
+  let (res, data) = @http.get(url)
+  if !(200 <= res.code && res.code < 300) {
+    fail("fetch failed: \{res.code} \{res.reason} (\{url})")
+  }
+  data.text()
+}
+
+///|
+/// 本文中の最長バッククォート列より長い fence を返す (最小3)。
+/// JS の /`{3,}/g 相当: 最長ランが 3 未満でも結果は `` ``` `` になる。
+fn fence_for(body : String) -> String {
+  let mut max_run = 0
+  let mut cur = 0
+  for c in body {
+    if c == '`' {
+      cur = cur + 1
+      if cur > max_run {
+        max_run = cur
+      }
+    } else {
+      cur = 0
+    }
+  }
+  let n = if max_run + 1 > 3 { max_run + 1 } else { 3 }
+  "`".repeat(n)
+}
+
+///|
+async fn main {
+  let argv = @env.args()
+  let output = if argv.length() > 1 { argv[1] } else { "../WritingSkills.md" }
+  let chunks : Array[String] = []
+  chunks.push(header_chunk)
+  for skill in skills {
+    chunks.push("## \{skill.template_name}\n\n\{skill.description}\n")
+    for file in skill.files {
+      let body = fetch_text(file.url).trim().to_owned()
+      let fence = fence_for(body)
+      let lang = if file.title.has_suffix(".py") { "py" } else { "md" }
+      chunks.push("\{fence}\{lang}:\{file.title}\n\{body}\n\{fence}")
+    }
+  }
+  let content = chunks.join("\n\n") + "\n"
+  @fs.write_file(output, content)
+  println("wrote \{output} (\{content.length()} chars)")
+}
