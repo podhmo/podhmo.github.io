@@ -68,7 +68,8 @@ fn html_escape(s : String) -> String {
 /// エントリは全ファイル。ディレクトリは末尾 `/`)。
 fn build_index(fs_dir : String, url_path : String) -> String {
   let names = @fs.read_dir(fs_dir).to_owned() catch { _ => [] }
-  names.sort()
+  // JS 互換の符号位置順で並べる (`Compare for String` は shortlex なので不可)
+  names.sort_by(fn(a, b) { a.lexical_compare(b) })
   let items = StringBuilder()
   if url_path != "/" {
     items.write_string("<li><a href=\"../\">../</a></li>\n")
