@@ -12,9 +12,12 @@
 
 ## install
 
-インストールには [mbtx-install](https://github.com/podhmo/mbtx-install) (要 `moon`) を使う。
+インストールには [mbtx-install](https://github.com/podhmo/mbtx-install) (要 `moon`) を使う。mbtx-install 自体は mooncakes から導入できる。
 
 ```bash
+# mbtx-install 自体のインストール
+moon install podhmo/mbtx-install/cmd/mbtx-install
+
 mbtx-install ./ai-studio-to-markdown.mbtx
 mbtx-install ./claude-code-to-markdown.mbtx
 mbtx-install ./llm-scaffold.mbtx
