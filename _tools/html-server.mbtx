@@ -164,16 +164,14 @@ async fn serve_conn(
 ) -> Unit {
   let head = match (tcp.read_until("\r\n\r\n") catch { _ => None }) {
     Some(h) => h
-    None => {
-      tcp.close()
-      return
-    }
+    // run_forever のコールバックは接続を close しない契約
+    // (f 終了時に自動 close される)
+    None => return
   }
   // request line: "GET /path HTTP/1.1"
   let first_line = head.split("\r\n").next().unwrap_or("")
   let parts = first_line.split(" ").to_array()
   if parts.length() < 2 {
-    tcp.close()
     return
   }
   let m = parts[0].to_owned()
@@ -183,14 +181,10 @@ async fn serve_conn(
   // favicon は元の挙動どおり常に 404
   if url_path == "/favicon.ico" {
     send_404(tcp, head_only)
-    tcp.close()
     return
   }
   match resolve_fs_path(root, url_path.to_owned()) {
-    None => {
-      send_404(tcp, head_only)
-      tcp.close()
-    }
+    None => send_404(tcp, head_only)
     Some(fs_path) => {
       let is_dir = @fs.is_dir(fs_path) catch { _ => false }
       if is_dir {
@@ -213,7 +207,6 @@ async fn serve_conn(
         let body = @fs.read_file_to_bytes(fs_path) catch {
           _ => {
             send_404(tcp, head_only)
-            tcp.close()
             return
           }
         }
@@ -226,7 +219,6 @@ async fn serve_conn(
           head_only,
         )
       }
-      tcp.close()
     }
   }
 }
