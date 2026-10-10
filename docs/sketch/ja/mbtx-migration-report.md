@@ -47,6 +47,12 @@ podhmo.github.io 内の deno 製 CLI ツール9本を MoonBit 製単一ファイ
 
 - このリポジトリに `docs/sketch/ja/` は未存在 → 新設。ファイル名はタスク内容から新規命名 (`mbtx-migration-report.md`)。
 
+### mbtx-install の公開と実バイナリ E2E (追記)
+
+- **計画外**: スタック積み上げ完了後に `podhmo/mbtx-install@0.1.0` が mooncakes に公開された (`moon install podhmo/mbtx-install/cmd/mbtx-install` で導入可能)。それまでは「インストールはこれから作る mbtx-install でやるつもり」が前提で、実行検証は `moon run` (WASI バックエンド) に留まっていた。
+- **追記時の検証**: 実際に mbtx-install で全9ツールをインストールし、**native バイナリ**として E2E 検証した。native こそ `create_dir` バックエンド差 (#126) が刺さる実行形態であり、`moon run` の検証では潰し切れなかった領域。
+- **結果**: 全9本合格。`llm-scaffold apply` の深いディレクトリ作成が deno 版と出力一致 (ensure_dir 修復が実バイナリで有効)、copilot の時系列ソートが異なる長さの timestamp で正順 (lexical_compare 有効)、sync-writing-skills の実 fetch が `moon run` 版とバイト一致、html-server が 200/301/404/HEAD/traversal 拒否を満たす。ai-studio-download は `--help` のみ (Drive E2E は資格情報待ち)。
+
 ## レビュー指摘と verdict
 
 レビュー子の指摘18件への採否と対応先。
