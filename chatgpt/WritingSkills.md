@@ -2,7 +2,7 @@
 
 https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14 で取り上げられた writing skill をプロンプトテンプレートにしたもの。
 
-ℹ️ このファイルは tools/sync-writing-skills.ts で生成している
+ℹ️ このファイルは tools/sync-writing-skills.mbtx で生成している
 
 
 ## yomiyasu
