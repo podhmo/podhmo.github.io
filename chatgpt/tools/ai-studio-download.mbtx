@@ -8,6 +8,7 @@ import {
   "moonbitlang/async@0.22.4/stdio",
   "moonbitlang/core/argparse",
   "moonbitlang/core/bigint",
+  "moonbitlang/core/encoding/base64",
   "moonbitlang/core/encoding/percent",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/env",
@@ -79,54 +80,6 @@ fn b64url_encode(data : BytesView) -> String {
 }
 
 ///|
-fn b64_value(c : Char) -> Int {
-  match c {
-    'A'..='Z' => c.to_int() - 'A'.to_int()
-    'a'..='z' => c.to_int() - 'a'.to_int() + 26
-    '0'..='9' => c.to_int() - '0'.to_int() + 52
-    '+' => 62
-    '/' => 63
-    '-' => 62
-    '_' => 63
-    _ => -1
-  }
-}
-
-///|
-/// Standard base64 decode (PEM payload). Ignores whitespace, '=' padding.
-fn b64_decode(s : String) -> Bytes {
-  let vals : Array[Int] = []
-  for c in s {
-    let v = b64_value(c)
-    if v >= 0 {
-      vals.push(v)
-    }
-  }
-  let out : Array[Byte] = []
-  let mut i = 0
-  while i + 4 <= vals.length() {
-    let acc = (vals[i] << 18) |
-      (vals[i + 1] << 12) |
-      (vals[i + 2] << 6) |
-      vals[i + 3]
-    out.push(((acc >> 16) & 0xFF).to_byte())
-    out.push(((acc >> 8) & 0xFF).to_byte())
-    out.push((acc & 0xFF).to_byte())
-    i = i + 4
-  }
-  let rem = vals.length() - i
-  if rem == 2 {
-    let acc = (vals[i] << 18) | (vals[i + 1] << 12)
-    out.push(((acc >> 16) & 0xFF).to_byte())
-  } else if rem == 3 {
-    let acc = (vals[i] << 18) | (vals[i + 1] << 12) | (vals[i + 2] << 6)
-    out.push(((acc >> 16) & 0xFF).to_byte())
-    out.push(((acc >> 8) & 0xFF).to_byte())
-  }
-  Bytes::from_array(out)
-}
-
-///|
 /// Extract the base64 payload of a PEM block and decode it to DER bytes.
 fn pem_decode(pem : String) -> Bytes? {
   let mut in_body = false
@@ -148,7 +101,9 @@ fn pem_decode(pem : String) -> Bytes? {
   if b64 == "" {
     None
   } else {
-    Some(b64_decode(b64))
+    Some(@base64.decode(b64)) catch {
+      _ => None
+    }
   }
 }
 
@@ -280,11 +235,6 @@ fn rsa_sign_sha256(
 }
 
 ///|
-fn json_stringify(j : Json) -> String {
-  j.stringify()
-}
-
-///|
 /// Build a service-account JWT (RS256) for the OAuth token exchange.
 fn make_jwt(
   iss : String,
@@ -295,22 +245,18 @@ fn make_jwt(
   n : @bigint.BigInt,
   d : @bigint.BigInt,
 ) -> String {
-  let header = json_stringify(
-    Json::object(
-      Map([("alg", Json::string("RS256")), ("typ", Json::string("JWT"))]),
-    ),
-  )
-  let payload = json_stringify(
-    Json::object(
-      Map([
-        ("iss", Json::string(iss)),
-        ("scope", Json::string(scope)),
-        ("aud", Json::string(aud)),
-        ("iat", Json::number(iat.to_double())),
-        ("exp", Json::number(exp.to_double())),
-      ]),
-    ),
-  )
+  let header = Json::object(
+    Map([("alg", Json::string("RS256")), ("typ", Json::string("JWT"))]),
+  ).stringify()
+  let payload = Json::object(
+    Map([
+      ("iss", Json::string(iss)),
+      ("scope", Json::string(scope)),
+      ("aud", Json::string(aud)),
+      ("iat", Json::number(iat.to_double())),
+      ("exp", Json::number(exp.to_double())),
+    ]),
+  ).stringify()
   let signing_input = b64url_encode(@utf8.encode(header)[:]) +
     "." +
     b64url_encode(@utf8.encode(payload)[:])
@@ -526,43 +472,17 @@ async fn list_files(token : String, folder_id : String) -> Array[DriveFile] {
 }
 
 ///|
-/// days_from_civil (Howard Hinnant): y-m-d -> days since 1970-01-01.
-fn days_from_civil(y : Int, m : Int, d : Int) -> Int64 {
-  let yy = if m <= 2 { y - 1 } else { y }
-  let y2 = if yy >= 0 { yy } else { yy - 399 }
-  let era = y2 / 400
-  let yoe = yy - era * 400
-  let mp = (m + 9) % 12
-  let doy = (153 * mp + 2) / 5 + d - 1
-  let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
-  (era * 146097 + doe - 719468).to_int64()
-}
-
-///|
 /// Parse "2026-10-09T12:34:56.789Z" style ISO8601 (UTC) to unix seconds.
+/// The suffix (fractional seconds / zone) is ignored; the datetime part is
+/// treated as UTC.
 fn parse_iso_seconds(s : String) -> Int64? {
   if s.length() < 19 {
     return None
   }
-  fn two(a : StringView) -> Int? {
-    let v = @string.parse_int(a) catch { _ => return None }
-    Some(v)
+  let dt : @time.PlainDateTime = @string.from_str(s[:19]) catch {
+    _ => return None
   }
-
-  let y = two(s[0:4])
-  let mo = two(s[5:7])
-  let d = two(s[8:10])
-  let h = two(s[11:13])
-  let mi = two(s[14:16])
-  let sec = two(s[17:19])
-  match (y, mo, d, h, mi, sec) {
-    (Some(y), Some(mo), Some(d), Some(h), Some(mi), Some(sec)) =>
-      Some(
-        days_from_civil(y, mo, d) * 86400 +
-        (h * 3600 + mi * 60 + sec).to_int64(),
-      )
-    _ => None
-  }
+  Some(dt.to_unix_second())
 }
 
 ///|
