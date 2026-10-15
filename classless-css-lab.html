@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Classless CSS Lab</title>
+<style>
+:root{--bg:#f6f6f4;--fg:#1d1f21;--mut:#686c70;--line:#d8d9d6;--card:#fff;--acc:#0a6cff;--ok:#12805c;--ng:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#17181a;--fg:#e8e8e6;--mut:#9a9da0;--line:#34373a;--card:#202225;--acc:#6aa5ff;--ok:#4cc79b;--ng:#ff8272}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;display:flex;flex-direction:column;height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.5rem .75rem;border-bottom:1px solid var(--line);background:var(--card)}
+.bar h1{font-size:15px;margin:0 .5rem 0 0;font-weight:700}
+select,button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:.4rem .6rem;min-height:36px}
+select{flex:1 1 11rem;min-width:0;max-width:20rem}
+button{cursor:pointer}
+button[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff}
+.seg{display:flex;gap:.25rem}
+.seg button{padding:.4rem .55rem}
+.sp{flex:1}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+details.info{border-bottom:1px solid var(--line);background:var(--card)}
+details.info>summary{padding:.5rem .75rem;cursor:pointer;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.info .body{padding:0 .75rem .75rem;max-width:62rem}
+.info p{margin:.25rem 0}
+.tags{display:flex;gap:.35rem;flex-wrap:wrap;margin:.4rem 0}
+.tag{border:1px solid var(--line);border-radius:99px;padding:0 .55rem;font-size:12px;color:var(--mut)}
+.badge{font-size:12px;padding:0 .5rem;border-radius:4px;border:1px solid currentColor}
+.ok{color:var(--ok)}.ng{color:var(--ng)}.mut{color:var(--mut)}
+a{color:var(--acc)}
+.stage{flex:1;min-height:0;overflow:auto;padding:.75rem;display:flex;justify-content:center;background:repeating-conic-gradient(var(--bg) 0 25%,color-mix(in srgb,var(--bg) 94%,var(--fg)) 0 50%) 0 0/20px 20px}
+.frame{width:var(--w,100%);max-width:100%;height:100%;border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden;box-shadow:0 1px 0 var(--line)}
+.frame iframe,.card iframe{width:100%;height:100%;border:0;display:block;background:#fff}
+.stage.full{padding:0}.stage.full .frame{border:0;border-radius:0}
+.stage.cmp{justify-content:flex-start;gap:.75rem;align-items:stretch}
+.card{flex:0 0 auto;width:var(--w);display:flex;flex-direction:column;gap:.35rem}
+.card header{display:flex;gap:.4rem;align-items:center;min-height:28px}
+.card header button{font-weight:700;padding:.15rem .5rem;min-height:28px}
+.card .frame{flex:1;width:100%}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1>Classless CSS Lab</h1>
+  <select id="picker" aria-label="フレームワーク"></select>
+  <div class="seg">
+    <button id="prev" aria-label="前へ">‹</button>
+    <button id="next" aria-label="次へ">›</button>
+  </div>
+  <div class="seg" id="widths" role="group" aria-label="表示幅">
+    <button data-w="320">320</button>
+    <button data-w="375">375</button>
+    <button data-w="430">430</button>
+    <button data-w="768">768</button>
+    <button data-w="full">全幅</button>
+  </div>
+  <div class="seg" role="group" aria-label="表示モード">
+    <button data-m="single">単体</button>
+    <button data-m="cmp">並べて比較</button>
+  </div>
+</div>
+
+<details class="info" id="info">
+  <summary><strong id="iname"></strong> <span id="istat"></span></summary>
+  <div class="body">
+    <p id="idesc"></p>
+    <div class="tags" id="itags"></div>
+    <p class="mut" id="inote"></p>
+    <p><a id="iurl" target="_blank" rel="noopener">公式サイト / リポジトリ</a></p>
+  </div>
+</details>
+
+<div class="stage" id="stage"></div>
+
+<!-- 検証用の共通HTML。iframe内に流し込むので、フレームワークのCSSは親UIに影響しない -->
+<template id="sample">
+<header>
+  <nav>
+    <a href="#top">ホーム</a> |
+    <a href="#top">ドキュメント</a> |
+    <a href="#top">お問い合わせ</a>
+  </nav>
+  <h1>やさしい文章のための小さな道具</h1>
+  <p>同じDOMに対して読み込むCSSだけを差し替えています。ヘッダー内の見出しと段落の扱いも見比べどころです。</p>
+  <p><a href="#top"><button type="button">はじめる</button></a></p>
+</header>
+
+<main id="top">
+  <section>
+    <h2>見出しと本文</h2>
+    <p>本文です。<a href="#top">リンク</a>、<strong>太字</strong>、<em>強調</em>、<mark>マーク</mark>、<del>削除</del>、<ins>挿入</ins>、<code>inline code</code>、<kbd>Ctrl</kbd>+<kbd>K</kbd>、<abbr title="HyperText Markup Language">HTML</abbr>、H<sub>2</sub>O、x<sup>2</sup>、<q>短い引用</q>、<cite>出典</cite>、<small>小さい文字</small>。</p>
+    <p>日本語の長めの段落です。行間、文字サイズ、行の長さが読みやすいかを確認します。吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。何でも薄暗いじめじめした所でニャーニャー泣いていた事だけは記憶している。</p>
+    <p>折り返しテスト: https://example.com/a/very/long/path/that/never/breaks/unless/the/framework/sets/overflow-wrap/anywhere?query=abcdefghijklmnopqrstuvwxyz0123456789</p>
+    <h3>見出し3</h3><h4>見出し4</h4><h5>見出し5</h5><h6>見出し6</h6>
+    <blockquote>引用ブロック。左罫線、字下げ、背景色の扱いが違います。<footer>— 出典の例</footer></blockquote>
+    <hr>
+  </section>
+
+  <section>
+    <h2>リスト</h2>
+    <ul><li>りんご</li><li>みかん<ul><li>温州</li><li>不知火</li></ul></li><li>ぶどう</li></ul>
+    <ol><li>材料を用意する</li><li>混ぜる<ol><li>粉類</li><li>液体</li></ol></li><li>焼く</li></ol>
+    <dl><dt>用語</dt><dd>説明文がここに入ります。</dd><dt>別の用語</dt><dd>こちらも説明です。</dd></dl>
+  </section>
+
+  <section>
+    <h2>フォーム</h2>
+    <form onsubmit="return false">
+      <fieldset>
+        <legend>プロフィール</legend>
+        <label for="n">名前</label>
+        <input id="n" type="text" placeholder="山田 太郎">
+        <label for="e">メール</label>
+        <input id="e" type="email" placeholder="taro@example.com">
+        <label for="p">パスワード</label>
+        <input id="p" type="password" value="secret">
+        <label for="nu">数値</label>
+        <input id="nu" type="number" value="3">
+        <label for="d">日付</label>
+        <input id="d" type="date">
+        <label for="s">選択</label>
+        <select id="s"><option>東京</option><option>大阪</option><option>福岡</option></select>
+        <label for="r">スライダー</label>
+        <input id="r" type="range">
+        <label for="f">ファイル</label>
+        <input id="f" type="file">
+        <label for="m">メモ</label>
+        <textarea id="m" rows="3" placeholder="自由記入"></textarea>
+      </fieldset>
+      <fieldset>
+        <legend>オプション</legend>
+        <label><input type="checkbox" checked> 利用規約に同意する</label>
+        <label><input type="checkbox"> ニュースを受け取る</label>
+        <label><input type="radio" name="r1" checked> プランA</label>
+        <label><input type="radio" name="r1"> プランB</label>
+      </fieldset>
+      <p><progress value="60" max="100">60%</progress> <meter value="0.7">70%</meter></p>
+      <p>
+        <button type="submit">送信</button>
+        <button type="reset">リセット</button>
+        <button type="button" disabled>無効</button>
+        <input type="submit" value="input[submit]">
+      </p>
+    </form>
+  </section>
+
+  <section>
+    <h2>テーブル（横幅テスト）</h2>
+    <table>
+      <caption>四半期の売上</caption>
+      <thead><tr><th>項目</th><th>第1四半期</th><th>第2四半期</th><th>第3四半期</th><th>第4四半期</th><th>備考</th></tr></thead>
+      <tbody>
+        <tr><td>Alpha</td><td>1,200</td><td>1,340</td><td>1,510</td><td>1,780</td><td>順調</td></tr>
+        <tr><td>Beta</td><td>980</td><td>1,020</td><td>870</td><td>1,100</td><td>要確認</td></tr>
+        <tr><td>Gamma</td><td>450</td><td>520</td><td>610</td><td>705</td><td>新規</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>コード・画像・折りたたみ</h2>
+<pre><code>function hello(name) {
+  // 長い行は横スクロールになるか、はみ出すか
+  return `Hello, ${name}! This is a very long line meant to overflow narrow screens.`;
+}</code></pre>
+    <figure>
+      <img alt="800x300 のダミー画像" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='300'%3E%3Crect width='100%25' height='100%25' fill='%23889'/%3E%3Ctext x='50%25' y='50%25' fill='%23fff' font-size='36' text-anchor='middle' dominant-baseline='middle'%3E800 x 300%3C/text%3E%3C/svg%3E">
+      <figcaption>図: 幅800pxの画像。狭い画面でも収まるか。</figcaption>
+    </figure>
+    <details>
+      <summary>詳細を開く</summary>
+      <p>details / summary の見た目と開閉マーカーも確認ポイントです。</p>
+    </details>
+  </section>
+</main>
+
+<footer>
+  <hr>
+  <p><small>フッターの小さい文字。&copy; 2026 Example</small></p>
+</footer>
+</template>
+
+<script>
+const FW = [
+  {id:'none', name:'素のHTML（ブラウザ標準）', css:[], dark:'—', struct:'不要',
+   desc:'比較の基準。何も読み込まない状態です。', note:'ブラウザ既定のマージンや行間のままなので、他との差が一番わかります。', url:'https://developer.mozilla.org/docs/Web/HTML'},
+
+  {id:'water', name:'Water.css', css:['https://cdn.jsdelivr.net/npm/water.css@2/out/water.css'], dark:'自動', struct:'不要',
+   desc:'読み込むだけで整う定番。最小限の装飾で、フォーム部品がそろって見やすいです。', note:'light.css / dark.css の固定版もあります。', url:'https://watercss.kognise.dev/'},
+
+  {id:'pico', name:'Pico CSS (classless)', css:['https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css'], dark:'自動', struct:'main / header / footer',
+   desc:'整ったフォームと余白が特徴。classless版は main・header・footer を中央寄せコンテナとして扱います。', note:'通常版（pico.min.css）はクラス前提のコンポーネントも含みます。ここでは classless 版を使用。', url:'https://picocss.com/docs/classless'},
+
+  {id:'sakura', name:'Sakura.css', css:['https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css'], dark:'別ファイル', struct:'不要',
+   desc:'読み物向けの落ち着いたタイポグラフィ。装飾が少なく、本文中心のページに向きます。', note:'sakura-dark.css など配色違いの派生ファイルがあります。', url:'https://oxal.org/projects/sakura/'},
+
+  {id:'simple', name:'Simple.css', css:['https://cdn.simplecss.org/simple.min.css'], dark:'自動', struct:'header / main / footer 推奨',
+   desc:'ブログや小規模サイト向け。header・nav・main・footer の構造で見た目が整います。', note:'CSS変数でアクセント色を変えられます。', url:'https://simplecss.org/'},
+
+  {id:'mvp', name:'MVP.css', css:['https://unpkg.com/mvp.css@1.12/mvp.css'], dark:'自動', struct:'header / main / section / footer',
+   desc:'試作ページ向け。header 内の nav と見出しがヒーロー風に、section が横並びのカードになります。', note:'section の並び方は幅によって変わるので、モバイルでの確認が特に大切です。', url:'https://andybrewer.github.io/mvp/'},
+
+  {id:'new', name:'new.css', css:['https://fonts.xz.style/serve/inter.css','https://cdn.jsdelivr.net/npm/@exampledev/new.css@1.1.2/new.min.css'], dark:'自動', struct:'不要',
+   desc:'Inter フォントと控えめな配色で整える軽量CSS。Web フォントを併用します。', note:'フォント配信元に接続できないと、フォントだけ既定に戻ります。', url:'https://newcss.net/'},
+
+  {id:'bamboo', name:'Bamboo', css:['https://unpkg.com/bamboo.css'], dark:'自動', struct:'不要',
+   desc:'小さくて素直。CSS変数で色を調整しやすい classless CSS です。', note:'', url:'https://rilwis.github.io/bamboo/'},
+
+  {id:'marx', name:'Marx', css:['https://cdn.jsdelivr.net/npm/marx-css/css/marx.min.css'], dark:'なし', struct:'不要',
+   desc:'シンプルで読みやすい、設定不要のスタイルシート。ミニマルな見た目です。', note:'', url:'https://mblode.github.io/marx/'},
+
+  {id:'tacit', name:'Tacit', css:['https://cdn.jsdelivr.net/npm/tacit-css@1.8.1/dist/tacit.min.css'], dark:'なし', struct:'不要',
+   desc:'試作用の「静かな」CSS。素のHTMLをそのまま見やすくします。', note:'', url:'https://yegor256.github.io/tacit/'},
+
+  {id:'holiday', name:'Holiday.css', css:['https://cdn.jsdelivr.net/npm/holiday.css@0.11.2'], dark:'自動', struct:'不要',
+   desc:'休日の午後のような読みやすさを目指した、タイポグラフィ寄りのCSSです。', note:'', url:'https://holidaycss.js.org/'},
+
+  {id:'bahunya', name:'Bahunya', css:['https://cdn.jsdelivr.net/gh/kimeiga/bahunya/dist/bahunya.min.css'], dark:'自動', struct:'不要',
+   desc:'極小サイズで、ダークモードにも対応する classless CSS です。', note:'', url:'https://github.com/Kimeiga/bahunya'},
+
+  {id:'awsm', name:'awsm.css', css:['https://unpkg.com/awsm.css/dist/awsm.min.css'], dark:'自動', struct:'header / main / footer 推奨',
+   desc:'セマンティックHTMLだけで整う CSS。構造タグを使うほど見た目が良くなります。', note:'', url:'https://igoradamenko.github.io/awsm.css/'},
+
+  // ここから下は元のリストにあったもの。URLの実在は未確認なので、読み込みに失敗すると「読込失敗」と表示されます
+  {id:'oat', name:'Oat CSS', css:['https://unpkg.com/@knadh/oat/oat.min.css'], dark:'要確認', struct:'不要',
+   desc:'セマンティックタグにそのまま当たる軽量UIキット。動的部品用のJSは別にあります。', note:'ここではCSSのみ読み込み。', url:'https://github.com/knadh/oat'},
+
+  {id:'blades', name:'Blades', css:['https://cdn.jsdelivr.net/npm/@anyblades/blades@2/css/blades.min.css'], dark:'要確認', struct:'要確認',
+   desc:'Pico 系の classless 路線を引き継ぐとされるCSS。', note:'パスが違う場合は読込失敗になります。公式のCDN URLに差し替えてください。', url:'https://github.com/anyblades'},
+
+  {id:'sparkstone', name:'Sparkstone CSS', css:['https://cdn.jsdelivr.net/npm/@sparkstone/css/dist/classless.css'], dark:'要確認', struct:'要確認',
+   desc:'classless ビルド（dist/classless.css）を持つCSS。', note:'パスが違う場合は読込失敗になります。', url:'https://www.npmjs.com/search?q=sparkstone%20css'},
+
+  {id:'daft', name:'Daft CSS', css:['https://unpkg.com/daftcss@2/dist/daft.min.css'], dark:'要確認', struct:'要確認',
+   desc:'セマンティック重視をうたうCSS。', note:'パスが違う場合は読込失敗になります。', url:'https://www.npmjs.com/search?q=daftcss'}
+];
+
+const $ = s => document.querySelector(s);
+const state = { fw:'water', w:'375', m:'single' };
+const tpl = $('#sample').innerHTML;
+const byId = id => FW.find(f => f.id === id) || FW[0];
+
+function readHash(){
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (p.get('fw')) state.fw = p.get('fw');
+  if (p.get('w')) state.w = p.get('w');
+  if (p.get('m')) state.m = p.get('m');
+  if (!window.matchMedia('(min-width:720px)').matches && !p.get('w')) state.w = 'full';
+}
+function writeHash(){ history.replaceState(null,'','#'+new URLSearchParams(state)); }
+
+function srcdoc(f){
+  const links = f.css.map(h => `<link rel="stylesheet" href="${h}" data-fw onload="this.dataset.ok=1">`).join('');
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${f.name}</title>${links}</head><body>${tpl}</body></html>`;
+}
+
+// iframe を読み込み、CSS読込成否と横スクロールの有無を返す
+function mount(f, iframe, cb){
+  iframe.addEventListener('load', () => {
+    try{
+      const d = iframe.contentDocument, root = d.documentElement;
+      const total = d.querySelectorAll('link[data-fw]').length;
+      const okN = d.querySelectorAll('link[data-fw][data-ok]').length;
+      cb({ failed: total - okN, over: root.scrollWidth > root.clientWidth + 1, sw: root.scrollWidth, cw: root.clientWidth });
+    }catch(e){ cb(null); }
+  }, { once:true });
+  iframe.title = f.name;
+  iframe.srcdoc = srcdoc(f);
+}
+
+function statusHTML(r){
+  if (!r) return '<span class="badge mut">判定不可</span>';
+  const css = r.failed ? '<span class="badge ng">CSS読込失敗</span>' : '<span class="badge ok">CSS読込OK</span>';
+  const ov = r.over ? `<span class="badge ng">横スクロール発生 (${r.sw}px &gt; ${r.cw}px)</span>` : '<span class="badge ok">横はみ出しなし</span>';
+  return css + ' ' + ov;
+}
+
+function render(){
+  const f = byId(state.fw);
+  $('#picker').value = f.id;
+  document.querySelectorAll('[data-w]').forEach(b => b.setAttribute('aria-pressed', b.dataset.w === state.w));
+  document.querySelectorAll('[data-m]').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === state.m));
+  $('#iname').textContent = f.name;
+  $('#idesc').textContent = f.desc;
+  $('#inote').textContent = f.note;
+  $('#iurl').href = f.url;
+  $('#itags').innerHTML = [`ダークモード: ${f.dark}`, `構造: ${f.struct}`, `CSS: ${f.css.length}本`].map(t => `<span class="tag">${t}</span>`).join('');
+  $('#istat').innerHTML = '';
+  $('#info').style.display = state.m === 'cmp' ? 'none' : '';
+
+  const stage = $('#stage');
+  stage.innerHTML = '';
+  const full = state.w === 'full';
+  stage.className = 'stage' + (state.m === 'cmp' ? ' cmp' : (full ? ' full' : ''));
+  const w = full ? '375' : state.w;
+
+  if (state.m === 'single'){
+    stage.style.setProperty('--w', full ? '100%' : w + 'px');
+    const fr = document.createElement('div'); fr.className = 'frame';
+    const ifr = document.createElement('iframe'); fr.appendChild(ifr); stage.appendChild(fr);
+    mount(f, ifr, r => { $('#istat').innerHTML = statusHTML(r); });
+  } else {
+    stage.style.setProperty('--w', w + 'px');
+    FW.forEach(x => {
+      const c = document.createElement('div'); c.className = 'card';
+      c.innerHTML = '<header><button type="button"></button><span></span></header><div class="frame"><iframe loading="lazy"></iframe></div>';
+      const btn = c.querySelector('button'); btn.textContent = x.name;
+      btn.onclick = () => { state.fw = x.id; state.m = 'single'; update(); };
+      stage.appendChild(c);
+      mount(x, c.querySelector('iframe'), r => {
+        c.querySelector('span').innerHTML = r ? (r.failed ? '<span class="badge ng">読込失敗</span>' : '') + (r.over ? '<span class="badge ng">横はみ出し</span>' : '') : '';
+      });
+    });
+  }
+}
+
+function update(){ writeHash(); render(); }
+function step(d){ const i = FW.findIndex(f => f.id === state.fw); state.fw = FW[(i + d + FW.length) % FW.length].id; update(); }
+
+$('#picker').innerHTML = FW.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+$('#picker').onchange = e => { state.fw = e.target.value; update(); };
+$('#prev').onclick = () => step(-1);
+$('#next').onclick = () => step(1);
+document.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { state.w = b.dataset.w; update(); });
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { state.m = b.dataset.m; update(); });
+document.addEventListener('keydown', e => {
+  if (/SELECT|INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  if (e.key === 'ArrowLeft') step(-1);
+  if (e.key === 'ArrowRight') step(1);
+});
+$('#info').open = window.matchMedia('(min-width:720px)').matches;
+readHash();
+render();
+</script>
+</body>
+</html>
