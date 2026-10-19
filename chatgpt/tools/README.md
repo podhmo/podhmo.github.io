@@ -9,6 +9,7 @@
 - llm-scaffold          -- llmの生成結果をそのままディレクトリに転写したい
 - normalize-text        -- テキストのエスケープシーケンス変換とホームディレクトリの正規化
 - sync-writing-skills   -- 文章推敲系 Agent Skill (github/gist) の markdown を取り寄せて ../WritingSkills.md を生成
+  - `make test-yomiyasu` で ../WritingSkills.md から yomiyasu のファイルを抽出し、scripts/ が python3 (標準ライブラリのみ) で動くことを確かめられる
 
 ## install
 
