@@ -5,6 +5,7 @@ import {
   "moonbitlang/async@0.22.4/http",
   "moonbitlang/async@0.22.4/io",
   "moonbitlang/core/env",
+  "moonbitlang/core/json",
 }
 
 ///|
@@ -12,34 +13,38 @@ import {
 /// Prompt Template Clipper 形式 (chatgpt/Template.md と同じ) の
 /// WritingSkills.md を生成する。
 ///
+/// github リポジトリは GitHub API (git/trees) でディレクトリの中身を列挙して取り込む。
+/// API の rate limit (未認証 60 req/h) に当たる場合は GITHUB_TOKEN を設定する。
+///
 /// 使い方: sync-writing-skills [output.md]
 
 ///|
-const YOMIYASU_BASE : String = "https://raw.githubusercontent.com/nanaism/yomiyasu/main/skills/yomiyasu"
-
-///|
-const NATURAL_JAPANESE_BASE : String = "https://raw.githubusercontent.com/coji/natural-japanese/main/skills/natural-japanese"
-
-///|
-const JAPANESE_TECH_WRITING_GIST : String = "https://gist.githubusercontent.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d/raw"
-
-///|
-const I_HAVE_ADHD_BASE : String = "https://raw.githubusercontent.com/ayghri/i-have-adhd/main/skills/i-have-adhd"
-
-///|
-const STOP_AI_SLOP_JP_BASE : String = "https://raw.githubusercontent.com/iKora128/stop-ai-slop-jp/main"
-
-///|
-struct SkillFile {
-  url : String
-  title : String
+/// 取り込み元
+enum Origin {
+  /// github リポジトリの dir 配下で、拡張子が exts のいずれかに一致するファイルすべて。
+  /// excludes は dir からの相対パスの prefix。SKILL.md は常に先頭に置く。
+  GitHubDir(
+    repo~ : String,
+    branch~ : String,
+    dir~ : String,
+    exts~ : Array[String],
+    excludes~ : Array[String]
+  )
+  /// 単一ファイル
+  Url(url~ : String, title~ : String)
 }
 
 ///|
 struct SkillSource {
   template_name : String
   description : String
-  files : Array[SkillFile]
+  origin : Origin
+}
+
+///|
+struct SkillFile {
+  url : String
+  title : String
 }
 
 ///|
@@ -57,40 +62,8 @@ let skill_0_description : String =
   #|
   #|- 出典: https://github.com/nanaism/yomiyasu (MIT)
   #|- 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
-  #|- scripts/ は python3 (標準ライブラリのみ) で実行可能。チャットで使う分には不要
-
-///|
-let skill_0_files : Array[SkillFile] = [
-  { url: "\{YOMIYASU_BASE}/SKILL.md", title: "SKILL.md", },
-  {
-    url: "\{YOMIYASU_BASE}/references/gemini-syntax.md",
-    title: "references/gemini-syntax.md",
-  },
-  {
-    url: "\{YOMIYASU_BASE}/references/slop-catalog.md",
-    title: "references/slop-catalog.md",
-  },
-  {
-    url: "\{YOMIYASU_BASE}/references/domains/tech.md",
-    title: "references/domains/tech.md",
-  },
-  {
-    url: "\{YOMIYASU_BASE}/references/domains/business.md",
-    title: "references/domains/business.md",
-  },
-  {
-    url: "\{YOMIYASU_BASE}/references/domains/essay.md",
-    title: "references/domains/essay.md",
-  },
-  {
-    url: "\{YOMIYASU_BASE}/scripts/yomiyasu_lint.py",
-    title: "scripts/yomiyasu_lint.py",
-  },
-  {
-    url: "\{YOMIYASU_BASE}/scripts/yomiyasu_diff.py",
-    title: "scripts/yomiyasu_diff.py",
-  },
-]
+  #|- scripts/ は python3 (標準ライブラリのみ) で実行可能。ファイルに書き出せば SKILL.md の lint → check run → verify がそのまま動く (tools/test_yomiyasu.py で確認)。チャットのみで使う場合は SKILL.md の「Pythonが実行できない環境」の手順で代替する
+  #|- scripts/yomiyasu_hook.py は Claude Code のフック用のため含めない
 
 ///|
 let skill_1_description : String =
@@ -101,110 +74,11 @@ let skill_1_description : String =
   #|- scripts/ は uv run scripts/lint.py 等で実行 (PEP 723)。uv がない環境では references/manual-checklist.md を使う
 
 ///|
-let skill_1_files : Array[SkillFile] = [
-  { url: "\{NATURAL_JAPANESE_BASE}/SKILL.md", title: "SKILL.md", },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/writing-constitution.md",
-    title: "references/writing-constitution.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/forbidden-patterns.md",
-    title: "references/forbidden-patterns.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/translationese.md",
-    title: "references/translationese.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/readability-principles.md",
-    title: "references/readability-principles.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/readability-antipatterns.md",
-    title: "references/readability-antipatterns.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/revision-guide.md",
-    title: "references/revision-guide.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/genre-notes.md",
-    title: "references/genre-notes.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/diagnose.md",
-    title: "references/diagnose.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/eval-rubric.md",
-    title: "references/eval-rubric.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/manual-checklist.md",
-    title: "references/manual-checklist.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/examples.md",
-    title: "references/examples.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/doctypes/minutes.md",
-    title: "references/doctypes/minutes.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/doctypes/report.md",
-    title: "references/doctypes/report.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/doctypes/guide.md",
-    title: "references/doctypes/guide.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/doctypes/memo.md",
-    title: "references/doctypes/memo.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/references/doctypes/slide.md",
-    title: "references/doctypes/slide.md",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/assets/style-profile-template.md",
-    title: "assets/style-profile-template.md",
-  },
-  { url: "\{NATURAL_JAPANESE_BASE}/scripts/lint.py", title: "scripts/lint.py", },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/scripts/outline.py",
-    title: "scripts/outline.py",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/scripts/semantic.py",
-    title: "scripts/semantic.py",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/scripts/terms.py",
-    title: "scripts/terms.py",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/scripts/textcore.py",
-    title: "scripts/textcore.py",
-  },
-  {
-    url: "\{NATURAL_JAPANESE_BASE}/scripts/calibrate.py",
-    title: "scripts/calibrate.py",
-  },
-]
-
-///|
 let skill_2_description : String =
   #|日本語の技術文書・書籍原稿の文章規範。パラグラフライティング、論証の厳密さ、読み手の負荷、LLM っぽい空句の禁止などを定める。
   #|
   #|- 出典: https://gist.github.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d (Unlicense)
   #|- 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
-
-///|
-let skill_2_files : Array[SkillFile] = [
-  { url: "\{JAPANESE_TECH_WRITING_GIST}/SKILL.md", title: "SKILL.md", },
-]
 
 ///|
 let skill_3_description : String =
@@ -214,11 +88,6 @@ let skill_3_description : String =
   #|- SKILL.md のみで動作。リポジトリの python 群は評価ハーネス用でありチャット利用では不要
 
 ///|
-let skill_3_files : Array[SkillFile] = [
-  { url: "\{I_HAVE_ADHD_BASE}/SKILL.md", title: "SKILL.md", },
-]
-
-///|
 let skill_4_description : String =
   #|日本語の文章からAI臭を取り除く Claude Skill。立場 → 主体 → 構造 → 語彙 → 記号の優先順位でレビュー・修正するタイプ。hardikpandya/stop-slop の日本語版。
   #|
@@ -226,48 +95,58 @@ let skill_4_description : String =
   #|- 元版: https://github.com/hardikpandya/stop-slop
 
 ///|
-let skill_4_files : Array[SkillFile] = [
-  { url: "\{STOP_AI_SLOP_JP_BASE}/SKILL.md", title: "SKILL.md", },
-  {
-    url: "\{STOP_AI_SLOP_JP_BASE}/references/phrases.md",
-    title: "references/phrases.md",
-  },
-  {
-    url: "\{STOP_AI_SLOP_JP_BASE}/references/structures.md",
-    title: "references/structures.md",
-  },
-  {
-    url: "\{STOP_AI_SLOP_JP_BASE}/references/examples.md",
-    title: "references/examples.md",
-  },
-]
-
-///|
 let skills : Array[SkillSource] = [
   {
     template_name: "yomiyasu",
     description: skill_0_description,
-    files: skill_0_files,
+    origin: GitHubDir(
+      repo="nanaism/yomiyasu",
+      branch="main",
+      dir="skills/yomiyasu",
+      exts=[".md", ".txt", ".py"],
+      excludes=["LICENSE", "UNICODE-LICENSE.txt", "scripts/yomiyasu_hook.py"],
+    ),
   },
   {
     template_name: "natural-japanese",
     description: skill_1_description,
-    files: skill_1_files,
+    origin: GitHubDir(
+      repo="coji/natural-japanese",
+      branch="main",
+      dir="skills/natural-japanese",
+      exts=[".md", ".py"],
+      excludes=["scripts/fixtures/"],
+    ),
   },
   {
     template_name: "japanese-tech-writing",
     description: skill_2_description,
-    files: skill_2_files,
+    origin: Url(
+      url="https://gist.githubusercontent.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d/raw/SKILL.md",
+      title="SKILL.md",
+    ),
   },
   {
     template_name: "i-have-adhd",
     description: skill_3_description,
-    files: skill_3_files,
+    origin: GitHubDir(
+      repo="ayghri/i-have-adhd",
+      branch="main",
+      dir="skills/i-have-adhd",
+      exts=[".md"],
+      excludes=[],
+    ),
   },
   {
     template_name: "stop-ai-slop-jp",
     description: skill_4_description,
-    files: skill_4_files,
+    origin: GitHubDir(
+      repo="iKora128/stop-ai-slop-jp",
+      branch="main",
+      dir="",
+      exts=[".md"],
+      excludes=["README", "CHANGELOG"],
+    ),
   },
 ]
 
@@ -278,6 +157,67 @@ async fn fetch_text(url : String) -> String {
     fail("fetch failed: \{res.code} \{res.reason} (\{url})")
   }
   data.text()
+}
+
+///|
+fn github_headers() -> Map[@http.CaseInsensitiveString, String] {
+  let m : Map[@http.CaseInsensitiveString, String] = Map([])
+  m["User-Agent"] = "sync-writing-skills"
+  m["Accept"] = "application/vnd.github+json"
+  match @env.get_env_var("GITHUB_TOKEN") {
+    Some(token) if token != "" => m["Authorization"] = "Bearer \{token}"
+    _ => ()
+  }
+  m
+}
+
+///|
+/// GitHub API (git/trees?recursive=1) で dir 配下のファイルを列挙する。
+async fn list_github_dir(
+  repo~ : String,
+  branch~ : String,
+  dir~ : String,
+  exts~ : Array[String],
+  excludes~ : Array[String],
+) -> Array[SkillFile] {
+  let url = "https://api.github.com/repos/\{repo}/git/trees/\{branch}?recursive=1"
+  let (res, data) = @http.get(url, headers=github_headers())
+  if !(200 <= res.code && res.code < 300) {
+    let body = data.text() catch { _ => "" }
+    fail("github api error: \{res.code} \{res.reason} (\{url}) \{body}")
+  }
+  let prefix = if dir == "" { "" } else { dir + "/" }
+  let titles : Array[String] = []
+  guard data.json() is { "tree": Array(entries), .. } else {
+    fail("unexpected github api response (\{url})")
+  }
+  for entry in entries {
+    guard entry is { "type": String("blob"), "path": String(path), .. } else {
+      continue
+    }
+    guard path.has_prefix(prefix) else { continue }
+    let title = path[prefix.length():].to_owned()
+    if exts.iter().any(fn(ext) { title.has_suffix(ext) }) &&
+      !excludes.iter().any(fn(ex) { title.has_prefix(ex) }) {
+      titles.push(title)
+    }
+  }
+  // tree はパス順で返る。SKILL.md だけ先頭に移す
+  let titles = [
+    ..titles.filter(fn(t) { t == "SKILL.md" }),
+    ..titles.filter(fn(t) { t != "SKILL.md" }),
+  ]
+  let raw_base = "https://raw.githubusercontent.com/\{repo}/\{branch}/\{prefix}"
+  titles.map(fn(title) { { url: raw_base + title, title, } })
+}
+
+///|
+async fn resolve_files(origin : Origin) -> Array[SkillFile] {
+  match origin {
+    GitHubDir(repo~, branch~, dir~, exts~, excludes~) =>
+      list_github_dir(repo~, branch~, dir~, exts~, excludes~)
+    Url(url~, title~) => [{ url, title, }]
+  }
 }
 
 ///|
@@ -296,6 +236,17 @@ fn fence_for(body : String) -> String {
 }
 
 ///|
+fn lang_for(title : String) -> String {
+  if title.has_suffix(".py") {
+    "py"
+  } else if title.has_suffix(".txt") {
+    "txt"
+  } else {
+    "md"
+  }
+}
+
+///|
 async fn main {
   let argv = @env.args()
   let output = if argv.length() > 1 { argv[1] } else { "../WritingSkills.md" }
@@ -303,11 +254,12 @@ async fn main {
   chunks.push(header_chunk)
   for skill in skills {
     chunks.push("## \{skill.template_name}\n\n\{skill.description}\n")
-    for file in skill.files {
+    for file in resolve_files(skill.origin) {
       let body = fetch_text(file.url).trim().to_owned()
       let fence = fence_for(body)
-      let lang = if file.title.has_suffix(".py") { "py" } else { "md" }
-      chunks.push("\{fence}\{lang}:\{file.title}\n\{body}\n\{fence}")
+      chunks.push(
+        "\{fence}\{lang_for(file.title)}:\{file.title}\n\{body}\n\{fence}",
+      )
     }
   }
   let content = chunks.join("\n\n") + "\n"
