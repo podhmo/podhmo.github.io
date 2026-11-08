@@ -58,12 +58,11 @@ let header_chunk : String =
 
 ///|
 let skill_0_description : String =
-  #|AIが生成した不自然な日本語を読みやすく直す writing skill。文の骨格(誰が・何を・どうした)や比喩動詞を具体化するタイプ。
+  #|AIが生成した不自然な日本語を読みやすく直す writing skill。文の骨格(誰が・何を・どうした)や比喩動詞を具体化するタイプ。本体 yomiyasu をスキルの大きさに上限がある環境向けに短くしたもの。
   #|
-  #|- 出典: https://github.com/nanaism/yomiyasu (MIT)
+  #|- 出典: https://github.com/nanaism/yomiyasu-mini (MIT)
   #|- 参考: https://qiita.com/inoyu-qiita/items/0ffe6e74ecaf3aaa8b14
-  #|- scripts/ は python3 (標準ライブラリのみ) で実行可能。ファイルに書き出せば SKILL.md の lint → check run → verify がそのまま動く (tools/test_yomiyasu.py で確認)。チャットのみで使う場合は SKILL.md の「Pythonが実行できない環境」の手順で代替する
-  #|- scripts/yomiyasu_hook.py は Claude Code のフック用のため含めない
+  #|- scripts/ は python3 (標準ライブラリのみ) で実行可能。ファイルに書き出せば SKILL.md の mini_check がそのまま動く (tools/test_yomiyasu.py で確認)。Python がないか実行を断られたときは SKILL.md Step 3 の手順で代替する
 
 ///|
 let skill_1_description : String =
@@ -97,14 +96,14 @@ let skill_4_description : String =
 ///|
 let skills : Array[SkillSource] = [
   {
-    template_name: "yomiyasu",
+    template_name: "yomiyasu-mini",
     description: skill_0_description,
     origin: GitHubDir(
-      repo="nanaism/yomiyasu",
+      repo="nanaism/yomiyasu-mini",
       branch="main",
-      dir="skills/yomiyasu",
+      dir="skills/yomiyasu-mini",
       exts=[".md", ".txt", ".py"],
-      excludes=["LICENSE", "UNICODE-LICENSE.txt", "scripts/yomiyasu_hook.py"],
+      excludes=["LICENSE", "UNICODE-LICENSE.txt"],
     ),
   },
   {
