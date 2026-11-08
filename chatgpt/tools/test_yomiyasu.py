@@ -1,9 +1,9 @@
-"""WritingSkills.md に埋め込んだ yomiyasu が python3 (標準ライブラリのみ) で実行できることを確かめるスモークテスト。
+"""WritingSkills.md に埋め込んだ yomiyasu-mini が python3 (標準ライブラリのみ) で実行できることを確かめるスモークテスト。
 
-../WritingSkills.md の「## yomiyasu」節から fence ブロック (```py:scripts/... など) を
+../WritingSkills.md の「## yomiyasu-mini」節から fence ブロック (```py:scripts/... など) を
 一時ディレクトリへファイルとして書き出し、SKILL.md に書かれた手順
-(lint → check run → verify) をそのまま実行する。ネットワークには触れない。
-推敲の質は検査しない (書き直すのは LLM で、scripts は候補の提示と実行記録を担うだけ)。
+(mini_check --source --final) をそのまま実行する。ネットワークには触れない。
+推敲の質は検査しない (書き直すのは LLM で、scripts は意味が変わる恐れの提示を担うだけ)。
 
 使い方:
     python3 test_yomiyasu.py
@@ -22,13 +22,13 @@ from pathlib import Path
 WRITING_SKILLS_MD = Path(
     os.environ.get("WRITING_SKILLS_MD", Path(__file__).resolve().parent.parent / "WritingSkills.md")
 )
-SECTION = "yomiyasu"
+SECTION = "yomiyasu-mini"
 REQUIRED = [
     "SKILL.md",
-    "scripts/yomiyasu_lint.py",
-    "scripts/yomiyasu_check.py",
-    "scripts/yomiyasu_diff.py",
-    "scripts/markdown_visibility.py",
+    "scripts/mini_check.py",
+    "scripts/mini_diff_1.py",
+    "scripts/mini_diff_2.py",
+    "scripts/mini_diff_3.py",
 ]
 
 FENCE_OPEN = re.compile(r"^(`{3,})[a-z]+:(\S+)$")
@@ -65,10 +65,10 @@ def extract_section(text, name):
     return files
 
 
-class YomiyasuScriptsTest(unittest.TestCase):
+class YomiyasuMiniScriptsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.tmp = Path(tempfile.mkdtemp(prefix="yomiyasu-"))
+        cls.tmp = Path(tempfile.mkdtemp(prefix="yomiyasu-mini-"))
         cls.skill = cls.tmp / "skill"
         cls.files = extract_section(WRITING_SKILLS_MD.read_text(encoding="utf-8"), SECTION)
         for path, body in cls.files.items():
@@ -112,32 +112,23 @@ class YomiyasuScriptsTest(unittest.TestCase):
         missing = sorted(p for p in set(REQUIRED + refs) if p not in self.files)
         self.assertEqual(missing, [], f"{WRITING_SKILLS_MD} の ## {SECTION} 節に無いファイル")
 
-    def test_lint(self):
-        out = self.run_script("yomiyasu_lint.py", "src.md")
-        self.assertIn("見直し候補:", out)
-
-    def test_check_run_then_verify(self):
+    def test_check(self):
         out = self.run_script(
-            "yomiyasu_check.py", "run",
+            "mini_check.py",
             "--source", "src.md", "--final", "final.md",
-            "--stance=説明", "--fact-gaps",
         )
         line = out.splitlines()[1]
-        self.assertTrue(line.startswith("yomiyasu-check: executed via=run "), line)
-        self.assertIn("checks=lint,diff", line)
+        self.assertTrue(line.startswith("yomiyasu-mini-check: ran "), line)
+        self.assertIn("meaning_risk=", line)
+        self.assertEqual(out.splitlines()[-1], line)
 
-        out = self.run_script("yomiyasu_check.py", "verify", "--final", "final.md")
-        line = out.splitlines()[1]
-        self.assertTrue(line.startswith("yomiyasu-check: executed via=verify "), line)
+    def test_check_stdin(self):
+        # 返答だけで渡す場合 (片側をファイルにできない) の経路。両側の stdin は不可
+        out = self.run_script("mini_check.py", "--source", "-", "--final", "final.md", stdin=SOURCE)
+        self.assertIn("yomiyasu-mini-check: ran ", out)
 
-    def test_check_run_stdin(self):
-        # 返答だけで渡す場合 (ファイルを作らない) の経路
-        body = f"<<<yomiyasu:original>>>\n{SOURCE}<<<yomiyasu:final>>>\n{FINAL}"
-        out = self.run_script("yomiyasu_check.py", "run", "--stdin", "--fact-gaps", stdin=body)
-        self.assertIn("yomiyasu-check: executed via=run ", out)
-
-        out = self.run_script("yomiyasu_check.py", "verify", "--final", "-", stdin=FINAL)
-        self.assertIn("yomiyasu-check: executed via=verify ", out)
+        out = self.run_script("mini_check.py", "--source", "src.md", "--final", "-", stdin=FINAL)
+        self.assertIn("yomiyasu-mini-check: ran ", out)
 
 
 if __name__ == "__main__":
